@@ -7,6 +7,9 @@ const (
 	LONG_OPEN State = iota
 	SHORT_OPEN
 
+	ConfirmationWaitingBiggerThanEntry
+	ConfirmationWaitingSmallerThanEntry
+
 	CancelSignal
 
 	ClosedByStop
