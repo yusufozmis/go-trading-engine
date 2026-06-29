@@ -10,3 +10,10 @@ var (
 	ErrInvalidPlanMode         = errors.New("invalid plan mode")
 	ErrExpectedSinglePlan      = errors.New("expected single plan")
 )
+
+// Backtest Errors
+var (
+	ErrNilBacktester       = errors.New("nil backtester")
+	ErrNilStrategy         = errors.New("nil strategy")
+	ErrInvalidSetOfCandles = errors.New("invalid set of candles")
+)
