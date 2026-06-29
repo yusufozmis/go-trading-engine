@@ -48,3 +48,14 @@ type Positions struct {
 	Amount     float64
 	State      State
 }
+
+type PerformanceResults struct {
+	Symbol    string
+	TimeFrame string
+
+	TPcount int
+	SLcount int
+
+	Profit float64
+	Loss   float64
+}
