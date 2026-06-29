@@ -37,3 +37,14 @@ type PlanUpdate struct {
 	Mode  PlanUpdateMode
 	Plans []EntryPlan
 }
+
+type Positions struct {
+	Symbol     string
+	TimeFrame  string
+	Timestamp  int64
+	EntryPrice float64
+	StopLoss   float64
+	TP         float64
+	Amount     float64
+	State      State
+}
