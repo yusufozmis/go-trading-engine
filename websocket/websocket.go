@@ -5,15 +5,20 @@ import (
 	"sync"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
 	"github.com/yusufozmis/trading-library/types"
 )
 
 type Flags int64
+type Provider int64
 
 const (
 	AllCandleData Flags = iota
 	ClosedOnly
+)
+
+const (
+	Binance Provider = iota
+	Okx
 )
 
 type subKey struct {
@@ -25,7 +30,7 @@ type CandleStream struct {
 	symbols    []string
 	timeframes []string
 
-	exchange ccxtpro.IExchange
+	exchange *Exchange
 	stream   chan types.Candle
 
 	flag Flags
@@ -51,8 +56,18 @@ type CandleStream struct {
 	done chan struct{}
 }
 
-func NewCandleStream(exchange ccxtpro.IExchange, symbols []string,
-	timeframes []string, flag Flags) *CandleStream {
+func NewCandleStream(provider Provider, symbols []string,
+	timeframes []string, flag Flags) (*CandleStream, error) {
+
+	exchange, err := NewExchange(provider)
+	if err != nil {
+		return nil, err
+	}
+
+	if err := exchange.validate(); err != nil {
+		return nil, err
+	}
+
 	return &CandleStream{
 		symbols:       symbols,
 		timeframes:    timeframes,
@@ -61,7 +76,7 @@ func NewCandleStream(exchange ccxtpro.IExchange, symbols []string,
 		flag:          flag,
 		activeSymbols: make(map[subKey]uint64),
 		done:          make(chan struct{}),
-	}
+	}, nil
 }
 
 func createKey(symbol, timeframe string) subKey {
@@ -157,7 +172,7 @@ func (s *CandleStream) Unsubscribe(symbol, timeframe string) error {
 		return nil
 	}
 
-	_, err := s.exchange.UnWatchOHLCV(
+	_, err := s.exchange.iExchange.UnWatchOHLCV(
 		symbol,
 		ccxt.WithUnWatchOHLCVTimeframe(timeframe),
 	)
@@ -183,7 +198,7 @@ func (s *CandleStream) Close() error {
 
 		close(s.done)
 
-		if errs := s.exchange.Close(); len(errs) > 0 {
+		if errs := s.exchange.iExchange.Close(); len(errs) > 0 {
 			s.closeErr = errors.Join(errs...)
 		}
 
@@ -206,7 +221,7 @@ func (s *CandleStream) watch(key subKey, token uint64) {
 			return
 		}
 
-		candles, err := s.exchange.WatchOHLCV(
+		candles, err := s.exchange.iExchange.WatchOHLCV(
 			key.symbol,
 			ccxt.WithWatchOHLCVTimeframe(key.timeframe),
 		)
@@ -231,18 +246,7 @@ func (s *CandleStream) watch(key subKey, token uint64) {
 					return
 				}
 
-				if !s.emit(types.Candle{
-					Symbol:    key.symbol,
-					Timeframe: key.timeframe,
-					Timestamp: previous.Timestamp,
-					PriceData: types.Prices{
-						OpenPrice:  previous.Open,
-						HighPrice:  previous.High,
-						LowPrice:   previous.Low,
-						ClosePrice: previous.Close,
-					},
-					Volume: previous.Volume,
-				}) {
+				if !s.emit(s.exchange.wrapOHLCV(key.symbol, key.timeframe, previous)) {
 					return
 				}
 			}
@@ -256,18 +260,7 @@ func (s *CandleStream) watch(key subKey, token uint64) {
 			return
 		}
 
-		if !s.emit(types.Candle{
-			Symbol:    key.symbol,
-			Timeframe: key.timeframe,
-			Timestamp: current.Timestamp,
-			PriceData: types.Prices{
-				OpenPrice:  current.Open,
-				HighPrice:  current.High,
-				LowPrice:   current.Low,
-				ClosePrice: current.Close,
-			},
-			Volume: current.Volume,
-		}) {
+		if !s.emit(s.exchange.wrapOHLCV(key.symbol, key.timeframe, current)) {
 			return
 		}
 

@@ -6,21 +6,21 @@ import (
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
+	"github.com/yusufozmis/trading-library/types"
 )
 
 type Exchange struct {
-	exchange ccxtpro.IExchange
+	iExchange ccxtpro.IExchange
 }
 
-func NewBinance() *Exchange {
-	return &Exchange{
-		exchange: ccxtpro.NewBinance(nil),
-	}
-}
-
-func NewOkx() *Exchange {
-	return &Exchange{
-		exchange: ccxtpro.NewOkx(nil),
+func NewExchange(provider Provider) (*Exchange, error) {
+	switch provider {
+	case Binance:
+		return &Exchange{iExchange: ccxtpro.NewBinance(nil)}, nil
+	case Okx:
+		return &Exchange{iExchange: ccxtpro.NewOkx(nil)}, nil
+	default:
+		return nil, fmt.Errorf("")
 	}
 }
 
@@ -30,15 +30,31 @@ func (exchange *Exchange) validate() error {
 		return fmt.Errorf("")
 	}
 
-	if exchange.exchange == nil {
+	if exchange.iExchange == nil {
 		return fmt.Errorf("")
 	}
 	return nil
 }
 
+func (exchange *Exchange) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
+
+	return types.Candle{
+		Symbol:    symbol,
+		Timeframe: timeframe,
+		Timestamp: ohlcv.Timestamp,
+		PriceData: types.Prices{
+			OpenPrice:  ohlcv.Open,
+			HighPrice:  ohlcv.High,
+			LowPrice:   ohlcv.Low,
+			ClosePrice: ohlcv.Close,
+		},
+		Volume: ohlcv.Volume,
+	}
+}
+
 // FetchCandles returns up to limit fully formed candles for the given symbol and timeframe,
 // conservatively dropping the newest fetched candle because it may still be in progress.
-func (exchange *Exchange) FetchCandles(symbol, timeframe string, limit int64) ([]ccxt.OHLCV, error) {
+func (exchange *Exchange) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
 
 	if err := exchange.validate(); err != nil {
 		return nil, err
@@ -52,7 +68,7 @@ func (exchange *Exchange) FetchCandles(symbol, timeframe string, limit int64) ([
 		return nil, fmt.Errorf("")
 	}
 
-	candles, err := exchange.exchange.FetchOHLCV(
+	candles, err := exchange.iExchange.FetchOHLCV(
 		symbol,
 		ccxt.WithFetchOHLCVTimeframe(timeframe),
 		ccxt.WithFetchOHLCVLimit(limit+1),
@@ -74,6 +90,11 @@ func (exchange *Exchange) FetchCandles(symbol, timeframe string, limit int64) ([
 		candles = candles[len(candles)-int(limit):]
 	}
 
-	return candles, nil
+	var wrapped []types.Candle
 
+	for _, ohlcv := range candles {
+		wrapped = append(wrapped, exchange.wrapOHLCV(symbol, timeframe, ohlcv))
+	}
+
+	return wrapped, nil
 }
