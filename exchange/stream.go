@@ -1,4 +1,4 @@
-package websocket
+package exchange
 
 import (
 	"errors"
@@ -8,11 +8,11 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-type Flags int64
+type StreamMode int64
 type Provider int64
 
 const (
-	AllCandleData Flags = iota
+	AllUpdates StreamMode = iota
 	ClosedOnly
 )
 
@@ -30,10 +30,10 @@ type CandleStream struct {
 	symbols    []string
 	timeframes []string
 
-	exchange *Exchange
+	exchange *Client
 	stream   chan types.Candle
 
-	flag Flags
+	flag StreamMode
 
 	// This is tokenized on purpose.
 	// A plain bool could only answer "is BTC/USDT 5m active?" and that breaks when:
@@ -57,9 +57,9 @@ type CandleStream struct {
 }
 
 func NewCandleStream(provider Provider, symbols []string,
-	timeframes []string, flag Flags) (*CandleStream, error) {
+	timeframes []string, flag StreamMode) (*CandleStream, error) {
 
-	exchange, err := NewExchange(provider)
+	exchange, err := NewClient(provider)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func NewCandleStream(provider Provider, symbols []string,
 	}, nil
 }
 
-func createKey(symbol, timeframe string) subKey {
+func newSubKey(symbol, timeframe string) subKey {
 	return subKey{
 		symbol:    symbol,
 		timeframe: timeframe,
@@ -134,7 +134,7 @@ func (s *CandleStream) Updates() <-chan types.Candle {
 }
 
 func (s *CandleStream) Subscribe(symbol, timeframe string) {
-	key := createKey(symbol, timeframe)
+	key := newSubKey(symbol, timeframe)
 
 	s.mu.Lock()
 	if s.closed {
@@ -159,7 +159,7 @@ func (s *CandleStream) Subscribe(symbol, timeframe string) {
 }
 
 func (s *CandleStream) Unsubscribe(symbol, timeframe string) error {
-	key := createKey(symbol, timeframe)
+	key := newSubKey(symbol, timeframe)
 
 	s.mu.Lock()
 	_, ok := s.activeSymbols[key]

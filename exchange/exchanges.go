@@ -1,4 +1,4 @@
-package websocket
+package exchange
 
 import (
 	"fmt"
@@ -9,22 +9,22 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-type Exchange struct {
+type Client struct {
 	iExchange ccxtpro.IExchange
 }
 
-func NewExchange(provider Provider) (*Exchange, error) {
+func NewClient(provider Provider) (*Client, error) {
 	switch provider {
 	case Binance:
-		return &Exchange{iExchange: ccxtpro.NewBinance(nil)}, nil
+		return &Client{iExchange: ccxtpro.NewBinance(nil)}, nil
 	case Okx:
-		return &Exchange{iExchange: ccxtpro.NewOkx(nil)}, nil
+		return &Client{iExchange: ccxtpro.NewOkx(nil)}, nil
 	default:
 		return nil, fmt.Errorf("")
 	}
 }
 
-func (exchange *Exchange) validate() error {
+func (exchange *Client) validate() error {
 
 	if exchange == nil {
 		return fmt.Errorf("")
@@ -36,7 +36,7 @@ func (exchange *Exchange) validate() error {
 	return nil
 }
 
-func (exchange *Exchange) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
+func (exchange *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
 
 	return types.Candle{
 		Symbol:    symbol,
@@ -54,7 +54,7 @@ func (exchange *Exchange) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) 
 
 // FetchCandles returns up to limit fully formed candles for the given symbol and timeframe,
 // conservatively dropping the newest fetched candle because it may still be in progress.
-func (exchange *Exchange) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
+func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
 
 	if err := exchange.validate(); err != nil {
 		return nil, err
