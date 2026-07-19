@@ -17,3 +17,14 @@ var (
 	ErrNilStrategy         = errors.New("nil strategy")
 	ErrInvalidSetOfCandles = errors.New("invalid set of candles")
 )
+
+// Stream Errors
+
+var (
+	ErrUnsupportedProvider = errors.New("exchange: unsupported provider")
+	ErrNilClient           = errors.New("exchange: nil client")
+	ErrUninitializedClient = errors.New("exchange: uninitialized client")
+	ErrInvalidLimit        = errors.New("exchange: limit must be greater than 0")
+	ErrLimitTooLarge       = errors.New("exchange: limit too large")
+	ErrNoCandles           = errors.New("exchange: no candles returned")
+)

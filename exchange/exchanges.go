@@ -1,11 +1,11 @@
 package exchange
 
 import (
-	"fmt"
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
+	"github.com/yusufozmis/trading-library/errors"
 	"github.com/yusufozmis/trading-library/types"
 )
 
@@ -20,19 +20,20 @@ func NewClient(provider Provider) (*Client, error) {
 	case Okx:
 		return &Client{iExchange: ccxtpro.NewOkx(nil)}, nil
 	default:
-		return nil, fmt.Errorf("")
+		return nil, errors.ErrUnsupportedProvider
 	}
 }
 
-func (exchange *Client) validate() error {
+func (client *Client) validate() error {
 
-	if exchange == nil {
-		return fmt.Errorf("")
+	if client == nil {
+		return errors.ErrNilClient
 	}
 
-	if exchange.iExchange == nil {
-		return fmt.Errorf("")
+	if client.iExchange == nil {
+		return errors.ErrUninitializedClient
 	}
+
 	return nil
 }
 
@@ -61,11 +62,11 @@ func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]t
 	}
 
 	if limit <= 0 {
-		return nil, fmt.Errorf("")
+		return nil, errors.ErrInvalidLimit
 	}
 
 	if limit == math.MaxInt64 {
-		return nil, fmt.Errorf("")
+		return nil, errors.ErrLimitTooLarge
 	}
 
 	candles, err := exchange.iExchange.FetchOHLCV(
@@ -78,7 +79,7 @@ func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]t
 	}
 
 	if len(candles) == 0 {
-		return nil, fmt.Errorf("")
+		return nil, errors.ErrNoCandles
 	}
 
 	// Never trust the newest candle.
