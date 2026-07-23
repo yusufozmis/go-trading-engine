@@ -11,16 +11,18 @@ import (
 
 type Client struct {
 	iExchange ccxtpro.IExchange
+	stream    *candleStream
 }
 
-func NewClient(provider Provider) (*Client, error) {
-	switch provider {
-	case Binance:
-		return &Client{iExchange: ccxtpro.NewBinance(nil)}, nil
-	case Okx:
-		return &Client{iExchange: ccxtpro.NewOkx(nil)}, nil
-	default:
-		return nil, errors.ErrUnsupportedProvider
+func NewBinance() *Client {
+	return &Client{
+		iExchange: ccxtpro.NewBinance(nil),
+	}
+}
+
+func NewOkx() *Client {
+	return &Client{
+		iExchange: ccxtpro.NewOkx(nil),
 	}
 }
 
@@ -37,7 +39,7 @@ func (client *Client) validate() error {
 	return nil
 }
 
-func (exchange *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
+func (client *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
 
 	return types.Candle{
 		Symbol:    symbol,
@@ -55,9 +57,9 @@ func (exchange *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) ty
 
 // FetchCandles returns up to limit fully formed candles for the given symbol and timeframe,
 // conservatively dropping the newest fetched candle because it may still be in progress.
-func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
+func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
 
-	if err := exchange.validate(); err != nil {
+	if err := client.validate(); err != nil {
 		return nil, err
 	}
 
@@ -69,7 +71,7 @@ func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]t
 		return nil, errors.ErrLimitTooLarge
 	}
 
-	candles, err := exchange.iExchange.FetchOHLCV(
+	candles, err := client.iExchange.FetchOHLCV(
 		symbol,
 		ccxt.WithFetchOHLCVTimeframe(timeframe),
 		ccxt.WithFetchOHLCVLimit(limit+1),
@@ -94,7 +96,7 @@ func (exchange *Client) FetchCandles(symbol, timeframe string, limit int64) ([]t
 	var wrapped []types.Candle
 
 	for _, ohlcv := range candles {
-		wrapped = append(wrapped, exchange.wrapOHLCV(symbol, timeframe, ohlcv))
+		wrapped = append(wrapped, client.wrapOHLCV(symbol, timeframe, ohlcv))
 	}
 
 	return wrapped, nil

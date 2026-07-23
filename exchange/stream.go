@@ -9,16 +9,10 @@ import (
 )
 
 type StreamMode int64
-type Provider int64
 
 const (
 	AllUpdates StreamMode = iota
 	ClosedOnly
-)
-
-const (
-	Binance Provider = iota
-	Okx
 )
 
 type subKey struct {
@@ -26,12 +20,11 @@ type subKey struct {
 	timeframe string
 }
 
-type CandleStream struct {
+type candleStream struct {
 	symbols    []string
 	timeframes []string
 
-	exchange *Client
-	stream   chan types.Candle
+	stream chan types.Candle
 
 	flag StreamMode
 
@@ -56,29 +49,6 @@ type CandleStream struct {
 	done chan struct{}
 }
 
-func NewCandleStream(provider Provider, symbols []string,
-	timeframes []string, flag StreamMode) (*CandleStream, error) {
-
-	exchange, err := NewClient(provider)
-	if err != nil {
-		return nil, err
-	}
-
-	if err := exchange.validate(); err != nil {
-		return nil, err
-	}
-
-	return &CandleStream{
-		symbols:       symbols,
-		timeframes:    timeframes,
-		exchange:      exchange,
-		stream:        make(chan types.Candle, len(symbols)*2),
-		flag:          flag,
-		activeSymbols: make(map[subKey]uint64),
-		done:          make(chan struct{}),
-	}, nil
-}
-
 func newSubKey(symbol, timeframe string) subKey {
 	return subKey{
 		symbol:    symbol,
@@ -86,7 +56,7 @@ func newSubKey(symbol, timeframe string) subKey {
 	}
 }
 
-func (s *CandleStream) isCurrent(key subKey, token uint64) bool {
+func (s *candleStream) isCurrent(key subKey, token uint64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -94,7 +64,7 @@ func (s *CandleStream) isCurrent(key subKey, token uint64) bool {
 	return ok && current == token
 }
 
-func (s *CandleStream) clearIfCurrent(key subKey, token uint64) {
+func (s *candleStream) clearIfCurrent(key subKey, token uint64) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
@@ -104,7 +74,7 @@ func (s *CandleStream) clearIfCurrent(key subKey, token uint64) {
 	}
 }
 
-func (s *CandleStream) emit(candle types.Candle) bool {
+func (s *candleStream) emit(candle types.Candle) bool {
 	select {
 	case <-s.done:
 		return false
@@ -119,9 +89,22 @@ func (s *CandleStream) emit(candle types.Candle) bool {
 	}
 }
 
-func (s *CandleStream) Run() {
-	for _, symbol := range s.symbols {
-		for _, timeframe := range s.timeframes {
+func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) {
+	if s == nil || s.stream != nil {
+		return
+	}
+
+	s.stream = &candleStream{
+		symbols:       symbols,
+		timeframes:    timeframes,
+		stream:        make(chan types.Candle, len(symbols)*2),
+		flag:          mode,
+		activeSymbols: make(map[subKey]uint64),
+		done:          make(chan struct{}),
+	}
+
+	for _, symbol := range s.stream.symbols {
+		for _, timeframe := range s.stream.timeframes {
 			s.Subscribe(symbol, timeframe)
 		}
 	}
@@ -129,50 +112,50 @@ func (s *CandleStream) Run() {
 
 // This stays receive-only so callers can consume updates without being able to
 // send into the channel or close it from outside the package.
-func (s *CandleStream) Updates() <-chan types.Candle {
-	return s.stream
+func (s *Client) Updates() <-chan types.Candle {
+	return s.stream.stream
 }
 
-func (s *CandleStream) Subscribe(symbol, timeframe string) {
+func (s *Client) Subscribe(symbol, timeframe string) {
 	key := newSubKey(symbol, timeframe)
 
-	s.mu.Lock()
-	if s.closed {
-		s.mu.Unlock()
+	s.stream.mu.Lock()
+	if s.stream.closed {
+		s.stream.mu.Unlock()
 		return
 	}
-	if _, ok := s.activeSymbols[key]; ok {
-		s.mu.Unlock()
+	if _, ok := s.stream.activeSymbols[key]; ok {
+		s.stream.mu.Unlock()
 		return
 	}
 
-	s.nextToken++
-	token := s.nextToken
-	s.activeSymbols[key] = token
-	s.wg.Add(1)
-	s.mu.Unlock()
+	s.stream.nextToken++
+	token := s.stream.nextToken
+	s.stream.activeSymbols[key] = token
+	s.stream.wg.Add(1)
+	s.stream.mu.Unlock()
 
 	go func() {
-		defer s.wg.Done()
+		defer s.stream.wg.Done()
 		s.watch(key, token)
 	}()
 }
 
-func (s *CandleStream) Unsubscribe(symbol, timeframe string) error {
+func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	key := newSubKey(symbol, timeframe)
 
-	s.mu.Lock()
-	_, ok := s.activeSymbols[key]
+	s.stream.mu.Lock()
+	_, ok := s.stream.activeSymbols[key]
 	if ok {
-		delete(s.activeSymbols, key)
+		delete(s.stream.activeSymbols, key)
 	}
-	s.mu.Unlock()
+	s.stream.mu.Unlock()
 
 	if !ok {
 		return nil
 	}
 
-	_, err := s.exchange.iExchange.UnWatchOHLCV(
+	_, err := s.iExchange.UnWatchOHLCV(
 		symbol,
 		ccxt.WithUnWatchOHLCVTimeframe(timeframe),
 	)
@@ -189,44 +172,44 @@ func (s *CandleStream) Unsubscribe(symbol, timeframe string) error {
 // The channel must be closed last; closing it earlier risks "send on closed channel".
 // Remaining limitation: if exchange.Close() does not make pending WatchOHLCV calls return,
 // Close can still hang in wg.Wait().
-func (s *CandleStream) Close() error {
-	s.closeOnce.Do(func() {
-		s.mu.Lock()
-		s.closed = true
-		s.activeSymbols = make(map[subKey]uint64)
-		s.mu.Unlock()
+func (s *Client) Close() error {
+	s.stream.closeOnce.Do(func() {
+		s.stream.mu.Lock()
+		s.stream.closed = true
+		s.stream.activeSymbols = make(map[subKey]uint64)
+		s.stream.mu.Unlock()
 
-		close(s.done)
+		close(s.stream.done)
 
-		if errs := s.exchange.iExchange.Close(); len(errs) > 0 {
-			s.closeErr = errors.Join(errs...)
+		if errs := s.iExchange.Close(); len(errs) > 0 {
+			s.stream.closeErr = errors.Join(errs...)
 		}
 
-		s.wg.Wait()
-		close(s.stream)
+		s.stream.wg.Wait()
+		close(s.stream.stream)
 	})
 
-	return s.closeErr
+	return s.stream.closeErr
 }
 
 // watch belongs to one symbol/timeframe pair and one token only.
 // The repeated isCurrent checks are deliberate: they stop an old watcher from
 // publishing after unsubscribe+resubscribe created a newer owner for the same pair.
-func (s *CandleStream) watch(key subKey, token uint64) {
+func (s *Client) watch(key subKey, token uint64) {
 	var previous ccxt.OHLCV
 	hasPrevious := false
 
 	for {
-		if !s.isCurrent(key, token) {
+		if !s.stream.isCurrent(key, token) {
 			return
 		}
 
-		candles, err := s.exchange.iExchange.WatchOHLCV(
+		candles, err := s.iExchange.WatchOHLCV(
 			key.symbol,
 			ccxt.WithWatchOHLCVTimeframe(key.timeframe),
 		)
 		if err != nil {
-			s.clearIfCurrent(key, token)
+			s.stream.clearIfCurrent(key, token)
 			return
 		}
 
@@ -234,19 +217,19 @@ func (s *CandleStream) watch(key subKey, token uint64) {
 			continue
 		}
 
-		if !s.isCurrent(key, token) {
+		if !s.stream.isCurrent(key, token) {
 			return
 		}
 
 		current := candles[len(candles)-1]
 
-		if s.flag == ClosedOnly {
+		if s.stream.flag == ClosedOnly {
 			if hasPrevious && current.Timestamp > previous.Timestamp {
-				if !s.isCurrent(key, token) {
+				if !s.stream.isCurrent(key, token) {
 					return
 				}
 
-				if !s.emit(s.exchange.wrapOHLCV(key.symbol, key.timeframe, previous)) {
+				if !s.stream.emit(s.wrapOHLCV(key.symbol, key.timeframe, previous)) {
 					return
 				}
 			}
@@ -256,11 +239,11 @@ func (s *CandleStream) watch(key subKey, token uint64) {
 			continue
 		}
 
-		if !s.isCurrent(key, token) {
+		if !s.stream.isCurrent(key, token) {
 			return
 		}
 
-		if !s.emit(s.exchange.wrapOHLCV(key.symbol, key.timeframe, current)) {
+		if !s.stream.emit(s.wrapOHLCV(key.symbol, key.timeframe, current)) {
 			return
 		}
 
