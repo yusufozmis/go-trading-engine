@@ -27,4 +27,6 @@ var (
 	ErrInvalidLimit        = errors.New("exchange: limit must be greater than 0")
 	ErrLimitTooLarge       = errors.New("exchange: limit too large")
 	ErrNoCandles           = errors.New("exchange: no candles returned")
+	ErrStreamAlreadyExists = errors.New("there is already a stream running")
+	ErrStreamNotRunning    = errors.New("exchange: candle stream is not running")
 )

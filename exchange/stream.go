@@ -5,6 +5,7 @@ import (
 	"sync"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
+	apperrors "github.com/yusufozmis/trading-library/errors"
 	"github.com/yusufozmis/trading-library/types"
 )
 
@@ -43,8 +44,8 @@ type candleStream struct {
 
 	wg        sync.WaitGroup
 	closeOnce sync.Once
-	// done exists only to break goroutines out of a blocked send on s.stream during Close().
-	// exchange.Close() may stop WatchOHLCV, but it does nothing for a goroutine already stuck on:
+	// done exists only to break goroutines out of a blocked send on s.stream during CloseCandleStream().
+	// UnWatchOHLCV may stop WatchOHLCV, but it does nothing for a goroutine already stuck on:
 	//     s.stream <- candle
 	done chan struct{}
 }
@@ -89,9 +90,13 @@ func (s *candleStream) emit(candle types.Candle) bool {
 	}
 }
 
-func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) {
-	if s == nil || s.stream != nil {
-		return
+func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+
+	if s.stream != nil {
+		return apperrors.ErrStreamAlreadyExists
 	}
 
 	s.stream = &candleStream{
@@ -105,28 +110,47 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 
 	for _, symbol := range s.stream.symbols {
 		for _, timeframe := range s.stream.timeframes {
-			s.Subscribe(symbol, timeframe)
+			if err := s.Subscribe(symbol, timeframe); err != nil {
+				return err
+			}
 		}
 	}
+	return nil
 }
 
 // This stays receive-only so callers can consume updates without being able to
 // send into the channel or close it from outside the package.
-func (s *Client) Updates() <-chan types.Candle {
-	return s.stream.stream
+func (s *Client) Updates() (<-chan types.Candle, error) {
+	if err := s.validate(); err != nil {
+		return nil, err
+	}
+
+	if s.stream == nil {
+		return nil, apperrors.ErrStreamNotRunning
+	}
+
+	return s.stream.stream, nil
 }
 
-func (s *Client) Subscribe(symbol, timeframe string) {
+func (s *Client) Subscribe(symbol, timeframe string) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+
+	if s.stream == nil {
+		return apperrors.ErrStreamNotRunning
+	}
+
 	key := newSubKey(symbol, timeframe)
 
 	s.stream.mu.Lock()
 	if s.stream.closed {
 		s.stream.mu.Unlock()
-		return
+		return nil
 	}
 	if _, ok := s.stream.activeSymbols[key]; ok {
 		s.stream.mu.Unlock()
-		return
+		return nil
 	}
 
 	s.stream.nextToken++
@@ -139,9 +163,18 @@ func (s *Client) Subscribe(symbol, timeframe string) {
 		defer s.stream.wg.Done()
 		s.watch(key, token)
 	}()
+
+	return nil
 }
 
 func (s *Client) Unsubscribe(symbol, timeframe string) error {
+	if err := s.validate(); err != nil {
+		return err
+	}
+	if s.stream == nil {
+		return apperrors.ErrStreamNotRunning
+	}
+
 	key := newSubKey(symbol, timeframe)
 
 	s.stream.mu.Lock()
@@ -162,34 +195,57 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	return err
 }
 
-// Close order matters:
-// 1. mark the stream closed and drop local ownership
+// CloseCandleStream shuts down the running candle stream and detaches it from the client.
+// Order matters:
+// 1. mark the stream closed and clear active subscriptions
 // 2. close done so blocked senders can stop
-// 3. close the exchange so WatchOHLCV should return
+// 3. unwatch active subscriptions so WatchOHLCV should return
 // 4. wait for watcher goroutines
 // 5. only then close s.stream
 //
 // The channel must be closed last; closing it earlier risks "send on closed channel".
-// Remaining limitation: if exchange.Close() does not make pending WatchOHLCV calls return,
+// Remaining limitation: if UnWatchOHLCV does not make pending WatchOHLCV calls return,
 // Close can still hang in wg.Wait().
-func (s *Client) Close() error {
-	s.stream.closeOnce.Do(func() {
-		s.stream.mu.Lock()
-		s.stream.closed = true
-		s.stream.activeSymbols = make(map[subKey]uint64)
-		s.stream.mu.Unlock()
+func (s *Client) CloseCandleStream() error {
+	if err := s.validate(); err != nil {
+		return err
+	}
 
-		close(s.stream.done)
+	if s.stream == nil {
+		return apperrors.ErrStreamNotRunning
+	}
 
-		if errs := s.iExchange.Close(); len(errs) > 0 {
-			s.stream.closeErr = errors.Join(errs...)
+	stream := s.stream
+
+	stream.closeOnce.Do(func() {
+		stream.mu.Lock()
+		stream.closed = true
+
+		keys := make([]subKey, 0, len(stream.activeSymbols))
+		for key := range stream.activeSymbols {
+			keys = append(keys, key)
+		}
+		stream.mu.Unlock()
+
+		close(stream.done)
+
+		var errs []error
+		for _, key := range keys {
+			if err := s.Unsubscribe(key.symbol, key.timeframe); err != nil {
+				errs = append(errs, err)
+			}
 		}
 
-		s.stream.wg.Wait()
-		close(s.stream.stream)
+		stream.wg.Wait()
+		close(stream.stream)
+		s.stream = nil
+
+		if len(errs) > 0 {
+			stream.closeErr = errors.Join(errs...)
+		}
 	})
 
-	return s.stream.closeErr
+	return stream.closeErr
 }
 
 // watch belongs to one symbol/timeframe pair and one token only.
