@@ -1,5 +1,10 @@
 package types
 
+const (
+	BUY  = "buy"
+	SELL = "sell"
+)
+
 type Candle struct {
 	Symbol    string
 	Timeframe string

@@ -10,8 +10,9 @@ import (
 )
 
 type Client struct {
-	iExchange ccxtpro.IExchange
-	stream    *candleStream
+	iExchange      ccxtpro.IExchange
+	stream         *candleStream
+	exchangeConfig ExchangeConfig
 }
 
 func NewBinance() *Client {

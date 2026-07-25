@@ -19,7 +19,6 @@ var (
 )
 
 // Stream Errors
-
 var (
 	ErrUnsupportedProvider = errors.New("exchange: unsupported provider")
 	ErrNilClient           = errors.New("exchange: nil client")
@@ -29,4 +28,15 @@ var (
 	ErrNoCandles           = errors.New("exchange: no candles returned")
 	ErrStreamAlreadyExists = errors.New("there is already a stream running")
 	ErrStreamNotRunning    = errors.New("exchange: candle stream is not running")
+)
+
+var (
+	ErrNilApiKey    = errors.New("nil api key")
+	ErrNilSecretKey = errors.New("nil secret key")
+	ErrNilPassword  = errors.New("nil password")
+
+	ErrNilSymbol     = errors.New("nil symbol")
+	ErrInvalidSide   = errors.New("invalid side")
+	ErrInvalidAmount = errors.New("invalid amount")
+	ErrInvalidPrice  = errors.New("invalid price")
 )
