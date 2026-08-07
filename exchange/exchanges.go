@@ -9,21 +9,44 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
+type futuresAdapter interface {
+	Prepare(req futuresOrderRequest) error
+	OrderParams(req futuresOrderRequest) map[string]any
+}
+
+type FuturesExchange interface {
+	SetLeverage(leverage int64, options ...ccxt.SetLeverageOptions) (map[string]any, error)
+	SetMarginMode(marginMode string, options ...ccxt.SetMarginModeOptions) (map[string]any, error)
+	SetPositionMode(hedged bool, options ...ccxt.SetPositionModeOptions) (map[string]any, error)
+}
+
 type Client struct {
-	iExchange      ccxtpro.IExchange
-	stream         *candleStream
+	iExchange ccxt.IExchange
+	adapter   futuresAdapter
+
+	stream *candleStream
+
 	exchangeConfig ExchangeConfig
+	futuresConfigs FuturesConfigs
 }
 
 func NewBinance() *Client {
+	pro := ccxtpro.NewBinance(nil)
+	core := ccxt.NewBinanceFromCore(pro.Core.BinanceCore)
+
 	return &Client{
-		iExchange: ccxtpro.NewBinance(nil),
+		iExchange: pro,
+		adapter:   NewBinanceFuturesAdapter(core),
 	}
 }
 
 func NewOkx() *Client {
+	pro := ccxtpro.NewOkx(nil)
+	core := ccxt.NewOkxFromCore(pro.Core.OkxCore)
+
 	return &Client{
-		iExchange: ccxtpro.NewOkx(nil),
+		iExchange: pro,
+		adapter:   NewOkxFuturesAdapter(core),
 	}
 }
 
@@ -41,7 +64,6 @@ func (client *Client) validate() error {
 }
 
 func (client *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {
-
 	return types.Candle{
 		Symbol:    symbol,
 		Timeframe: timeframe,

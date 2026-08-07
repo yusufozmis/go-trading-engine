@@ -3,6 +3,9 @@ package types
 const (
 	BUY  = "buy"
 	SELL = "sell"
+
+	LONG  = "long"
+	SHORT = "short"
 )
 
 type Candle struct {

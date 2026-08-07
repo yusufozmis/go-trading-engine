@@ -2,7 +2,7 @@ module github.com/yusufozmis/trading-library
 
 go 1.26.4
 
-require github.com/ccxt/ccxt/go/v4 v4.5.65
+require github.com/ccxt/ccxt/go/v4 v4.5.70
 
 require (
 	github.com/NethermindEth/juno v0.14.0 // indirect
