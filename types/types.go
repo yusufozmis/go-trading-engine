@@ -23,12 +23,39 @@ func (m MarginMode) String() string {
 	return string(m)
 }
 
+func (m MarginMode) Valid() bool {
+	switch m {
+	case MarginModeCross, MarginModeIsolated:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s PositionSide) String() string {
 	return string(s)
 }
 
+func (s PositionSide) Valid() bool {
+	switch s {
+	case PositionLong, PositionShort:
+		return true
+	default:
+		return false
+	}
+}
+
 func (s SpotSide) String() string {
 	return string(s)
+}
+
+func (s SpotSide) Valid() bool {
+	switch s {
+	case SpotBuy, SpotSell:
+		return true
+	default:
+		return false
+	}
 }
 
 type Candle struct {

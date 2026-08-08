@@ -57,7 +57,7 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 		return errors.ErrNilSymbol
 	}
 
-	if side != types.SpotBuy && side != types.SpotSell {
+	if !side.Valid() {
 		return errors.ErrInvalidSide
 	}
 
@@ -86,7 +86,7 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 		return errors.ErrNilSymbol
 	}
 
-	if side != types.SpotBuy && side != types.SpotSell {
+	if !side.Valid() {
 		return errors.ErrInvalidSide
 	}
 

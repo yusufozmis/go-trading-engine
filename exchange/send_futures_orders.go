@@ -82,7 +82,7 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 		return errors.ErrNilSymbol
 	}
 
-	if req.Side != types.PositionLong && req.Side != types.PositionShort {
+	if !req.Side.Valid() {
 		return errors.ErrInvalidSide
 	}
 

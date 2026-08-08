@@ -16,7 +16,7 @@ func (cfg FuturesConfigs) Validate() error {
 		return errors.ErrInvalidLeverage
 	}
 
-	if cfg.MarginMode != types.MarginModeCross && cfg.MarginMode != types.MarginModeIsolated {
+	if !cfg.MarginMode.Valid() {
 		return errors.ErrInvalidMarginMode
 	}
 
