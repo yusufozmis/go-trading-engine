@@ -30,13 +30,16 @@ var (
 	ErrStreamNotRunning    = errors.New("exchange: candle stream is not running")
 )
 
+// Exchange Errors
 var (
 	ErrNilApiKey    = errors.New("nil api key")
 	ErrNilSecretKey = errors.New("nil secret key")
 	ErrNilPassword  = errors.New("nil password")
 
-	ErrNilSymbol     = errors.New("nil symbol")
-	ErrInvalidSide   = errors.New("invalid side")
-	ErrInvalidAmount = errors.New("invalid amount")
-	ErrInvalidPrice  = errors.New("invalid price")
+	ErrNilSymbol         = errors.New("nil symbol")
+	ErrInvalidSide       = errors.New("invalid side")
+	ErrInvalidAmount     = errors.New("invalid amount")
+	ErrInvalidPrice      = errors.New("invalid price")
+	ErrInvalidLeverage   = errors.New("invalid leverage")
+	ErrInvalidMarginMode = errors.New("invalid margin mode")
 )

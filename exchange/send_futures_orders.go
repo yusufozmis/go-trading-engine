@@ -35,7 +35,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 }
 
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 
@@ -66,7 +66,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 }
 
 func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) error {
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 

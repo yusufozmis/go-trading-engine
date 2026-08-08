@@ -33,7 +33,7 @@ func (cfg *ExchangeConfig) Validate() error {
 
 func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 
@@ -49,7 +49,7 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 }
 
 func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, amount float64) error {
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 
@@ -78,7 +78,7 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 }
 
 func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, amount, price float64) error {
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 

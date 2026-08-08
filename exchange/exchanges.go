@@ -36,7 +36,7 @@ func NewOkx() *Client {
 	}
 }
 
-func (client *Client) validate() error {
+func (client *Client) Validate() error {
 
 	if client == nil {
 		return errors.ErrNilClient

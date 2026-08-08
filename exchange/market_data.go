@@ -12,7 +12,7 @@ import (
 // conservatively dropping the newest fetched candle because it may still be in progress.
 func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
 
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return nil, err
 	}
 

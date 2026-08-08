@@ -91,7 +91,7 @@ func (s *candleStream) emit(candle types.Candle) bool {
 }
 
 func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) error {
-	if err := s.validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 
@@ -121,7 +121,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 // This stays receive-only so callers can consume updates without being able to
 // send into the channel or close it from outside the package.
 func (s *Client) Updates() (<-chan types.Candle, error) {
-	if err := s.validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -133,7 +133,7 @@ func (s *Client) Updates() (<-chan types.Candle, error) {
 }
 
 func (s *Client) Subscribe(symbol, timeframe string) error {
-	if err := s.validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 
@@ -168,7 +168,7 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 }
 
 func (s *Client) Unsubscribe(symbol, timeframe string) error {
-	if err := s.validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 	if s.stream == nil {
@@ -207,7 +207,7 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 // Remaining limitation: if UnWatchOHLCV does not make pending WatchOHLCV calls return,
 // Close can still hang in wg.Wait().
 func (s *Client) CloseCandleStream() error {
-	if err := s.validate(); err != nil {
+	if err := s.Validate(); err != nil {
 		return err
 	}
 

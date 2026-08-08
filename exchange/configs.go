@@ -13,18 +13,18 @@ type FuturesConfigs struct {
 
 func (cfg FuturesConfigs) Validate() error {
 	if cfg.Leverage <= 0 {
-		return errors.ErrInvalidAmount // replace with ErrInvalidLeverage if you add one
+		return errors.ErrInvalidLeverage
 	}
 
 	if cfg.MarginMode != types.MarginModeCross && cfg.MarginMode != types.MarginModeIsolated {
-		return errors.ErrInvalidSide // replace with ErrInvalidMarginMode if you add one
+		return errors.ErrInvalidMarginMode
 	}
 
 	return nil
 }
 
 func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
-	if err := client.validate(); err != nil {
+	if err := client.Validate(); err != nil {
 		return err
 	}
 
