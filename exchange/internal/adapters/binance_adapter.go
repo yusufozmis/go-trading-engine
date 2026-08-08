@@ -1,6 +1,9 @@
 package adapters
 
-import ccxt "github.com/ccxt/ccxt/go/v4"
+import (
+	ccxt "github.com/ccxt/ccxt/go/v4"
+	"github.com/yusufozmis/trading-library/types"
+)
 
 type BinanceFuturesAdapter struct {
 	futures FuturesExchange
@@ -15,7 +18,7 @@ func NewBinanceFuturesAdapter(exchange FuturesExchange) *BinanceFuturesAdapter {
 func (adapter *BinanceFuturesAdapter) Prepare(req FuturesOrderRequest) error {
 
 	_, err := adapter.futures.SetMarginMode(
-		req.MarginMode,
+		req.MarginMode.String(),
 		ccxt.WithSetMarginModeSymbol(req.Symbol),
 	)
 	if err != nil {
@@ -41,7 +44,7 @@ func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[s
 	params := map[string]any{}
 
 	if req.Hedged {
-		if req.Side == "long" {
+		if req.Side == types.PositionLong {
 			params["positionSide"] = "LONG"
 		} else {
 			params["positionSide"] = "SHORT"

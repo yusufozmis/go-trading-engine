@@ -9,15 +9,10 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-const (
-	CROSS    = "cross"
-	Isolated = "isolated"
-)
-
 type FuturesConfigs struct {
-	Leverage int64
-	Mode     string
-	Hedged   bool
+	Leverage   int64
+	MarginMode types.MarginMode
+	Hedged     bool
 }
 
 func (cfg FuturesConfigs) Validate() error {
@@ -25,7 +20,7 @@ func (cfg FuturesConfigs) Validate() error {
 		return errors.ErrInvalidAmount // replace with ErrInvalidLeverage if you add one
 	}
 
-	if cfg.Mode != CROSS && cfg.Mode != Isolated {
+	if cfg.MarginMode != types.MarginModeCross && cfg.MarginMode != types.MarginModeIsolated {
 		return errors.ErrInvalidSide // replace with ErrInvalidMarginMode if you add one
 	}
 
@@ -46,19 +41,19 @@ func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
 	return nil
 }
 
-func (client *Client) CreateFuturesMarketOrder(symbol, side string, amount float64) error {
+func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {
 	return client.createFuturesOrder(adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "market",
 		Amount:     amount,
 		Leverage:   client.futuresConfigs.Leverage,
-		MarginMode: client.futuresConfigs.Mode,
+		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
 	})
 }
 
-func (client *Client) CreateFuturesLimitOrder(symbol, side string, amount, price float64) error {
+func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) error {
 	return client.createFuturesOrder(adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
@@ -66,7 +61,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol, side string, amount, price
 		Amount:     amount,
 		Price:      price,
 		Leverage:   client.futuresConfigs.Leverage,
-		MarginMode: client.futuresConfigs.Mode,
+		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
 	})
 }
@@ -95,7 +90,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 	_, err := client.iExchange.CreateOrder(
 		req.Symbol,
 		req.Type,
-		orderSide(req.Side),
+		orderSide(req.Side).String(),
 		req.Amount,
 		options...,
 	)
@@ -123,7 +118,7 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 		return errors.ErrNilSymbol
 	}
 
-	if req.Side != types.LONG && req.Side != types.SHORT {
+	if req.Side != types.PositionLong && req.Side != types.PositionShort {
 		return errors.ErrInvalidSide
 	}
 
@@ -140,9 +135,9 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 	return nil
 }
 
-func orderSide(side string) string {
-	if side == types.LONG {
-		return types.BUY
+func orderSide(side types.PositionSide) types.SpotSide {
+	if side == types.PositionLong {
+		return types.SpotBuy
 	}
-	return types.SELL
+	return types.SpotSell
 }

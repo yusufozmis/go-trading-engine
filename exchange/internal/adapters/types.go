@@ -2,6 +2,7 @@ package adapters
 
 import (
 	ccxt "github.com/ccxt/ccxt/go/v4"
+	"github.com/yusufozmis/trading-library/types"
 )
 
 type FuturesExchange interface {
@@ -12,12 +13,12 @@ type FuturesExchange interface {
 
 type FuturesOrderRequest struct {
 	Symbol     string
-	Side       string
+	Side       types.PositionSide
 	Type       string
 	Amount     float64
 	Price      float64
 	Leverage   int64
-	MarginMode string
+	MarginMode types.MarginMode
 	Hedged     bool
 }
 

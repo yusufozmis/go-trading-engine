@@ -1,12 +1,35 @@
 package types
 
-const (
-	BUY  = "buy"
-	SELL = "sell"
+type MarginMode string
+type PositionSide string
+type SpotSide string
 
-	LONG  = "long"
-	SHORT = "short"
+const (
+	MarginModeCross    MarginMode = "cross"
+	MarginModeIsolated MarginMode = "isolated"
 )
+
+const (
+	PositionLong  PositionSide = "long"
+	PositionShort PositionSide = "short"
+)
+
+const (
+	SpotBuy  SpotSide = "buy"
+	SpotSell SpotSide = "sell"
+)
+
+func (m MarginMode) String() string {
+	return string(m)
+}
+
+func (s PositionSide) String() string {
+	return string(s)
+}
+
+func (s SpotSide) String() string {
+	return string(s)
+}
 
 type Candle struct {
 	Symbol    string

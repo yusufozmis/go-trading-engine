@@ -48,7 +48,7 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	return nil
 }
 
-func (client *Client) CreateSpotMarketOrder(symbol, side string, amount float64) error {
+func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, amount float64) error {
 	if err := client.validate(); err != nil {
 		return err
 	}
@@ -57,7 +57,7 @@ func (client *Client) CreateSpotMarketOrder(symbol, side string, amount float64)
 		return errors.ErrNilSymbol
 	}
 
-	if side != types.BUY && side != types.SELL {
+	if side != types.SpotBuy && side != types.SpotSell {
 		return errors.ErrInvalidSide
 	}
 
@@ -69,7 +69,7 @@ func (client *Client) CreateSpotMarketOrder(symbol, side string, amount float64)
 		return errors.ErrInvalidAmount
 	}
 
-	_, err := client.iExchange.CreateOrder(symbol, "market", side, amount)
+	_, err := client.iExchange.CreateOrder(symbol, "market", side.String(), amount)
 	if err != nil {
 		return err
 	}
@@ -77,7 +77,7 @@ func (client *Client) CreateSpotMarketOrder(symbol, side string, amount float64)
 	return nil
 }
 
-func (client *Client) CreateSpotLimitOrder(symbol, side string, amount, price float64) error {
+func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, amount, price float64) error {
 	if err := client.validate(); err != nil {
 		return err
 	}
@@ -86,7 +86,7 @@ func (client *Client) CreateSpotLimitOrder(symbol, side string, amount, price fl
 		return errors.ErrNilSymbol
 	}
 
-	if side != types.BUY && side != types.SELL {
+	if side != types.SpotBuy && side != types.SpotSell {
 		return errors.ErrInvalidSide
 	}
 
@@ -106,7 +106,7 @@ func (client *Client) CreateSpotLimitOrder(symbol, side string, amount, price fl
 		return errors.ErrInvalidPrice
 	}
 
-	_, err := client.iExchange.CreateOrder(symbol, "limit", side, amount, ccxt.WithCreateOrderPrice(price))
+	_, err := client.iExchange.CreateOrder(symbol, "limit", side.String(), amount, ccxt.WithCreateOrderPrice(price))
 	if err != nil {
 		return err
 	}
