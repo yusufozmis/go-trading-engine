@@ -41,8 +41,6 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 		return err
 	}
 
-	client.exchangeConfig = exchangeCfg
-
 	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
 	client.iExchange.SetSecret(exchangeCfg.SecretKey)
 	client.iExchange.SetPassword(exchangeCfg.Password)

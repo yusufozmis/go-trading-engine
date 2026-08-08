@@ -6,18 +6,13 @@ import (
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
 	"github.com/yusufozmis/trading-library/errors"
+	"github.com/yusufozmis/trading-library/exchange/internal/adapters"
 	"github.com/yusufozmis/trading-library/types"
 )
 
 type futuresAdapter interface {
-	Prepare(req futuresOrderRequest) error
-	OrderParams(req futuresOrderRequest) map[string]any
-}
-
-type FuturesExchange interface {
-	SetLeverage(leverage int64, options ...ccxt.SetLeverageOptions) (map[string]any, error)
-	SetMarginMode(marginMode string, options ...ccxt.SetMarginModeOptions) (map[string]any, error)
-	SetPositionMode(hedged bool, options ...ccxt.SetPositionModeOptions) (map[string]any, error)
+	Prepare(req adapters.FuturesOrderRequest) error
+	OrderParams(req adapters.FuturesOrderRequest) map[string]any
 }
 
 type Client struct {
@@ -26,7 +21,6 @@ type Client struct {
 
 	stream *candleStream
 
-	exchangeConfig ExchangeConfig
 	futuresConfigs FuturesConfigs
 }
 
@@ -36,7 +30,7 @@ func NewBinance() *Client {
 
 	return &Client{
 		iExchange: pro,
-		adapter:   NewBinanceFuturesAdapter(core),
+		adapter:   adapters.NewBinanceFuturesAdapter(core),
 	}
 }
 
@@ -46,7 +40,7 @@ func NewOkx() *Client {
 
 	return &Client{
 		iExchange: pro,
-		adapter:   NewOkxFuturesAdapter(core),
+		adapter:   adapters.NewOkxFuturesAdapter(core),
 	}
 }
 

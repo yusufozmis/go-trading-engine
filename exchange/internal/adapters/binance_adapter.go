@@ -1,4 +1,4 @@
-package exchange
+package adapters
 
 import ccxt "github.com/ccxt/ccxt/go/v4"
 
@@ -12,7 +12,7 @@ func NewBinanceFuturesAdapter(exchange FuturesExchange) *BinanceFuturesAdapter {
 	}
 }
 
-func (adapter *BinanceFuturesAdapter) Prepare(req futuresOrderRequest) error {
+func (adapter *BinanceFuturesAdapter) Prepare(req FuturesOrderRequest) error {
 
 	_, err := adapter.futures.SetMarginMode(
 		req.MarginMode,
@@ -37,7 +37,7 @@ func (adapter *BinanceFuturesAdapter) Prepare(req futuresOrderRequest) error {
 	return err
 }
 
-func (adapter *BinanceFuturesAdapter) OrderParams(req futuresOrderRequest) map[string]any {
+func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
 	params := map[string]any{}
 
 	if req.Hedged {

@@ -5,6 +5,7 @@ import (
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/trading-library/errors"
+	"github.com/yusufozmis/trading-library/exchange/internal/adapters"
 	"github.com/yusufozmis/trading-library/types"
 )
 
@@ -17,17 +18,6 @@ type FuturesConfigs struct {
 	Leverage int64
 	Mode     string
 	Hedged   bool
-}
-
-type futuresOrderRequest struct {
-	Symbol     string
-	Side       string
-	Type       string
-	Amount     float64
-	Price      float64
-	Leverage   int64
-	MarginMode string
-	Hedged     bool
 }
 
 func (cfg FuturesConfigs) Validate() error {
@@ -57,7 +47,7 @@ func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
 }
 
 func (client *Client) CreateFuturesMarketOrder(symbol, side string, amount float64) error {
-	return client.createFuturesOrder(futuresOrderRequest{
+	return client.createFuturesOrder(adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "market",
@@ -69,7 +59,7 @@ func (client *Client) CreateFuturesMarketOrder(symbol, side string, amount float
 }
 
 func (client *Client) CreateFuturesLimitOrder(symbol, side string, amount, price float64) error {
-	return client.createFuturesOrder(futuresOrderRequest{
+	return client.createFuturesOrder(adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "limit",
@@ -81,7 +71,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol, side string, amount, price
 	})
 }
 
-func (client *Client) createFuturesOrder(req futuresOrderRequest) error {
+func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
 	if err := client.validate(); err != nil {
 		return err
 	}
@@ -112,7 +102,7 @@ func (client *Client) createFuturesOrder(req futuresOrderRequest) error {
 	return err
 }
 
-func (client *Client) validateFuturesOrder(req futuresOrderRequest) error {
+func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) error {
 	if err := client.validate(); err != nil {
 		return err
 	}

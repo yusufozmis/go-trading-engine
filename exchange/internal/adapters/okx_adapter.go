@@ -1,4 +1,4 @@
-package exchange
+package adapters
 
 import ccxt "github.com/ccxt/ccxt/go/v4"
 
@@ -12,7 +12,7 @@ func NewOkxFuturesAdapter(exchange FuturesExchange) *OkxFuturesAdapter {
 	}
 }
 
-func (adapter *OkxFuturesAdapter) Prepare(req futuresOrderRequest) error {
+func (adapter *OkxFuturesAdapter) Prepare(req FuturesOrderRequest) error {
 
 	posSide := "net"
 	if req.Hedged {
@@ -30,7 +30,7 @@ func (adapter *OkxFuturesAdapter) Prepare(req futuresOrderRequest) error {
 	return err
 }
 
-func (adapter *OkxFuturesAdapter) OrderParams(req futuresOrderRequest) map[string]any {
+func (adapter *OkxFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
 
 	params := map[string]any{
 		"marginMode": req.MarginMode,
