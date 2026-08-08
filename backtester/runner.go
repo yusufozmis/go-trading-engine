@@ -5,14 +5,14 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-func (b *Backtester) Run() (types.PerformanceResults, error) {
+func (b *Backtester) Run() (types.PerformanceResult, error) {
 
 	if b == nil {
-		return types.PerformanceResults{}, errors.ErrNilBacktester
+		return types.PerformanceResult{}, errors.ErrNilBacktester
 	}
 
 	if b.strategy == nil {
-		return types.PerformanceResults{}, errors.ErrNilStrategy
+		return types.PerformanceResult{}, errors.ErrNilStrategy
 	}
 
 	candles := b.candles
@@ -21,17 +21,17 @@ func (b *Backtester) Run() (types.PerformanceResults, error) {
 
 		b.strategy.AddBar(candle)
 
-		plans, err := b.strategy.Calculate(types.Context{
+		plans, err := b.strategy.Calculate(types.StrategyContext{
 			HasPendingPosition: b.engine.PendingExists(),
 			HasOpenPosition:    b.engine.PositionExists(),
 		})
 		if err != nil {
-			return types.PerformanceResults{}, err
+			return types.PerformanceResult{}, err
 		}
 
 		err = b.engine.ApplyPlanUpdate(plans)
 		if err != nil {
-			return types.PerformanceResults{}, err
+			return types.PerformanceResult{}, err
 		}
 
 		if b.engine.PendingExists() {
@@ -40,7 +40,7 @@ func (b *Backtester) Run() (types.PerformanceResults, error) {
 
 		err = b.engine.OpenPosition(candle)
 		if err != nil {
-			return types.PerformanceResults{}, err
+			return types.PerformanceResult{}, err
 		}
 
 		if b.engine.PositionExists() {

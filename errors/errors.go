@@ -37,6 +37,7 @@ var (
 	ErrNilPassword  = errors.New("nil password")
 
 	ErrNilSymbol         = errors.New("nil symbol")
+	ErrNilTimeframe      = errors.New("nil timeframe")
 	ErrInvalidSide       = errors.New("invalid side")
 	ErrInvalidAmount     = errors.New("invalid amount")
 	ErrInvalidPrice      = errors.New("invalid price")

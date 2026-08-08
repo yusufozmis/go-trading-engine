@@ -59,9 +59,9 @@ func (eng *Engine) OpenPosition(candle types.Candle) error {
 			return err
 		}
 
-		pos := types.Positions{
+		pos := types.Position{
 			Symbol:     eng.Symbol,
-			TimeFrame:  eng.Timeframe,
+			Timeframe:  eng.Timeframe,
 			Timestamp:  candle.Timestamp,
 			EntryPrice: closePrice,
 			TP:         newTP,
@@ -84,7 +84,7 @@ func (eng *Engine) OpenPosition(candle types.Candle) error {
 
 // mapteki son pozisyonun state'i long open ya da short open ise yeni pozisyon insertleme
 // returns true when a position opened
-func (eng *Engine) SetPosition(position types.Positions) bool {
+func (eng *Engine) SetPosition(position types.Position) bool {
 
 	if eng == nil {
 		return false

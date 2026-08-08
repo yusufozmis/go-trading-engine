@@ -9,9 +9,9 @@ type Engine struct {
 	Timeframe string
 
 	isCloseAutomated bool
-	LastPosition     *types.Positions
+	LastPosition     *types.Position
 
-	ClosedPositions []types.Positions
+	ClosedPositions []types.Position
 
 	lockKeyMap  map[string]bool
 	activePlans []types.EntryPlan

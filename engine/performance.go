@@ -6,10 +6,10 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-func (eng *Engine) Performance() types.PerformanceResults {
+func (eng *Engine) Performance() types.PerformanceResult {
 
 	if eng == nil {
-		return types.PerformanceResults{}
+		return types.PerformanceResult{}
 	}
 
 	tpCount, slCount := 0, 0
@@ -39,9 +39,9 @@ func (eng *Engine) Performance() types.PerformanceResults {
 	fmt.Printf("Total profit: $%.2f | Total loss: $%.2f\n", profit, loss)
 	fmt.Printf("Net P/L: $%.2f\n", netPL)*/
 
-	return types.PerformanceResults{
+	return types.PerformanceResult{
 		Symbol:    eng.Symbol,
-		TimeFrame: eng.Timeframe,
+		Timeframe: eng.Timeframe,
 		TPcount:   tpCount,
 		SLcount:   slCount,
 		Profit:    profit,

@@ -11,6 +11,29 @@ type FuturesConfigs struct {
 	Hedged     bool
 }
 
+type ExchangeConfig struct {
+	ApiKey    string
+	SecretKey string
+	Password  string // sometimes referred to as 'passphrase'
+}
+
+func (cfg *ExchangeConfig) Validate() error {
+
+	if cfg.ApiKey == "" {
+		return errors.ErrNilApiKey
+	}
+
+	if cfg.SecretKey == "" {
+		return errors.ErrNilSecretKey
+	}
+
+	if cfg.Password == "" {
+		return errors.ErrNilPassword
+	}
+
+	return nil
+}
+
 func (cfg FuturesConfigs) Validate() error {
 	if cfg.Leverage <= 0 {
 		return errors.ErrInvalidLeverage
@@ -33,6 +56,23 @@ func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
 	}
 
 	client.futuresConfigs = cfg
+
+	return nil
+}
+
+func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
+
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if err := exchangeCfg.Validate(); err != nil {
+		return err
+	}
+
+	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
+	client.iExchange.SetSecret(exchangeCfg.SecretKey)
+	client.iExchange.SetPassword(exchangeCfg.Password)
 
 	return nil
 }

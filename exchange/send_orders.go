@@ -8,46 +8,6 @@ import (
 	"github.com/yusufozmis/trading-library/types"
 )
 
-type ExchangeConfig struct {
-	ApiKey    string
-	SecretKey string
-	Password  string // sometimes referred to as 'passphrase'
-}
-
-func (cfg *ExchangeConfig) Validate() error {
-
-	if cfg.ApiKey == "" {
-		return errors.ErrNilApiKey
-	}
-
-	if cfg.SecretKey == "" {
-		return errors.ErrNilSecretKey
-	}
-
-	if cfg.Password == "" {
-		return errors.ErrNilPassword
-	}
-
-	return nil
-}
-
-func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
-
-	if err := client.Validate(); err != nil {
-		return err
-	}
-
-	if err := exchangeCfg.Validate(); err != nil {
-		return err
-	}
-
-	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
-	client.iExchange.SetSecret(exchangeCfg.SecretKey)
-	client.iExchange.SetPassword(exchangeCfg.Password)
-
-	return nil
-}
-
 func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, amount float64) error {
 	if err := client.Validate(); err != nil {
 		return err

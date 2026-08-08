@@ -16,6 +16,14 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 		return nil, err
 	}
 
+	if symbol == "" {
+		return nil, errors.ErrNilSymbol
+	}
+
+	if timeframe == "" {
+		return nil, errors.ErrNilTimeframe
+	}
+
 	if limit <= 0 {
 		return nil, errors.ErrInvalidLimit
 	}

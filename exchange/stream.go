@@ -27,7 +27,7 @@ type candleStream struct {
 
 	stream chan types.Candle
 
-	flag StreamMode
+	streamMode StreamMode
 
 	// This is tokenized on purpose.
 	// A plain bool could only answer "is BTC/USDT 5m active?" and that breaks when:
@@ -103,7 +103,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 		symbols:       symbols,
 		timeframes:    timeframes,
 		stream:        make(chan types.Candle, len(symbols)*2),
-		flag:          mode,
+		streamMode:    mode,
 		activeSymbols: make(map[subKey]uint64),
 		done:          make(chan struct{}),
 	}
@@ -135,6 +135,14 @@ func (s *Client) Updates() (<-chan types.Candle, error) {
 func (s *Client) Subscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err
+	}
+
+	if symbol == "" {
+		return apperrors.ErrNilSymbol
+	}
+
+	if timeframe == "" {
+		return apperrors.ErrNilTimeframe
 	}
 
 	if s.stream == nil {
@@ -171,6 +179,15 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
+
+	if symbol == "" {
+		return apperrors.ErrNilSymbol
+	}
+
+	if timeframe == "" {
+		return apperrors.ErrNilTimeframe
+	}
+
 	if s.stream == nil {
 		return apperrors.ErrStreamNotRunning
 	}
@@ -279,7 +296,7 @@ func (s *Client) watch(key subKey, token uint64) {
 
 		current := candles[len(candles)-1]
 
-		if s.stream.flag == ClosedOnly {
+		if s.stream.streamMode == ClosedOnly {
 			if hasPrevious && current.Timestamp > previous.Timestamp {
 				if !s.stream.isCurrent(key, token) {
 					return
