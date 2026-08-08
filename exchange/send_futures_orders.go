@@ -81,14 +81,14 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 	}
 
 	options := []ccxt.CreateOrderOptions{
-		ccxt.WithCreateOrderParams(client.adapter.OrderParams(req)),
+		ccxt.WithCreateOrderParams(client.futuresAdapter.OrderParams(req)),
 	}
 
 	if req.Type == "limit" {
 		options = append(options, ccxt.WithCreateOrderPrice(req.Price))
 	}
 
-	if err := client.adapter.Prepare(req); err != nil {
+	if err := client.futuresAdapter.Prepare(req); err != nil {
 		return err
 	}
 
@@ -111,7 +111,7 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 		return errors.ErrUninitializedClient
 	}*/
 
-	if client.adapter == nil {
+	if client.futuresAdapter == nil {
 		return errors.ErrUnsupportedProvider
 	}
 

@@ -1,6 +1,8 @@
 package adapters
 
-import ccxt "github.com/ccxt/ccxt/go/v4"
+import (
+	ccxt "github.com/ccxt/ccxt/go/v4"
+)
 
 type FuturesExchange interface {
 	SetLeverage(leverage int64, options ...ccxt.SetLeverageOptions) (map[string]any, error)
@@ -17,4 +19,9 @@ type FuturesOrderRequest struct {
 	Leverage   int64
 	MarginMode string
 	Hedged     bool
+}
+
+type FuturesAdapter interface {
+	Prepare(req FuturesOrderRequest) error
+	OrderParams(req FuturesOrderRequest) map[string]any
 }
