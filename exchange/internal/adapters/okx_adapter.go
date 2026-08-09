@@ -19,7 +19,15 @@ func (adapter *OkxFuturesAdapter) Prepare(req FuturesOrderRequest) error {
 		posSide = req.Side.String()
 	}
 
-	_, err := adapter.exchange.SetLeverage(
+	_, err := adapter.exchange.SetPositionMode(
+		req.Hedged,
+		ccxt.WithSetPositionModeSymbol(req.Symbol),
+	)
+	if err != nil {
+		return err
+	}
+
+	_, err = adapter.exchange.SetLeverage(
 		req.Leverage,
 		ccxt.WithSetLeverageSymbol(req.Symbol),
 		ccxt.WithSetLeverageParams(map[string]any{
