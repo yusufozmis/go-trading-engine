@@ -10,7 +10,15 @@ import (
 )
 
 func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {
-	return client.createFuturesOrder(adapters.FuturesOrderRequest{
+
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	req := adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "market",
@@ -18,11 +26,21 @@ func (client *Client) CreateFuturesMarketOrder(symbol string, side types.Positio
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
-	})
+	}
+
+	return client.createFuturesOrder(req)
 }
 
 func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) error {
-	return client.createFuturesOrder(adapters.FuturesOrderRequest{
+
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	req := adapters.FuturesOrderRequest{
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "limit",
@@ -31,7 +49,9 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
-	})
+	}
+
+	return client.createFuturesOrder(req)
 }
 
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {

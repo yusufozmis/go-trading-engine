@@ -1,6 +1,8 @@
 package exchange
 
 import (
+	"sync"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
 	"github.com/yusufozmis/trading-library/errors"
@@ -14,6 +16,8 @@ type Client struct {
 	stream *candleStream
 
 	futuresConfigs FuturesConfigs
+
+	futuresMu sync.Mutex
 }
 
 func NewBinance() *Client {

@@ -51,6 +51,9 @@ func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
 		return err
 	}
 
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
 	client.futuresConfigs = cfg
 
 	return nil

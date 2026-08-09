@@ -43,4 +43,8 @@ var (
 	ErrInvalidPrice      = errors.New("invalid price")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
+
+	ErrEmptySymbols      = errors.New("empty symbols")
+	ErrEmptyTimeframes   = errors.New("empty timeframes")
+	ErrInvalidStreamMode = errors.New("invalid stream mode")
 )
