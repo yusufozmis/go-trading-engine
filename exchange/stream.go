@@ -16,6 +16,15 @@ const (
 	ClosedOnly
 )
 
+func (s StreamMode) Valid() bool {
+	switch s {
+	case AllUpdates, ClosedOnly:
+		return true
+	default:
+		return false
+	}
+}
+
 type subKey struct {
 	symbol    string
 	timeframe string
@@ -97,6 +106,28 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 
 	if s.stream != nil {
 		return apperrors.ErrStreamAlreadyExists
+	}
+
+	if !mode.Valid() {
+		return apperrors.ErrInvalidStreamMode
+	}
+
+	if len(symbols) == 0 {
+		return apperrors.ErrEmptySymbols
+	}
+	if len(timeframes) == 0 {
+		return apperrors.ErrEmptyTimeframes
+	}
+
+	for _, symbol := range symbols {
+		if symbol == "" {
+			return apperrors.ErrNilSymbol
+		}
+	}
+	for _, timeframe := range timeframes {
+		if timeframe == "" {
+			return apperrors.ErrNilTimeframe
+		}
 	}
 
 	s.stream = &candleStream{
