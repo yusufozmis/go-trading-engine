@@ -27,10 +27,6 @@ func (cfg *ExchangeConfig) Validate() error {
 		return errors.ErrNilSecretKey
 	}
 
-	if cfg.Password == "" {
-		return errors.ErrNilPassword
-	}
-
 	return nil
 }
 
@@ -68,6 +64,13 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 
 	if err := exchangeCfg.Validate(); err != nil {
 		return err
+	}
+
+	required := client.iExchange.GetRequiredCredentials()
+	requiresPassword, _ := required["password"].(bool)
+
+	if requiresPassword && exchangeCfg.Password == "" {
+		return errors.ErrNilPassword
 	}
 
 	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
