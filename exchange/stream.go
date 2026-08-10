@@ -160,34 +160,34 @@ func isRetryableWatchError(err error) bool {
 	}
 }
 
-func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) error {
+func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) (<-chan CandleUpdate, error) {
 	if err := s.Validate(); err != nil {
-		return err
+		return nil, err
 	}
 
 	if s.stream != nil {
-		return apperrors.ErrStreamAlreadyExists
+		return nil, apperrors.ErrStreamAlreadyExists
 	}
 
 	if !mode.Valid() {
-		return apperrors.ErrInvalidStreamMode
+		return nil, apperrors.ErrInvalidStreamMode
 	}
 
 	if len(symbols) == 0 {
-		return apperrors.ErrEmptySymbols
+		return nil, apperrors.ErrEmptySymbols
 	}
 	if len(timeframes) == 0 {
-		return apperrors.ErrEmptyTimeframes
+		return nil, apperrors.ErrEmptyTimeframes
 	}
 
 	for _, symbol := range symbols {
 		if symbol == "" {
-			return apperrors.ErrNilSymbol
+			return nil, apperrors.ErrNilSymbol
 		}
 	}
 	for _, timeframe := range timeframes {
 		if timeframe == "" {
-			return apperrors.ErrNilTimeframe
+			return nil, apperrors.ErrNilTimeframe
 		}
 	}
 
@@ -203,23 +203,10 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	for _, symbol := range s.stream.symbols {
 		for _, timeframe := range s.stream.timeframes {
 			if err := s.Subscribe(symbol, timeframe); err != nil {
-				return err
+				return nil, err
 			}
 		}
 	}
-	return nil
-}
-
-// Updates returns candle data and asynchronous watcher errors on one receive-only channel.
-func (s *Client) Updates() (<-chan CandleUpdate, error) {
-	if err := s.Validate(); err != nil {
-		return nil, err
-	}
-
-	if s.stream == nil {
-		return nil, apperrors.ErrStreamNotRunning
-	}
-
 	return s.stream.stream, nil
 }
 
