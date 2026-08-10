@@ -160,6 +160,8 @@ func isRetryableWatchError(err error) bool {
 	}
 }
 
+// RunCandleStream starts watchers for every symbol and timeframe combination.
+// The returned channel carries candle updates and terminal watcher errors until CloseCandleStream closes it.
 func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) (<-chan CandleUpdate, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
