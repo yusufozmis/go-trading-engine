@@ -2,7 +2,9 @@ package exchange
 
 import (
 	"errors"
+	"fmt"
 	"sync"
+	"time"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	apperrors "github.com/yusufozmis/trading-library/errors"
@@ -15,6 +17,21 @@ const (
 	AllUpdates StreamMode = iota
 	ClosedOnly
 )
+
+const (
+	// Retry transient watcher failures with 1s, 2s, and 4s waits.
+	maxWatchRetries    = 3
+	watchRetryBaseWait = time.Second
+)
+
+// CandleUpdate carries either a candle or an asynchronous watcher error.
+// When Err is non-nil, Candle is the zero value and that watcher has stopped.
+type CandleUpdate struct {
+	// Candle contains data when Err is nil.
+	Candle types.Candle
+	// Err contains a terminal watcher failure after any retries are exhausted.
+	Err error
+}
 
 func (s StreamMode) Valid() bool {
 	switch s {
@@ -34,7 +51,7 @@ type candleStream struct {
 	symbols    []string
 	timeframes []string
 
-	stream chan types.Candle
+	stream chan CandleUpdate
 
 	streamMode StreamMode
 
@@ -74,17 +91,24 @@ func (s *candleStream) isCurrent(key subKey, token uint64) bool {
 	return ok && current == token
 }
 
-func (s *candleStream) clearIfCurrent(key subKey, token uint64) {
+// clearIfCurrent removes only the watcher that still owns this subscription.
+// False means it was already unsubscribed or replaced, so no error should be emitted.
+func (s *candleStream) clearIfCurrent(key subKey, token uint64) bool {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 
 	current, ok := s.activeSymbols[key]
 	if ok && current == token {
 		delete(s.activeSymbols, key)
+		return true
 	}
+
+	return false
 }
 
-func (s *candleStream) emit(candle types.Candle) bool {
+// emit sends both candle data and terminal watcher errors through the same channel.
+// The done case prevents a blocked send from delaying stream shutdown.
+func (s *candleStream) emit(update CandleUpdate) bool {
 	select {
 	case <-s.done:
 		return false
@@ -94,8 +118,45 @@ func (s *candleStream) emit(candle types.Candle) bool {
 	select {
 	case <-s.done:
 		return false
-	case s.stream <- candle:
+	case s.stream <- update:
 		return true
+	}
+}
+
+// waitForRetry applies backoff while allowing CloseCandleStream to interrupt the wait.
+func (s *candleStream) waitForRetry(delay time.Duration) bool {
+	timer := time.NewTimer(delay)
+	defer timer.Stop()
+
+	select {
+	case <-s.done:
+		return false
+	case <-timer.C:
+		return true
+	}
+}
+
+// isRetryableWatchError limits retries to CCXT failures that can recover without
+// changing the subscription or credentials.
+func isRetryableWatchError(err error) bool {
+	var exchangeErr *ccxt.Error
+	if !errors.As(err, &exchangeErr) {
+		return false
+	}
+
+	switch exchangeErr.Type {
+	case ccxt.NetworkErrorErrType,
+		ccxt.DDoSProtectionErrType,
+		ccxt.RateLimitExceededErrType,
+		ccxt.ExchangeNotAvailableErrType,
+		ccxt.OnMaintenanceErrType,
+		ccxt.ChecksumErrorErrType,
+		ccxt.RequestTimeoutErrType,
+		ccxt.BadResponseErrType,
+		ccxt.NullResponseErrType:
+		return true
+	default:
+		return false
 	}
 }
 
@@ -133,7 +194,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	s.stream = &candleStream{
 		symbols:       symbols,
 		timeframes:    timeframes,
-		stream:        make(chan types.Candle, len(symbols)*2),
+		stream:        make(chan CandleUpdate, len(symbols)*2),
 		streamMode:    mode,
 		activeSymbols: make(map[subKey]uint64),
 		done:          make(chan struct{}),
@@ -149,9 +210,8 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	return nil
 }
 
-// This stays receive-only so callers can consume updates without being able to
-// send into the channel or close it from outside the package.
-func (s *Client) Updates() (<-chan types.Candle, error) {
+// Updates returns candle data and asynchronous watcher errors on one receive-only channel.
+func (s *Client) Updates() (<-chan CandleUpdate, error) {
 	if err := s.Validate(); err != nil {
 		return nil, err
 	}
@@ -302,6 +362,7 @@ func (s *Client) CloseCandleStream() error {
 func (s *Client) watch(key subKey, token uint64) {
 	var previous ccxt.OHLCV
 	hasPrevious := false
+	retryCount := 0
 
 	for {
 		if !s.stream.isCurrent(key, token) {
@@ -313,9 +374,32 @@ func (s *Client) watch(key subKey, token uint64) {
 			ccxt.WithWatchOHLCVTimeframe(key.timeframe),
 		)
 		if err != nil {
-			s.stream.clearIfCurrent(key, token)
+			// Unsubscribe can make WatchOHLCV return an error during normal shutdown.
+			if !s.stream.isCurrent(key, token) {
+				return
+			}
+
+			// Retry known temporary failures with a bounded exponential backoff.
+			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
+				retryCount++
+				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
+				if !s.stream.waitForRetry(delay) {
+					return
+				}
+				// retries
+				continue
+			}
+
+			// Publish only terminal errors from the watcher that still owns the key.
+			if s.stream.clearIfCurrent(key, token) {
+				s.stream.emit(CandleUpdate{
+					Err: fmt.Errorf("watch OHLCV %q %q: %w", key.symbol, key.timeframe, err),
+				})
+			}
 			return
 		}
+		// Any successful response starts a fresh retry budget.
+		retryCount = 0
 
 		if len(candles) == 0 {
 			continue
@@ -333,7 +417,10 @@ func (s *Client) watch(key subKey, token uint64) {
 					return
 				}
 
-				if !s.stream.emit(s.wrapOHLCV(key.symbol, key.timeframe, previous)) {
+				// The previous candle is fully formed once a newer timestamp arrives.
+				if !s.stream.emit(CandleUpdate{
+					Candle: s.wrapOHLCV(key.symbol, key.timeframe, previous),
+				}) {
 					return
 				}
 			}
@@ -347,7 +434,10 @@ func (s *Client) watch(key subKey, token uint64) {
 			return
 		}
 
-		if !s.stream.emit(s.wrapOHLCV(key.symbol, key.timeframe, current)) {
+		// AllUpdates publishes the latest candle even while it is still forming.
+		if !s.stream.emit(CandleUpdate{
+			Candle: s.wrapOHLCV(key.symbol, key.timeframe, current),
+		}) {
 			return
 		}
 
