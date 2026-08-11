@@ -209,6 +209,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	for _, symbol := range s.stream.symbols {
 		for _, timeframe := range s.stream.timeframes {
 			if err := s.Subscribe(symbol, timeframe); err != nil {
+				// Roll back previously started watchers so startup is all-or-nothing.
 				closeErr := s.CloseCandleStream()
 				return nil, errors.Join(err, closeErr)
 			}
