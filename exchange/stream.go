@@ -31,6 +31,10 @@ type CandleUpdate struct {
 	Candle types.Candle
 	// Err contains a terminal watcher failure after any retries are exhausted.
 	Err error
+
+	// Symbol and Timeframe identify the stopped subscription when Err is non-nil.
+	Symbol    string
+	Timeframe string
 }
 
 func (s StreamMode) Valid() bool {
@@ -382,7 +386,9 @@ func (s *Client) watch(key subKey, token uint64) {
 			// Publish only terminal errors from the watcher that still owns the key.
 			if s.stream.clearIfCurrent(key, token) {
 				s.stream.emit(CandleUpdate{
-					Err: fmt.Errorf("watch OHLCV %q %q: %w", key.symbol, key.timeframe, err),
+					Err:       fmt.Errorf("watch OHLCV %q %q: %w", key.symbol, key.timeframe, err),
+					Symbol:    key.symbol,
+					Timeframe: key.timeframe,
 				})
 			}
 			return
