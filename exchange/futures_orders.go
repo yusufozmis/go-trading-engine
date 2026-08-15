@@ -54,6 +54,94 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 	return client.createFuturesOrder(req)
 }
 
+// CloseFuturesPosition closes the entire open position for the requested side.
+func (client *Client) CloseFuturesPosition(
+	symbol string,
+	positionSide types.PositionSide,
+) error {
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	if !positionSide.Valid() {
+		return errors.ErrInvalidSide
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	if client.futuresAdapter == nil {
+		return errors.ErrUnsupportedProvider
+	}
+
+	positions, err := client.iExchange.FetchPositions(
+		ccxt.WithFetchPositionsSymbols([]string{symbol}),
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, position := range positions {
+		if position.Symbol == nil || *position.Symbol != symbol {
+			continue
+		}
+
+		if position.Side == nil || *position.Side != positionSide.String() {
+			continue
+		}
+
+		if position.Contracts == nil || math.IsNaN(*position.Contracts) ||
+			math.IsInf(*position.Contracts, 0) || *position.Contracts <= 0 {
+			continue
+		}
+
+		// Prefer the position's actual settings because the client config may
+		// have changed after this position was opened.
+		marginMode := client.futuresConfigs.MarginMode
+		if position.MarginMode != nil {
+			actualMarginMode := types.MarginMode(*position.MarginMode)
+			if actualMarginMode.Valid() {
+				marginMode = actualMarginMode
+			}
+		}
+
+		hedged := client.futuresConfigs.Hedged
+		if position.Hedged != nil {
+			hedged = *position.Hedged
+		}
+
+		req := adapters.FuturesOrderRequest{
+			Symbol:     symbol,
+			Side:       positionSide,
+			Type:       "market",
+			Amount:     *position.Contracts,
+			Leverage:   client.futuresConfigs.Leverage,
+			MarginMode: marginMode,
+			Hedged:     hedged,
+			IsClosing:  true,
+		}
+
+		// A reduce-only order closes the position without risking an
+		// accidental position in the opposite direction.
+		_, err = client.iExchange.CreateReduceOnlyOrder(
+			req.Symbol,
+			req.Type,
+			closeOrderSide(req.Side).String(),
+			req.Amount,
+			ccxt.WithCreateReduceOnlyOrderParams(
+				client.futuresAdapter.OrderParams(req),
+			),
+		)
+		return err
+	}
+
+	return errors.ErrPositionNotFound
+}
+
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
 	if err := client.Validate(); err != nil {
 		return err
@@ -124,4 +212,12 @@ func orderSide(side types.PositionSide) types.SpotSide {
 		return types.SpotBuy
 	}
 	return types.SpotSell
+}
+
+// closeOrderSide returns the order side that closes the given position side.
+func closeOrderSide(side types.PositionSide) types.SpotSide {
+	if side == types.PositionLong {
+		return types.SpotSell
+	}
+	return types.SpotBuy
 }

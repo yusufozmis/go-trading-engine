@@ -44,6 +44,12 @@ func (adapter *OkxFuturesAdapter) OrderParams(req FuturesOrderRequest) map[strin
 		"marginMode": req.MarginMode.String(),
 	}
 
+	// Let CCXT derive OKX's closing posSide from the reduce-only order side.
+	if req.IsClosing {
+		params["hedged"] = req.Hedged
+		return params
+	}
+
 	if req.Hedged {
 		params["positionSide"] = req.Side.String()
 	}

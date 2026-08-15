@@ -43,6 +43,8 @@ var (
 	ErrInvalidPrice      = errors.New("invalid price")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
+	// ErrPositionNotFound indicates that there is no open position to close.
+	ErrPositionNotFound = errors.New("position not found")
 
 	ErrEmptySymbols      = errors.New("empty symbols")
 	ErrEmptyTimeframes   = errors.New("empty timeframes")

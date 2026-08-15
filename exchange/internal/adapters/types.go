@@ -20,6 +20,7 @@ type FuturesOrderRequest struct {
 	Leverage   int64
 	MarginMode types.MarginMode
 	Hedged     bool
+	IsClosing  bool
 }
 
 type FuturesAdapter interface {

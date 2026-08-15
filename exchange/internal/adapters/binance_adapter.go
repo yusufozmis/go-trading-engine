@@ -43,6 +43,13 @@ func (adapter *BinanceFuturesAdapter) Prepare(req FuturesOrderRequest) error {
 func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
 	params := map[string]any{}
 
+	// Let CCXT translate a reduce-only hedge order into Binance's required
+	// positionSide without sending the unsupported reduceOnly parameter.
+	if req.IsClosing {
+		params["hedged"] = req.Hedged
+		return params
+	}
+
 	if req.Hedged {
 		if req.Side == types.PositionLong {
 			params["positionSide"] = "LONG"
