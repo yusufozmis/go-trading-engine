@@ -1,15 +1,11 @@
 package exchange
 
 import (
+	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/trading-library/errors"
+	"github.com/yusufozmis/trading-library/exchange/internal/adapters"
 	"github.com/yusufozmis/trading-library/types"
 )
-
-type FuturesConfigs struct {
-	Leverage   int64
-	MarginMode types.MarginMode
-	Hedged     bool
-}
 
 type ExchangeConfig struct {
 	ApiKey    string
@@ -30,31 +26,84 @@ func (cfg *ExchangeConfig) Validate() error {
 	return nil
 }
 
-func (cfg FuturesConfigs) Validate() error {
-	if cfg.Leverage <= 0 {
+// SetFuturesConfig stores the desired futures configuration and applies the
+// corresponding account and symbol settings before futures orders are allowed.
+// SetConfig must be called first because this method performs authenticated
+// exchange requests.
+func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMode, hedged bool, symbols ...string) error {
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if leverage <= 0 {
 		return errors.ErrInvalidLeverage
 	}
 
-	if !cfg.MarginMode.Valid() {
+	if !marginMode.Valid() {
 		return errors.ErrInvalidMarginMode
 	}
 
-	return nil
-}
+	if len(symbols) == 0 {
+		return errors.ErrEmptySymbols
+	}
 
-func (client *Client) SetFuturesConfig(cfg FuturesConfigs) error {
-	if err := client.Validate(); err != nil {
-		return err
+	// Validate the complete input before changing either local or remote state.
+	for _, symbol := range symbols {
+		if symbol == "" {
+			return errors.ErrNilSymbol
+		}
+	}
+
+	// Configuration, remote preparation, and order submission share this lock.
+	// An order therefore cannot run while the account is only partly configured.
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	if client.futuresAdapter == nil {
+		return errors.ErrUnsupportedProvider
+	}
+
+	// Invalidate the previous symbol preparation before making remote changes.
+	// If any request below fails, order creation stays disabled instead of using
+	// a configuration that may have been only partially applied.
+	client.preparedFuturesSymbols = nil
+
+	cfg := adapters.FuturesConfig{
+		Leverage:   leverage,
+		MarginMode: marginMode,
+		Hedged:     hedged,
 	}
 
 	if err := cfg.Validate(); err != nil {
 		return err
 	}
 
-	client.futuresMu.Lock()
-	defer client.futuresMu.Unlock()
+	// Position mode is account-level state. A single valid futures symbol gives
+	// CCXT enough market information to select the correct provider endpoint.
+	_, err := client.iExchange.SetPositionMode(
+		hedged,
+		ccxt.WithSetPositionModeSymbol(symbols[0]),
+	)
+	if err != nil {
+		return err
+	}
+
+	preparedSymbols := make(map[string]bool, len(symbols))
+	for _, symbol := range symbols {
+		// Do not repeat provider requests when the same symbol appears twice.
+		if preparedSymbols[symbol] {
+			continue
+		}
+
+		if err := client.futuresAdapter.Prepare(symbol, cfg); err != nil {
+			return err
+		}
+
+		preparedSymbols[symbol] = true
+	}
 
 	client.futuresConfigs = cfg
+	client.preparedFuturesSymbols = preparedSymbols
 
 	return nil
 }
@@ -76,9 +125,14 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 		return errors.ErrNilPassword
 	}
 
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
 	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
 	client.iExchange.SetSecret(exchangeCfg.SecretKey)
 	client.iExchange.SetPassword(exchangeCfg.Password)
+
+	client.preparedFuturesSymbols = nil
 
 	return nil
 }

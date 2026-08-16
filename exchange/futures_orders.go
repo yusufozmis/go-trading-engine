@@ -159,8 +159,15 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 		options = append(options, ccxt.WithCreateOrderPrice(req.Price))
 	}
 
-	if err := client.futuresAdapter.Prepare(req); err != nil {
-		return err
+	if !client.preparedFuturesSymbols[req.Symbol] {
+		if err := client.futuresAdapter.Prepare(req.Symbol, adapters.FuturesConfig{
+			Leverage:   req.Leverage,
+			MarginMode: req.MarginMode,
+			Hedged:     req.Hedged,
+		}); err != nil {
+			return err
+		}
+		client.preparedFuturesSymbols[req.Symbol] = true
 	}
 
 	_, err := client.iExchange.CreateOrder(

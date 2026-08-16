@@ -1,6 +1,8 @@
 package adapters
 
 import (
+	"fmt"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/trading-library/types"
 )
@@ -15,27 +17,33 @@ func NewBinanceFuturesAdapter(exchange FuturesExchange) *BinanceFuturesAdapter {
 	}
 }
 
-func (adapter *BinanceFuturesAdapter) Prepare(req FuturesOrderRequest) error {
-
-	_, err := adapter.futures.SetMarginMode(
-		req.MarginMode.String(),
-		ccxt.WithSetMarginModeSymbol(req.Symbol),
-	)
+func (adapter *BinanceFuturesAdapter) Prepare(symbol string, req FuturesConfig) error {
+	// Binance may reject setting a margin mode that is already active. Fetching it
+	// during explicit preparation lets us avoid that unnecessary SetMarginMode call.
+	marginMode, err := adapter.futures.FetchMarginMode(symbol)
 	if err != nil {
 		return err
 	}
-
-	_, err = adapter.futures.SetPositionMode(
-		req.Hedged,
-		ccxt.WithSetPositionModeSymbol(req.Symbol),
-	)
-	if err != nil {
-		return err
+	if marginMode.MarginMode == nil {
+		return fmt.Errorf("binance: margin mode response is missing marginMode")
 	}
 
+	// Margin mode is symbol-specific on this adapter, so change it only when the
+	// exchange reports a value different from the requested configuration.
+	if *marginMode.MarginMode != req.MarginMode.String() {
+		if _, err := adapter.futures.SetMarginMode(
+			req.MarginMode.String(),
+			ccxt.WithSetMarginModeSymbol(symbol),
+		); err != nil {
+			return err
+		}
+	}
+
+	// Leverage is applied after margin mode so the setting belongs to the final
+	// mode. This request runs in SetFuturesConfig, never immediately before an order.
 	_, err = adapter.futures.SetLeverage(
 		req.Leverage,
-		ccxt.WithSetLeverageSymbol(req.Symbol),
+		ccxt.WithSetLeverageSymbol(symbol),
 	)
 	return err
 }

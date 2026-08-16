@@ -15,9 +15,14 @@ type Client struct {
 
 	stream *candleStream
 
-	futuresConfigs FuturesConfigs
+	// futuresMu serializes futures configuration and order submission. Holding one
+	// lock prevents orders from observing a half-applied remote configuration.
+	futuresMu      sync.Mutex
+	futuresConfigs adapters.FuturesConfig
 
-	futuresMu sync.Mutex
+	// preparedFuturesSymbols contains only symbols successfully configured by the
+	// most recent SetFuturesConfig call. The bool value keeps order checks cheap.
+	preparedFuturesSymbols map[string]bool
 }
 
 func NewBinance() *Client {
