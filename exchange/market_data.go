@@ -77,3 +77,26 @@ func (client *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) type
 		Volume: ohlcv.Volume,
 	}
 }
+
+// This allows you to check the funding rate of a given pair.
+// Note: The symbol should be in <SYMBOL>/USDT:USDT  format,
+// i.e., BTC/USDT:USDT.
+func (client *Client) FetchFundingRate(symbol string) (float64, error) {
+
+	if err := client.Validate(); err != nil {
+		return 0, err
+	}
+
+	if symbol == "" {
+		return 0, errors.ErrNilSymbol
+	}
+
+	currencies, err := client.iExchange.FetchFundingRates(ccxt.WithFetchFundingRatesSymbols([]string{symbol}))
+	if err != nil {
+		return 0, err
+	}
+
+	x := *currencies.FundingRates[symbol].FundingRate
+
+	return x * 100, nil
+}
