@@ -52,4 +52,6 @@ var (
 	ErrEmptySymbols      = errors.New("empty symbols")
 	ErrEmptyTimeframes   = errors.New("empty timeframes")
 	ErrInvalidStreamMode = errors.New("invalid stream mode")
+
+	ErrNotEnoughAmount = errors.New("not enough amount")
 )

@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"math"
+	"strings"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/trading-library/errors"
@@ -71,5 +72,77 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 		return err
 	}
 
+	return nil
+}
+
+func (client *Client) CloseSpotPositionMarket(symbol string, side types.SpotSide) error {
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	if !side.Valid() {
+		return errors.ErrInvalidSide
+	}
+
+	balances, err := client.iExchange.FetchBalance()
+	if err != nil {
+		return err
+	}
+
+	before, _, _ := strings.Cut(symbol, "/")
+	amount := *balances.Balances[before].Total
+
+	if amount < 0.00001 {
+		return errors.ErrNotEnoughAmount
+	}
+
+	_, err = client.iExchange.CreateMarketSellOrder(
+		symbol,
+		amount,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (client *Client) CloseSpotPositionLimit(symbol string, side types.SpotSide, price float64) error {
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	if !side.Valid() {
+		return errors.ErrInvalidSide
+	}
+
+	balances, err := client.iExchange.FetchBalance()
+	if err != nil {
+		return err
+	}
+
+	before, _, _ := strings.Cut(symbol, "/")
+	amount := *balances.Balances[before].Total
+
+	if amount < 0.00001 {
+		return errors.ErrNotEnoughAmount
+	}
+
+	_, err = client.iExchange.CreateLimitSellOrder(
+		symbol,
+		amount,
+		price,
+	)
+	if err != nil {
+		return err
+	}
 	return nil
 }
