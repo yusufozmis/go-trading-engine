@@ -17,9 +17,13 @@ func (client *Client) FetchUSDTBalance() (float64, error) {
 		return 0, err
 	}
 
-	amount := *balance.Total["USDT"]
+	amount := balance.Total["USDT"]
 
-	return amount, nil
+	if amount == nil {
+		return 0, errors.ErrInternal
+	}
+
+	return *amount, nil
 }
 
 // This allows you to check the balance of a given asset.
@@ -41,7 +45,11 @@ func (client *Client) FetchBalance(symbol string) (float64, error) {
 	}
 
 	before, _, _ := strings.Cut(symbol, "/")
-	amount := *balance.Total[before]
+	amount := balance.Total[before]
 
-	return amount, nil
+	if amount == nil {
+		return 0, errors.ErrInternal
+	}
+
+	return *amount, nil
 }

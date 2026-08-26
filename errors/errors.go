@@ -54,4 +54,6 @@ var (
 	ErrInvalidStreamMode = errors.New("invalid stream mode")
 
 	ErrNotEnoughAmount = errors.New("not enough amount")
+
+	ErrInternal = errors.New("internal err")
 )
