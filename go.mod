@@ -1,4 +1,4 @@
-module github.com/yusufozmis/trading-library
+module github.com/yusufozmis/go-trading-engine
 
 go 1.26.4
 

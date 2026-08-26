@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/yusufozmis/trading-library/types"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 type Engine struct {

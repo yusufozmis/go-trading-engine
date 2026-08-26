@@ -7,8 +7,8 @@ import (
 	"time"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	apperrors "github.com/yusufozmis/trading-library/errors"
-	"github.com/yusufozmis/trading-library/types"
+	apperrors "github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 type StreamMode int64

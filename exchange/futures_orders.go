@@ -4,9 +4,9 @@ import (
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/trading-library/errors"
-	"github.com/yusufozmis/trading-library/exchange/internal/adapters"
-	"github.com/yusufozmis/trading-library/types"
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {

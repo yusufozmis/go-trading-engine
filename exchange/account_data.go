@@ -3,7 +3,7 @@ package exchange
 import (
 	"strings"
 
-	"github.com/yusufozmis/trading-library/errors"
+	"github.com/yusufozmis/go-trading-engine/errors"
 )
 
 func (client *Client) FetchUSDTBalance() (float64, error) {

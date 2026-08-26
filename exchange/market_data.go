@@ -4,8 +4,8 @@ import (
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/trading-library/errors"
-	"github.com/yusufozmis/trading-library/types"
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 // FetchCandles returns up to limit fully formed candles for the given symbol and timeframe,

@@ -5,8 +5,8 @@ import (
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
-	"github.com/yusufozmis/trading-library/errors"
-	"github.com/yusufozmis/trading-library/exchange/internal/adapters"
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
 )
 
 type Client struct {

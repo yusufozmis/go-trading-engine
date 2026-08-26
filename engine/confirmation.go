@@ -1,6 +1,6 @@
 package engine
 
-import "github.com/yusufozmis/trading-library/types"
+import "github.com/yusufozmis/go-trading-engine/types"
 
 func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
 	if eng == nil || eng.pendingConfirmation == nil {

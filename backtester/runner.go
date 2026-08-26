@@ -1,8 +1,8 @@
 package backtester
 
 import (
-	"github.com/yusufozmis/trading-library/errors"
-	"github.com/yusufozmis/trading-library/types"
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 func (b *Backtester) Run() (types.PerformanceResult, error) {

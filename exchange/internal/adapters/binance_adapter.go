@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/trading-library/types"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 type BinanceFuturesAdapter struct {
