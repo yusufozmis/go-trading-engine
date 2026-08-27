@@ -20,6 +20,10 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 		return nil, errors.ErrNilSymbol
 	}
 
+	if _, exists := client.markets[symbol]; !exists {
+		return nil, errors.ErrInvalidSymbol
+	}
+
 	if timeframe == "" {
 		return nil, errors.ErrNilTimeframe
 	}
