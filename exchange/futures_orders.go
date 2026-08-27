@@ -148,13 +148,36 @@ func (client *Client) CloseFuturesPosition(
 	return errors.ErrPositionNotFound
 }
 
-// ReduceFuturesPosition reduces the requested side of an open perpetual
-// futures position by the given number of contracts.
+// ReduceFuturesPositionMarket reduces the requested side of an open perpetual
+// futures position by the given number of contracts at market price.
 // Binance support is currently limited to USD-M (linear) futures positions.
-func (client *Client) ReduceFuturesPosition(
+func (client *Client) ReduceFuturesPositionMarket(
 	symbol string,
 	positionSide types.PositionSide,
 	amount float64,
+) error {
+	return client.reduceFuturesPosition(symbol, positionSide, amount, "market", 0)
+}
+
+// ReduceFuturesPositionLimit places a limit order that reduces the requested
+// side of an open perpetual futures position by the given number of contracts.
+// Binance support is currently limited to USD-M (linear) futures positions.
+func (client *Client) ReduceFuturesPositionLimit(
+	symbol string,
+	positionSide types.PositionSide,
+	amount, price float64,
+) error {
+	return client.reduceFuturesPosition(symbol, positionSide, amount, "limit", price)
+}
+
+// reduceFuturesPosition contains the position lookup and reduce-only order flow
+// shared by the market and limit public methods.
+func (client *Client) reduceFuturesPosition(
+	symbol string,
+	positionSide types.PositionSide,
+	amount float64,
+	orderType string,
+	price float64,
 ) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
@@ -171,6 +194,11 @@ func (client *Client) ReduceFuturesPosition(
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
 		return errors.ErrInvalidAmount
+	}
+
+	if orderType == "limit" &&
+		(math.IsNaN(price) || math.IsInf(price, 0) || price <= 0) {
+		return errors.ErrInvalidPrice
 	}
 
 	if !positionSide.Valid() {
@@ -227,12 +255,23 @@ func (client *Client) ReduceFuturesPosition(
 		req := adapters.FuturesOrderRequest{
 			Symbol:     symbol,
 			Side:       positionSide,
-			Type:       "market",
+			Type:       orderType,
 			Amount:     amount,
+			Price:      price,
 			Leverage:   client.futuresConfigs.Leverage,
 			MarginMode: marginMode,
 			Hedged:     hedged,
 			IsClosing:  true,
+		}
+
+		options := []ccxt.CreateReduceOnlyOrderOptions{
+			ccxt.WithCreateReduceOnlyOrderParams(
+				client.futuresAdapter.OrderParams(req),
+			),
+		}
+
+		if req.Type == "limit" {
+			options = append(options, ccxt.WithCreateReduceOnlyOrderPrice(req.Price))
 		}
 
 		// A reduce-only order closes the position without risking an
@@ -242,9 +281,7 @@ func (client *Client) ReduceFuturesPosition(
 			req.Type,
 			closeOrderSide(req.Side).String(),
 			req.Amount,
-			ccxt.WithCreateReduceOnlyOrderParams(
-				client.futuresAdapter.OrderParams(req),
-			),
+			options...,
 		)
 		return err
 	}
