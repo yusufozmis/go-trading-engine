@@ -46,8 +46,8 @@ func (cfg FuturesConfig) Validate() error {
 }
 
 type FuturesAdapter interface {
-	// Prepare performs provider-specific remote configuration outside the order
-	// hot path. OrderParams only translates an already-prepared order.
+	// Prepare applies provider-specific settings for a symbol when required.
 	Prepare(symbol string, req FuturesConfig) error
+	// OrderParams translates an order into provider-specific parameters.
 	OrderParams(req FuturesOrderRequest) map[string]any
 }

@@ -22,8 +22,8 @@ type Client struct {
 
 	// SetConfig can only be applied once.
 	configured bool
-	// preparedFuturesSymbols contains only symbols successfully configured by the
-	// most recent SetFuturesConfig call. The bool value keeps order checks cheap.
+	// preparedFuturesSymbols contains symbols successfully prepared for the
+	// current futures configuration. The bool value keeps order checks cheap.
 	preparedFuturesSymbols map[string]bool
 }
 

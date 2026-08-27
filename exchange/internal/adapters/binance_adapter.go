@@ -40,7 +40,7 @@ func (adapter *BinanceFuturesAdapter) Prepare(symbol string, req FuturesConfig) 
 	}
 
 	// Leverage is applied after margin mode so the setting belongs to the final
-	// mode. This request runs in SetFuturesConfig, never immediately before an order.
+	// mode. Prepare may run during configuration or when an order adds a new symbol.
 	_, err = adapter.futures.SetLeverage(
 		req.Leverage,
 		ccxt.WithSetLeverageSymbol(symbol),

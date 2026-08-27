@@ -6,8 +6,8 @@ import (
 	"github.com/yusufozmis/go-trading-engine/errors"
 )
 
-// FetchUSDTBalance returns the account's total USDT balance.
-func (client *Client) FetchUSDTBalance() (float64, error) {
+// FetchSpotUSDTBalance returns the account's total USDT balance.
+func (client *Client) FetchSpotUSDTBalance() (float64, error) {
 
 	if err := client.validateConfigured(); err != nil {
 		return 0, err
