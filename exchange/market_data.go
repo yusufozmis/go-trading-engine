@@ -78,9 +78,8 @@ func (client *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) type
 	}
 }
 
-// This allows you to check the funding rate of a given pair.
-// Note: The symbol should be in <SYMBOL>/USDT:USDT  format,
-// i.e., BTC/USDT:USDT.
+// FetchFundingRate returns the current funding rate as a percentage.
+// The symbol must use a futures format such as BTC/USDT:USDT.
 func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 
 	if err := client.Validate(); err != nil {

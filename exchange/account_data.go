@@ -6,6 +6,7 @@ import (
 	"github.com/yusufozmis/go-trading-engine/errors"
 )
 
+// FetchUSDTBalance returns the account's total USDT balance.
 func (client *Client) FetchUSDTBalance() (float64, error) {
 
 	if err := client.Validate(); err != nil {
@@ -26,9 +27,8 @@ func (client *Client) FetchUSDTBalance() (float64, error) {
 	return *amount, nil
 }
 
-// This allows you to check the balance of a given asset.
-// Note: The symbol should be in <SYMBOL>/USDT or <SYMBOL>/USDC format,
-// i.e., BTC/USDT.
+// FetchBalance returns the account's total balance for the base asset in symbol.
+// The symbol must use a BASE/QUOTE format such as BTC/USDT.
 func (client *Client) FetchBalance(symbol string) (float64, error) {
 
 	if err := client.Validate(); err != nil {

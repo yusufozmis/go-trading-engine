@@ -43,7 +43,8 @@ var (
 	ErrInvalidPrice      = errors.New("invalid price")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
-	ErrInvalidSymbol     = errors.New("invalid symbol")
+	// ErrInvalidSymbol indicates that a symbol does not use the required format.
+	ErrInvalidSymbol = errors.New("invalid symbol")
 	// ErrFuturesNotPrepared prevents orders from silently configuring the account
 	// on their hot path. The caller must prepare that symbol explicitly first.
 	ErrFuturesNotPrepared = errors.New("exchange: futures symbol is not prepared")
@@ -55,5 +56,6 @@ var (
 	ErrInvalidStreamMode = errors.New("invalid stream mode")
 
 	ErrNotEnoughAmount = errors.New("not enough amount")
+	// ErrBalanceNotFound indicates that the requested asset is absent from the balance response.
 	ErrBalanceNotFound = errors.New("balance not found")
 )

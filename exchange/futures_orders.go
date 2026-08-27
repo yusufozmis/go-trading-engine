@@ -55,6 +55,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 }
 
 // CloseFuturesPosition closes the entire open position for the requested side.
+// Binance support is currently limited to USD-M (linear) futures positions.
 func (client *Client) CloseFuturesPosition(
 	symbol string,
 	positionSide types.PositionSide,
