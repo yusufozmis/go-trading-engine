@@ -75,17 +75,13 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 	return nil
 }
 
-func (client *Client) CloseSpotPositionMarket(symbol string, side types.SpotSide) error {
+func (client *Client) CloseSpotPositionMarket(symbol string) error {
 	if err := client.Validate(); err != nil {
 		return err
 	}
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
-	}
-
-	if !side.Valid() {
-		return errors.ErrInvalidSide
 	}
 
 	balances, err := client.iExchange.FetchBalance()
@@ -122,17 +118,13 @@ func (client *Client) CloseSpotPositionMarket(symbol string, side types.SpotSide
 	return nil
 }
 
-func (client *Client) CloseSpotPositionLimit(symbol string, side types.SpotSide, price float64) error {
+func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error {
 	if err := client.Validate(); err != nil {
 		return err
 	}
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
-	}
-
-	if !side.Valid() {
-		return errors.ErrInvalidSide
 	}
 
 	balances, err := client.iExchange.FetchBalance()
