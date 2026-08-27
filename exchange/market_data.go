@@ -95,5 +95,10 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 		return 0, err
 	}
 
-	return (*fundingRate.FundingRate) * 100, nil
+	rate := fundingRate.FundingRate
+	if rate == nil {
+		return 0, errors.ErrFundingRateUnavailable
+	}
+
+	return (*rate) * 100, nil
 }

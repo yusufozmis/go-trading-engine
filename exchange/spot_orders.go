@@ -101,15 +101,19 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		return errors.ErrInvalidSymbol
 	}
 
-	amount := *balances.Balances[base].Total
+	amount := balances.Balances[base].Total
 
-	if amount < 0.00001 {
+	if amount == nil {
+		return errors.ErrBalanceNotFound
+	}
+
+	if *amount < 0.00001 {
 		return errors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateMarketSellOrder(
 		symbol,
-		amount,
+		*amount,
 	)
 	if err != nil {
 		return err
@@ -144,15 +148,19 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		return errors.ErrInvalidSymbol
 	}
 
-	amount := *balances.Balances[base].Total
+	amount := balances.Balances[base].Total
 
-	if amount < 0.00001 {
+	if amount == nil {
+		return errors.ErrBalanceNotFound
+	}
+
+	if *amount < 0.00001 {
 		return errors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateLimitSellOrder(
 		symbol,
-		amount,
+		*amount,
 		price,
 	)
 	if err != nil {

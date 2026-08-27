@@ -57,5 +57,6 @@ var (
 
 	ErrNotEnoughAmount = errors.New("not enough amount")
 	// ErrBalanceNotFound indicates that the requested asset is absent from the balance response.
-	ErrBalanceNotFound = errors.New("balance not found")
+	ErrBalanceNotFound        = errors.New("balance not found")
+	ErrFundingRateUnavailable = errors.New("funding rate unavailable")
 )
