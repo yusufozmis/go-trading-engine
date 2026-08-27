@@ -162,3 +162,103 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 	}
 	return nil
 }
+
+// ReduceSpotPositionMarket reduces a spot holding by selling the specified
+// base-asset amount at market price.
+func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) error {
+	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+		return errors.ErrInvalidAmount
+	}
+
+	base, quote, found := strings.Cut(symbol, "/")
+	if !found || base == "" || quote == "" ||
+		strings.Contains(quote, "/") ||
+		strings.Contains(symbol, ":") {
+		return errors.ErrInvalidSymbol
+	}
+
+	balances, err := client.iExchange.FetchBalance()
+	if err != nil {
+		return err
+	}
+
+	freeBalance := balances.Balances[base].Free
+
+	if freeBalance == nil {
+		return errors.ErrBalanceNotFound
+	}
+
+	if *freeBalance < 0.00001 || *freeBalance < amount {
+		return errors.ErrNotEnoughAmount
+	}
+
+	_, err = client.iExchange.CreateMarketSellOrder(
+		symbol,
+		amount,
+	)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+// ReduceSpotPositionLimit reduces a spot holding by placing a limit sell order
+// for the specified base-asset amount.
+func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float64) error {
+	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+		return errors.ErrInvalidAmount
+	}
+
+	if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
+		return errors.ErrInvalidPrice
+	}
+
+	base, quote, found := strings.Cut(symbol, "/")
+	if !found || base == "" || quote == "" ||
+		strings.Contains(quote, "/") ||
+		strings.Contains(symbol, ":") {
+		return errors.ErrInvalidSymbol
+	}
+
+	balances, err := client.iExchange.FetchBalance()
+	if err != nil {
+		return err
+	}
+
+	freeBalance := balances.Balances[base].Free
+
+	if freeBalance == nil {
+		return errors.ErrBalanceNotFound
+	}
+
+	if *freeBalance < 0.00001 || *freeBalance < amount {
+		return errors.ErrNotEnoughAmount
+	}
+
+	_, err = client.iExchange.CreateLimitSellOrder(
+		symbol,
+		amount,
+		price,
+	)
+	if err != nil {
+		return err
+	}
+	return nil
+}
