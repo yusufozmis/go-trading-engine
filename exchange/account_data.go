@@ -9,7 +9,7 @@ import (
 // FetchUSDTBalance returns the account's total USDT balance.
 func (client *Client) FetchUSDTBalance() (float64, error) {
 
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return 0, err
 	}
 
@@ -27,11 +27,11 @@ func (client *Client) FetchUSDTBalance() (float64, error) {
 	return *amount, nil
 }
 
-// FetchBalance returns the account's total balance for the base asset in symbol.
+// FetchSpotBalance returns the account's total balance for the base asset in symbol.
 // The symbol must use a BASE/QUOTE format such as BTC/USDT.
-func (client *Client) FetchBalance(symbol string) (float64, error) {
+func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return 0, err
 	}
 
@@ -39,25 +39,41 @@ func (client *Client) FetchBalance(symbol string) (float64, error) {
 		return 0, errors.ErrNilSymbol
 	}
 
+	base, quote, found := strings.Cut(symbol, "/")
+	if !found || base == "" || quote == "" ||
+		strings.Contains(quote, "/") ||
+		strings.Contains(symbol, ":") {
+		return 0, errors.ErrInvalidSymbol
+	}
+
 	balance, err := client.iExchange.FetchBalance()
 	if err != nil {
 		return 0, err
 	}
 
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found {
-		return 0, errors.ErrInvalidSymbol
-	}
-
-	if base == "" {
-		return 0, errors.ErrInvalidSymbol
-	}
-	if quote == "" {
-		return 0, errors.ErrInvalidSymbol
-	}
-
 	amount := balance.Total[base]
 
+	if amount == nil {
+		return 0, errors.ErrBalanceNotFound
+	}
+
+	return *amount, nil
+}
+
+// FetchFuturesUSDTBalance returns total USDT collateral in the swap account.
+func (client *Client) FetchFuturesUSDTBalance() (float64, error) {
+	if err := client.validateConfigured(); err != nil {
+		return 0, err
+	}
+
+	balance, err := client.iExchange.FetchBalance(
+		map[string]any{"type": "swap"},
+	)
+	if err != nil {
+		return 0, err
+	}
+
+	amount := balance.Total["USDT"]
 	if amount == nil {
 		return 0, errors.ErrBalanceNotFound
 	}

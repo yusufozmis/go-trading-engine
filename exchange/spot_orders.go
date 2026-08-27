@@ -10,7 +10,7 @@ import (
 )
 
 func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, amount float64) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -39,7 +39,7 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 }
 
 func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, amount, price float64) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -76,7 +76,7 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 }
 
 func (client *Client) CloseSpotPositionMarket(symbol string) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -84,21 +84,16 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		return errors.ErrNilSymbol
 	}
 
+	base, quote, found := strings.Cut(symbol, "/")
+	if !found || base == "" || quote == "" ||
+		strings.Contains(quote, "/") ||
+		strings.Contains(symbol, ":") {
+		return errors.ErrInvalidSymbol
+	}
+
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
 		return err
-	}
-
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found {
-		return errors.ErrInvalidSymbol
-	}
-
-	if base == "" {
-		return errors.ErrInvalidSymbol
-	}
-	if quote == "" {
-		return errors.ErrInvalidSymbol
 	}
 
 	amount := balances.Balances[base].Total
@@ -123,7 +118,7 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 }
 
 func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -131,21 +126,20 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		return errors.ErrNilSymbol
 	}
 
+	base, quote, found := strings.Cut(symbol, "/")
+	if !found || base == "" || quote == "" ||
+		strings.Contains(quote, "/") ||
+		strings.Contains(symbol, ":") {
+		return errors.ErrInvalidSymbol
+	}
+
+	if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
+		return errors.ErrInvalidPrice
+	}
+
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
 		return err
-	}
-
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found {
-		return errors.ErrInvalidSymbol
-	}
-
-	if base == "" {
-		return errors.ErrInvalidSymbol
-	}
-	if quote == "" {
-		return errors.ErrInvalidSymbol
 	}
 
 	amount := balances.Balances[base].Total

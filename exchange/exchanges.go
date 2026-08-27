@@ -20,6 +20,8 @@ type Client struct {
 	futuresMu      sync.Mutex
 	futuresConfigs adapters.FuturesConfig
 
+	// SetConfig can only be applied once.
+	configured bool
 	// preparedFuturesSymbols contains only symbols successfully configured by the
 	// most recent SetFuturesConfig call. The bool value keeps order checks cheap.
 	preparedFuturesSymbols map[string]bool
@@ -53,6 +55,18 @@ func (client *Client) Validate() error {
 
 	if client.iExchange == nil {
 		return errors.ErrUninitializedClient
+	}
+
+	return nil
+}
+
+func (client *Client) validateConfigured() error {
+	if err := client.Validate(); err != nil {
+		return err
+	}
+
+	if !client.configured {
+		return errors.ErrClientNotConfigured
 	}
 
 	return nil

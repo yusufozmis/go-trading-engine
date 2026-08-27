@@ -59,4 +59,6 @@ var (
 	// ErrBalanceNotFound indicates that the requested asset is absent from the balance response.
 	ErrBalanceNotFound        = errors.New("balance not found")
 	ErrFundingRateUnavailable = errors.New("funding rate unavailable")
+	ErrConfigAlreadySet       = errors.New("config already set")
+	ErrClientNotConfigured    = errors.New("client not configured")
 )

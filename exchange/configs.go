@@ -31,7 +31,7 @@ func (cfg *ExchangeConfig) Validate() error {
 // SetConfig must be called first because this method performs authenticated
 // exchange requests.
 func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMode, hedged bool, symbols ...string) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -66,6 +66,7 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	// Invalidate the previous symbol preparation before making remote changes.
 	// If any request below fails, order creation stays disabled instead of using
 	// a configuration that may have been only partially applied.
+	client.futuresConfigs = adapters.FuturesConfig{}
 	client.preparedFuturesSymbols = nil
 
 	cfg := adapters.FuturesConfig{
@@ -121,6 +122,10 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 		return err
 	}
 
+	if client.configured {
+		return errors.ErrConfigAlreadySet
+	}
+
 	required := client.iExchange.GetRequiredCredentials()
 	requiresPassword, _ := required["password"].(bool)
 
@@ -133,6 +138,7 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	client.iExchange.SetPassword(exchangeCfg.Password)
 
 	client.preparedFuturesSymbols = nil
+	client.configured = true
 
 	return nil
 }

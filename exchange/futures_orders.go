@@ -11,7 +11,7 @@ import (
 
 func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {
 
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -33,7 +33,7 @@ func (client *Client) CreateFuturesMarketOrder(symbol string, side types.Positio
 
 func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) error {
 
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -60,7 +60,7 @@ func (client *Client) CloseFuturesPosition(
 	symbol string,
 	positionSide types.PositionSide,
 ) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -144,7 +144,7 @@ func (client *Client) CloseFuturesPosition(
 }
 
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
@@ -182,7 +182,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 }
 
 func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) error {
-	if err := client.Validate(); err != nil {
+	if err := client.validateConfigured(); err != nil {
 		return err
 	}
 
