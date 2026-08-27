@@ -108,6 +108,9 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	return nil
 }
 
+// SetConfig configures the credentials used for authenticated exchange requests.
+// It must be called before SetFuturesConfig and any order, position, or balance method.
+// SetConfig must not be called concurrently with any other Client method.
 func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 
 	if err := client.Validate(); err != nil {
@@ -124,9 +127,6 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	if requiresPassword && exchangeCfg.Password == "" {
 		return errors.ErrNilPassword
 	}
-
-	client.futuresMu.Lock()
-	defer client.futuresMu.Unlock()
 
 	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
 	client.iExchange.SetSecret(exchangeCfg.SecretKey)
