@@ -43,6 +43,7 @@ var (
 	ErrInvalidPrice      = errors.New("invalid price")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
+	ErrInvalidSymbol     = errors.New("invalid symbol")
 	// ErrFuturesNotPrepared prevents orders from silently configuring the account
 	// on their hot path. The caller must prepare that symbol explicitly first.
 	ErrFuturesNotPrepared = errors.New("exchange: futures symbol is not prepared")
