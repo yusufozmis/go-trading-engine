@@ -2,7 +2,6 @@ package exchange
 
 import (
 	"math"
-	"strings"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/go-trading-engine/errors"
@@ -117,14 +116,8 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		return errors.ErrInvalidSymbol
 	}
 
-	if marketInfo.Spot == nil || !*marketInfo.Spot {
-		return errors.ErrInvalidSymbol
-	}
-
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found || base == "" || quote == "" ||
-		strings.Contains(quote, "/") ||
-		strings.Contains(symbol, ":") {
+	if marketInfo.Spot == nil || !*marketInfo.Spot ||
+		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
 		return errors.ErrInvalidSymbol
 	}
 
@@ -133,7 +126,7 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		return err
 	}
 
-	amount := balances.Balances[base].Total
+	amount := balances.Balances[*marketInfo.BaseCurrency].Total
 
 	if amount == nil {
 		return errors.ErrBalanceNotFound
@@ -173,14 +166,8 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		return errors.ErrInvalidSymbol
 	}
 
-	if marketInfo.Spot == nil || !*marketInfo.Spot {
-		return errors.ErrInvalidSymbol
-	}
-
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found || base == "" || quote == "" ||
-		strings.Contains(quote, "/") ||
-		strings.Contains(symbol, ":") {
+	if marketInfo.Spot == nil || !*marketInfo.Spot ||
+		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
 		return errors.ErrInvalidSymbol
 	}
 
@@ -193,7 +180,7 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		return err
 	}
 
-	amount := balances.Balances[base].Total
+	amount := balances.Balances[*marketInfo.BaseCurrency].Total
 
 	if amount == nil {
 		return errors.ErrBalanceNotFound
@@ -235,7 +222,8 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 		return errors.ErrInvalidSymbol
 	}
 
-	if marketInfo.Spot == nil || !*marketInfo.Spot {
+	if marketInfo.Spot == nil || !*marketInfo.Spot ||
+		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
 		return errors.ErrInvalidSymbol
 	}
 
@@ -243,19 +231,12 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 		return errors.ErrInvalidAmount
 	}
 
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found || base == "" || quote == "" ||
-		strings.Contains(quote, "/") ||
-		strings.Contains(symbol, ":") {
-		return errors.ErrInvalidSymbol
-	}
-
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
 		return err
 	}
 
-	freeBalance := balances.Balances[base].Free
+	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
 
 	if freeBalance == nil {
 		return errors.ErrBalanceNotFound
@@ -297,7 +278,8 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 		return errors.ErrInvalidSymbol
 	}
 
-	if marketInfo.Spot == nil || !*marketInfo.Spot {
+	if marketInfo.Spot == nil || !*marketInfo.Spot ||
+		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
 		return errors.ErrInvalidSymbol
 	}
 
@@ -309,19 +291,12 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 		return errors.ErrInvalidPrice
 	}
 
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found || base == "" || quote == "" ||
-		strings.Contains(quote, "/") ||
-		strings.Contains(symbol, ":") {
-		return errors.ErrInvalidSymbol
-	}
-
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
 		return err
 	}
 
-	freeBalance := balances.Balances[base].Free
+	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
 
 	if freeBalance == nil {
 		return errors.ErrBalanceNotFound

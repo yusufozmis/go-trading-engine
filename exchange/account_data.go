@@ -1,8 +1,6 @@
 package exchange
 
 import (
-	"strings"
-
 	"github.com/yusufozmis/go-trading-engine/errors"
 )
 
@@ -44,14 +42,8 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 		return 0, errors.ErrInvalidSymbol
 	}
 
-	if marketInfo.Spot == nil || !*marketInfo.Spot {
-		return 0, errors.ErrInvalidSymbol
-	}
-
-	base, quote, found := strings.Cut(symbol, "/")
-	if !found || base == "" || quote == "" ||
-		strings.Contains(quote, "/") ||
-		strings.Contains(symbol, ":") {
+	if marketInfo.Spot == nil || !*marketInfo.Spot ||
+		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
 		return 0, errors.ErrInvalidSymbol
 	}
 
@@ -60,7 +52,7 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 		return 0, err
 	}
 
-	amount := balance.Total[base]
+	amount := balance.Total[*marketInfo.BaseCurrency]
 
 	if amount == nil {
 		return 0, errors.ErrBalanceNotFound
