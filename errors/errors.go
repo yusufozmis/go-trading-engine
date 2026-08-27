@@ -43,6 +43,12 @@ var (
 	ErrInvalidPrice      = errors.New("invalid price")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
+	// ErrContractSizeUnavailable indicates that contract metadata cannot be used
+	// to convert a base-asset amount into an exchange contract amount.
+	ErrContractSizeUnavailable = errors.New("contract size unavailable")
+	// ErrUnsupportedFuturesMarket indicates that base-asset amount conversion is
+	// not supported for the requested futures market.
+	ErrUnsupportedFuturesMarket = errors.New("unsupported futures market")
 	// ErrInvalidSymbol indicates that a symbol does not use the required format.
 	ErrInvalidSymbol = errors.New("invalid symbol")
 	// ErrPositionNotFound indicates that there is no open position to close.

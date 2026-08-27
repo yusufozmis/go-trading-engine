@@ -9,9 +9,17 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// CreateFuturesMarketOrder creates a market order using a requested base-asset
+// amount. The amount is estimated as contracts from the market's contract size,
+// so exchange precision may change the final traded base-asset quantity.
 func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {
 
 	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	contractAmount, err := client.baseAmountToContracts(symbol, amount)
+	if err != nil {
 		return err
 	}
 
@@ -22,7 +30,7 @@ func (client *Client) CreateFuturesMarketOrder(symbol string, side types.Positio
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "market",
-		Amount:     amount,
+		Amount:     contractAmount,
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
@@ -31,9 +39,17 @@ func (client *Client) CreateFuturesMarketOrder(symbol string, side types.Positio
 	return client.createFuturesOrder(req)
 }
 
+// CreateFuturesLimitOrder creates a limit order using a requested base-asset
+// amount. The amount is estimated as contracts from the market's contract size,
+// so exchange precision may change the final traded base-asset quantity.
 func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) error {
 
 	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	contractAmount, err := client.baseAmountToContracts(symbol, amount)
+	if err != nil {
 		return err
 	}
 
@@ -44,7 +60,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 		Symbol:     symbol,
 		Side:       side,
 		Type:       "limit",
-		Amount:     amount,
+		Amount:     contractAmount,
 		Price:      price,
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
@@ -149,7 +165,8 @@ func (client *Client) CloseFuturesPosition(
 }
 
 // ReduceFuturesPositionMarket reduces the requested side of an open perpetual
-// futures position by the given number of contracts at market price.
+// futures position by a requested base-asset amount at market price. The amount
+// is estimated as contracts, so exchange precision may change the final quantity.
 // Binance support is currently limited to USD-M (linear) futures positions.
 func (client *Client) ReduceFuturesPositionMarket(
 	symbol string,
@@ -160,7 +177,8 @@ func (client *Client) ReduceFuturesPositionMarket(
 }
 
 // ReduceFuturesPositionLimit places a limit order that reduces the requested
-// side of an open perpetual futures position by the given number of contracts.
+// side of an open perpetual futures position by a requested base-asset amount.
+// The amount is estimated as contracts, so exchange precision may change the final quantity.
 // Binance support is currently limited to USD-M (linear) futures positions.
 func (client *Client) ReduceFuturesPositionLimit(
 	symbol string,
@@ -183,17 +201,9 @@ func (client *Client) reduceFuturesPosition(
 		return err
 	}
 
-	if symbol == "" {
-		return errors.ErrNilSymbol
-	}
-
-	marketInfo, exists := client.markets[symbol]
-	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-		return errors.ErrInvalidSymbol
-	}
-
-	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
-		return errors.ErrInvalidAmount
+	contractAmount, err := client.baseAmountToContracts(symbol, amount)
+	if err != nil {
+		return err
 	}
 
 	if orderType == "limit" &&
@@ -233,7 +243,7 @@ func (client *Client) reduceFuturesPosition(
 			continue
 		}
 
-		if *position.Contracts < amount {
+		if *position.Contracts < contractAmount {
 			return errors.ErrNotEnoughAmount
 		}
 
@@ -256,7 +266,7 @@ func (client *Client) reduceFuturesPosition(
 			Symbol:     symbol,
 			Side:       positionSide,
 			Type:       orderType,
-			Amount:     amount,
+			Amount:     contractAmount,
 			Price:      price,
 			Leverage:   client.futuresConfigs.Leverage,
 			MarginMode: marginMode,
@@ -364,6 +374,41 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 	}
 
 	return nil
+}
+
+// baseAmountToContracts estimates a linear swap contract amount from a
+// requested base-asset quantity using the exchange's loaded market metadata.
+func (client *Client) baseAmountToContracts(symbol string, amount float64) (float64, error) {
+	if symbol == "" {
+		return 0, errors.ErrNilSymbol
+	}
+
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+		return 0, errors.ErrInvalidAmount
+	}
+
+	marketInfo, exists := client.markets[symbol]
+	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+		return 0, errors.ErrInvalidSymbol
+	}
+
+	// Inverse contracts are quote-denominated and require a price to convert a
+	// base-asset amount safely; this metadata-only conversion is linear-only.
+	if marketInfo.Linear == nil || !*marketInfo.Linear {
+		return 0, errors.ErrUnsupportedFuturesMarket
+	}
+
+	if marketInfo.ContractSize == nil || math.IsNaN(*marketInfo.ContractSize) ||
+		math.IsInf(*marketInfo.ContractSize, 0) || *marketInfo.ContractSize <= 0 {
+		return 0, errors.ErrContractSizeUnavailable
+	}
+
+	contractAmount := amount / *marketInfo.ContractSize
+	if math.IsNaN(contractAmount) || math.IsInf(contractAmount, 0) || contractAmount <= 0 {
+		return 0, errors.ErrInvalidAmount
+	}
+
+	return contractAmount, nil
 }
 
 func orderSide(side types.PositionSide) types.SpotSide {
