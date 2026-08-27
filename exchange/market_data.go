@@ -91,15 +91,10 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 		return 0, errors.ErrNilSymbol
 	}
 
-	currencies, err := client.iExchange.FetchFundingRates(ccxt.WithFetchFundingRatesSymbols([]string{symbol}))
+	fundingRate, err := client.iExchange.FetchFundingRate(symbol)
 	if err != nil {
 		return 0, err
 	}
 
-	x := currencies.FundingRates[symbol].FundingRate
-	if x == nil {
-		return 0, errors.ErrFundingRateUnavailable
-	}
-
-	return (*x) * 100, nil
+	return (*fundingRate.FundingRate) * 100, nil
 }
