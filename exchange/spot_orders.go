@@ -18,6 +18,11 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 		return errors.ErrNilSymbol
 	}
 
+	marketInfo, ok := client.markets[symbol]
+	if !ok || marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
+	}
+
 	if !side.Valid() {
 		return errors.ErrInvalidSide
 	}
@@ -28,6 +33,15 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 
 	if amount <= 0 {
 		return errors.ErrInvalidAmount
+	}
+
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if amount < *minAmount {
+		return errors.ErrNotEnoughAmount
 	}
 
 	_, err := client.iExchange.CreateOrder(symbol, "market", side.String(), amount)
@@ -45,6 +59,11 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
+	}
+
+	marketInfo, ok := client.markets[symbol]
+	if !ok || marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
 	}
 
 	if !side.Valid() {
@@ -67,6 +86,15 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 		return errors.ErrInvalidPrice
 	}
 
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if amount < *minAmount {
+		return errors.ErrNotEnoughAmount
+	}
+
 	_, err := client.iExchange.CreateOrder(symbol, "limit", side.String(), amount, ccxt.WithCreateOrderPrice(price))
 	if err != nil {
 		return err
@@ -82,6 +110,15 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
+	}
+
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
 	}
 
 	base, quote, found := strings.Cut(symbol, "/")
@@ -102,7 +139,12 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		return errors.ErrBalanceNotFound
 	}
 
-	if *amount < 0.00001 {
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if *amount < *minAmount {
 		return errors.ErrNotEnoughAmount
 	}
 
@@ -124,6 +166,15 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
+	}
+
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
 	}
 
 	base, quote, found := strings.Cut(symbol, "/")
@@ -148,7 +199,12 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		return errors.ErrBalanceNotFound
 	}
 
-	if *amount < 0.00001 {
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if *amount < *minAmount {
 		return errors.ErrNotEnoughAmount
 	}
 
@@ -174,6 +230,15 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 		return errors.ErrNilSymbol
 	}
 
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
+	}
+
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
 		return errors.ErrInvalidAmount
 	}
@@ -196,7 +261,12 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 		return errors.ErrBalanceNotFound
 	}
 
-	if *freeBalance < 0.00001 || *freeBalance < amount {
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if amount < *minAmount || *freeBalance < amount {
 		return errors.ErrNotEnoughAmount
 	}
 
@@ -220,6 +290,15 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 
 	if symbol == "" {
 		return errors.ErrNilSymbol
+	}
+
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Spot == nil || !*marketInfo.Spot {
+		return errors.ErrInvalidSymbol
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
@@ -248,7 +327,12 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 		return errors.ErrBalanceNotFound
 	}
 
-	if *freeBalance < 0.00001 || *freeBalance < amount {
+	minAmount := marketInfo.Limits.Amount.Min
+	if minAmount == nil {
+		return errors.ErrMinimumAmountUnavailable
+	}
+
+	if amount < *minAmount || *freeBalance < amount {
 		return errors.ErrNotEnoughAmount
 	}
 

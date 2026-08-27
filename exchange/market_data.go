@@ -90,6 +90,15 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 		return 0, errors.ErrNilSymbol
 	}
 
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return 0, errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Swap == nil || !*marketInfo.Swap {
+		return 0, errors.ErrInvalidSymbol
+	}
+
 	fundingRate, err := client.iExchange.FetchFundingRate(symbol)
 	if err != nil {
 		return 0, err

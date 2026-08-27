@@ -39,6 +39,15 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 		return 0, errors.ErrNilSymbol
 	}
 
+	marketInfo, ok := client.markets[symbol]
+	if !ok {
+		return 0, errors.ErrInvalidSymbol
+	}
+
+	if marketInfo.Spot == nil || !*marketInfo.Spot {
+		return 0, errors.ErrInvalidSymbol
+	}
+
 	base, quote, found := strings.Cut(symbol, "/")
 	if !found || base == "" || quote == "" ||
 		strings.Contains(quote, "/") ||

@@ -25,26 +25,41 @@ type Client struct {
 	// preparedFuturesSymbols contains symbols successfully prepared for the
 	// current futures configuration. The bool value keeps order checks cheap.
 	preparedFuturesSymbols map[string]bool
+
+	// Exchanges metadata
+	markets map[string]ccxt.MarketInterface
 }
 
-func NewBinance() *Client {
+func NewBinance() (*Client, error) {
 	pro := ccxtpro.NewBinance(nil)
 	core := ccxt.NewBinanceFromCore(pro.Core.BinanceCore)
+
+	markets, err := pro.LoadMarkets()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		iExchange:      pro,
 		futuresAdapter: adapters.NewBinanceFuturesAdapter(core),
-	}
+		markets:        markets,
+	}, nil
 }
 
-func NewOkx() *Client {
+func NewOkx() (*Client, error) {
 	pro := ccxtpro.NewOkx(nil)
 	core := ccxt.NewOkxFromCore(pro.Core.OkxCore)
+
+	markets, err := pro.LoadMarkets()
+	if err != nil {
+		return nil, err
+	}
 
 	return &Client{
 		iExchange:      pro,
 		futuresAdapter: adapters.NewOkxFuturesAdapter(core),
-	}
+		markets:        markets,
+	}, nil
 }
 
 func (client *Client) Validate() error {

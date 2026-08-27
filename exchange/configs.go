@@ -54,6 +54,11 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 		if symbol == "" {
 			return errors.ErrNilSymbol
 		}
+
+		marketInfo, exists := client.markets[symbol]
+		if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+			return errors.ErrInvalidSymbol
+		}
 	}
 
 	// Configuration, remote preparation, and order submission share this lock.

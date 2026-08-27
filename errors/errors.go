@@ -53,6 +53,8 @@ var (
 	ErrInvalidStreamMode = errors.New("invalid stream mode")
 
 	ErrNotEnoughAmount = errors.New("not enough amount")
+	// ErrMinimumAmountUnavailable indicates that the exchange did not publish an order minimum.
+	ErrMinimumAmountUnavailable = errors.New("exchange: minimum order amount is unavailable")
 	// ErrBalanceNotFound indicates that the requested asset is absent from the balance response.
 	ErrBalanceNotFound        = errors.New("balance not found")
 	ErrFundingRateUnavailable = errors.New("funding rate unavailable")

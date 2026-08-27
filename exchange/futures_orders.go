@@ -68,6 +68,11 @@ func (client *Client) CloseFuturesPosition(
 		return errors.ErrNilSymbol
 	}
 
+	marketInfo, exists := client.markets[symbol]
+	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+		return errors.ErrInvalidSymbol
+	}
+
 	if !positionSide.Valid() {
 		return errors.ErrInvalidSide
 	}
@@ -196,6 +201,11 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 
 	if req.Symbol == "" {
 		return errors.ErrNilSymbol
+	}
+
+	marketInfo, exists := client.markets[req.Symbol]
+	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+		return errors.ErrInvalidSymbol
 	}
 
 	if !req.Side.Valid() {
