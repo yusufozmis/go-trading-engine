@@ -192,7 +192,13 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 		if symbol == "" {
 			return nil, apperrors.ErrNilSymbol
 		}
+
+		marketInfo, exists := s.markets[symbol]
+		if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+			return nil, apperrors.ErrInvalidSymbol
+		}
 	}
+
 	for _, timeframe := range timeframes {
 		if timeframe == "" {
 			return nil, apperrors.ErrNilTimeframe
