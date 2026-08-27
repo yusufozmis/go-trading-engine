@@ -20,7 +20,7 @@ func (client *Client) FetchUSDTBalance() (float64, error) {
 	amount := balance.Total["USDT"]
 
 	if amount == nil {
-		return 0, errors.ErrInternal
+		return 0, errors.ErrBalanceNotFound
 	}
 
 	return *amount, nil
@@ -48,7 +48,7 @@ func (client *Client) FetchBalance(symbol string) (float64, error) {
 	amount := balance.Total[before]
 
 	if amount == nil {
-		return 0, errors.ErrInternal
+		return 0, errors.ErrBalanceNotFound
 	}
 
 	return *amount, nil

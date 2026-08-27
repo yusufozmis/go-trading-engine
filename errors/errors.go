@@ -53,7 +53,7 @@ var (
 	ErrEmptyTimeframes   = errors.New("empty timeframes")
 	ErrInvalidStreamMode = errors.New("invalid stream mode")
 
-	ErrNotEnoughAmount = errors.New("not enough amount")
-
-	ErrInternal = errors.New("internal err")
+	ErrNotEnoughAmount        = errors.New("not enough amount")
+	ErrBalanceNotFound        = errors.New("balance not found")
+	ErrFundingRateUnavailable = errors.New("funding rate unavailable")
 )

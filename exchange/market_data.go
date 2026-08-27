@@ -98,7 +98,7 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 
 	x := currencies.FundingRates[symbol].FundingRate
 	if x == nil {
-		return 0, errors.ErrInternal
+		return 0, errors.ErrFundingRateUnavailable
 	}
 
 	return (*x) * 100, nil
