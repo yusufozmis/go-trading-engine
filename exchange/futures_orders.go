@@ -148,6 +148,110 @@ func (client *Client) CloseFuturesPosition(
 	return errors.ErrPositionNotFound
 }
 
+// ReduceFuturesPosition reduces the requested side of an open perpetual
+// futures position by the given number of contracts.
+// Binance support is currently limited to USD-M (linear) futures positions.
+func (client *Client) ReduceFuturesPosition(
+	symbol string,
+	positionSide types.PositionSide,
+	amount float64,
+) error {
+	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	if symbol == "" {
+		return errors.ErrNilSymbol
+	}
+
+	marketInfo, exists := client.markets[symbol]
+	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
+		return errors.ErrInvalidSymbol
+	}
+
+	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+		return errors.ErrInvalidAmount
+	}
+
+	if !positionSide.Valid() {
+		return errors.ErrInvalidSide
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	if client.futuresAdapter == nil {
+		return errors.ErrUnsupportedProvider
+	}
+
+	positions, err := client.iExchange.FetchPositions(
+		ccxt.WithFetchPositionsSymbols([]string{symbol}),
+	)
+	if err != nil {
+		return err
+	}
+
+	for _, position := range positions {
+		if position.Symbol == nil || *position.Symbol != symbol {
+			continue
+		}
+
+		if position.Side == nil || *position.Side != positionSide.String() {
+			continue
+		}
+
+		if position.Contracts == nil || math.IsNaN(*position.Contracts) ||
+			math.IsInf(*position.Contracts, 0) || *position.Contracts <= 0 {
+			continue
+		}
+
+		if *position.Contracts < amount {
+			return errors.ErrNotEnoughAmount
+		}
+
+		// Prefer the position's actual settings because the client config may
+		// have changed after this position was opened.
+		marginMode := client.futuresConfigs.MarginMode
+		if position.MarginMode != nil {
+			actualMarginMode := types.MarginMode(*position.MarginMode)
+			if actualMarginMode.Valid() {
+				marginMode = actualMarginMode
+			}
+		}
+
+		hedged := client.futuresConfigs.Hedged
+		if position.Hedged != nil {
+			hedged = *position.Hedged
+		}
+
+		req := adapters.FuturesOrderRequest{
+			Symbol:     symbol,
+			Side:       positionSide,
+			Type:       "market",
+			Amount:     amount,
+			Leverage:   client.futuresConfigs.Leverage,
+			MarginMode: marginMode,
+			Hedged:     hedged,
+			IsClosing:  true,
+		}
+
+		// A reduce-only order closes the position without risking an
+		// accidental position in the opposite direction.
+		_, err = client.iExchange.CreateReduceOnlyOrder(
+			req.Symbol,
+			req.Type,
+			closeOrderSide(req.Side).String(),
+			req.Amount,
+			ccxt.WithCreateReduceOnlyOrderParams(
+				client.futuresAdapter.OrderParams(req),
+			),
+		)
+		return err
+	}
+
+	return errors.ErrPositionNotFound
+}
+
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
