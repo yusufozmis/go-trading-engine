@@ -44,12 +44,19 @@ func (client *Client) FetchBalance(symbol string) (float64, error) {
 		return 0, err
 	}
 
-	before, _, found := strings.Cut(symbol, "/")
+	base, quote, found := strings.Cut(symbol, "/")
 	if !found {
 		return 0, errors.ErrInvalidSymbol
 	}
 
-	amount := balance.Total[before]
+	if base == "" {
+		return 0, errors.ErrInvalidSymbol
+	}
+	if quote == "" {
+		return 0, errors.ErrInvalidSymbol
+	}
+
+	amount := balance.Total[base]
 
 	if amount == nil {
 		return 0, errors.ErrBalanceNotFound

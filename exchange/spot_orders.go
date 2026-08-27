@@ -93,11 +93,19 @@ func (client *Client) CloseSpotPositionMarket(symbol string, side types.SpotSide
 		return err
 	}
 
-	before, _, found := strings.Cut(symbol, "/")
+	base, quote, found := strings.Cut(symbol, "/")
 	if !found {
 		return errors.ErrInvalidSymbol
 	}
-	amount := *balances.Balances[before].Total
+
+	if base == "" {
+		return errors.ErrInvalidSymbol
+	}
+	if quote == "" {
+		return errors.ErrInvalidSymbol
+	}
+
+	amount := *balances.Balances[base].Total
 
 	if amount < 0.00001 {
 		return errors.ErrNotEnoughAmount
@@ -132,12 +140,19 @@ func (client *Client) CloseSpotPositionLimit(symbol string, side types.SpotSide,
 		return err
 	}
 
-	before, _, found := strings.Cut(symbol, "/")
+	base, quote, found := strings.Cut(symbol, "/")
 	if !found {
 		return errors.ErrInvalidSymbol
 	}
 
-	amount := *balances.Balances[before].Total
+	if base == "" {
+		return errors.ErrInvalidSymbol
+	}
+	if quote == "" {
+		return errors.ErrInvalidSymbol
+	}
+
+	amount := *balances.Balances[base].Total
 
 	if amount < 0.00001 {
 		return errors.ErrNotEnoughAmount
