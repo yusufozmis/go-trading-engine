@@ -9,16 +9,18 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// ExchangeConfig contains credentials used for authenticated exchange operations.
 type ExchangeConfig struct {
-	ApiKey    string
+	APIKey    string
 	SecretKey string
 	Password  string // sometimes referred to as 'passphrase'
 }
 
+// Validate reports whether the required credential fields are present.
 func (cfg *ExchangeConfig) Validate() error {
 
-	if cfg.ApiKey == "" {
-		return errors.ErrNilApiKey
+	if cfg.APIKey == "" {
+		return errors.ErrNilAPIKey
 	}
 
 	if cfg.SecretKey == "" {
@@ -153,7 +155,7 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 		return errors.ErrNilPassword
 	}
 
-	client.iExchange.SetApiKey(exchangeCfg.ApiKey)
+	client.iExchange.SetApiKey(exchangeCfg.APIKey)
 	client.iExchange.SetSecret(exchangeCfg.SecretKey)
 	client.iExchange.SetPassword(exchangeCfg.Password)
 

@@ -11,10 +11,14 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// StreamMode controls whether a candle stream emits forming candles or only
+// candles confirmed closed by the arrival of a newer timestamp.
 type StreamMode int64
 
 const (
+	// AllUpdates emits the latest candle on every watcher update.
 	AllUpdates StreamMode = iota
+	// ClosedOnly emits a candle only after a newer candle timestamp arrives.
 	ClosedOnly
 )
 
@@ -37,6 +41,7 @@ type CandleUpdate struct {
 	Timeframe string
 }
 
+// Valid reports whether the stream mode is supported.
 func (s StreamMode) Valid() bool {
 	switch s {
 	case AllUpdates, ClosedOnly:
@@ -225,6 +230,8 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	return s.stream.stream, nil
 }
 
+// Subscribe adds a symbol and timeframe watcher to the running candle stream.
+// It is a no-op when the same subscription is already active.
 func (s *Client) Subscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err
@@ -272,6 +279,8 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 	return nil
 }
 
+// Unsubscribe stops a symbol and timeframe watcher on the running candle stream.
+// It is a no-op when the subscription is not active.
 func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err

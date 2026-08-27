@@ -9,6 +9,8 @@ import (
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
 )
 
+// Client provides market-data, streaming, account, and order operations for a
+// configured exchange provider.
 type Client struct {
 	iExchange      ccxt.IExchange
 	futuresAdapter adapters.FuturesAdapter
@@ -30,6 +32,7 @@ type Client struct {
 	markets map[string]ccxt.MarketInterface
 }
 
+// NewBinance creates a Binance client and loads its current market metadata.
 func NewBinance() (*Client, error) {
 	pro := ccxtpro.NewBinance(nil)
 	core := ccxt.NewBinanceFromCore(pro.Core.BinanceCore)
@@ -46,7 +49,8 @@ func NewBinance() (*Client, error) {
 	}, nil
 }
 
-func NewOkx() (*Client, error) {
+// NewOKX creates an OKX client and loads its current market metadata.
+func NewOKX() (*Client, error) {
 	pro := ccxtpro.NewOkx(nil)
 	core := ccxt.NewOkxFromCore(pro.Core.OkxCore)
 
@@ -57,11 +61,12 @@ func NewOkx() (*Client, error) {
 
 	return &Client{
 		iExchange:      pro,
-		futuresAdapter: adapters.NewOkxFuturesAdapter(core),
+		futuresAdapter: adapters.NewOKXFuturesAdapter(core),
 		markets:        markets,
 	}, nil
 }
 
+// Validate reports whether the client and its underlying exchange are initialized.
 func (client *Client) Validate() error {
 
 	if client == nil {

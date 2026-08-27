@@ -32,7 +32,8 @@ var (
 
 // Exchange Errors
 var (
-	ErrNilApiKey    = errors.New("nil api key")
+	// ErrNilAPIKey indicates that authenticated exchange configuration omitted the API key.
+	ErrNilAPIKey    = errors.New("nil api key")
 	ErrNilSecretKey = errors.New("nil secret key")
 	ErrNilPassword  = errors.New("nil password")
 

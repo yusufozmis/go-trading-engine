@@ -8,6 +8,7 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// CreateSpotMarketOrder creates a spot market order for a base-asset amount.
 func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, amount float64) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
@@ -51,6 +52,7 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 	return nil
 }
 
+// CreateSpotLimitOrder creates a spot limit order for a base-asset amount at price.
 func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, amount, price float64) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
@@ -102,6 +104,7 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 	return nil
 }
 
+// CloseSpotPositionMarket sells the total base-asset balance at market price.
 func (client *Client) CloseSpotPositionMarket(symbol string) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
@@ -152,6 +155,7 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 	return nil
 }
 
+// CloseSpotPositionLimit places a limit order to sell the total base-asset balance.
 func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error {
 	if err := client.validateConfigured(); err != nil {
 		return err

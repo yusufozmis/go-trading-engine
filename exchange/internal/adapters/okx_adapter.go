@@ -5,17 +5,20 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-type OkxFuturesAdapter struct {
+// OKXFuturesAdapter translates futures configuration and order parameters for OKX.
+type OKXFuturesAdapter struct {
 	exchange FuturesExchange
 }
 
-func NewOkxFuturesAdapter(exchange FuturesExchange) *OkxFuturesAdapter {
-	return &OkxFuturesAdapter{
+// NewOKXFuturesAdapter creates an OKX futures adapter.
+func NewOKXFuturesAdapter(exchange FuturesExchange) *OKXFuturesAdapter {
+	return &OKXFuturesAdapter{
 		exchange: exchange,
 	}
 }
 
-func (adapter *OkxFuturesAdapter) Prepare(symbol string, req FuturesConfig) error {
+// Prepare applies leverage settings for an OKX symbol and position mode.
+func (adapter *OKXFuturesAdapter) Prepare(symbol string, req FuturesConfig) error {
 	// In OKX isolated hedge mode, long and short leverage are separate settings.
 	// Preparing both here means the first long and first short orders are equally
 	// ready and neither has to call SetLeverage on the latency-sensitive order path.
@@ -33,7 +36,7 @@ func (adapter *OkxFuturesAdapter) Prepare(symbol string, req FuturesConfig) erro
 	return adapter.setLeverage(symbol, req, "net")
 }
 
-func (adapter *OkxFuturesAdapter) setLeverage(symbol string, req FuturesConfig, positionSide string) error {
+func (adapter *OKXFuturesAdapter) setLeverage(symbol string, req FuturesConfig, positionSide string) error {
 	// OKX calls this field marginMode in CCXT's unified parameters. posSide is only
 	// required for isolated leverage; sending it for cross mode would be incorrect.
 	params := map[string]any{
@@ -53,7 +56,8 @@ func (adapter *OkxFuturesAdapter) setLeverage(symbol string, req FuturesConfig, 
 	return err
 }
 
-func (adapter *OkxFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
+// OrderParams returns OKX-specific parameters for a futures order.
+func (adapter *OKXFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
 
 	params := map[string]any{
 		"marginMode": req.MarginMode.String(),

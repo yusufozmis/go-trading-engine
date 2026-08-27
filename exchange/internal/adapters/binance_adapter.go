@@ -7,16 +7,20 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// BinanceFuturesAdapter translates futures configuration and order parameters
+// for Binance.
 type BinanceFuturesAdapter struct {
 	futures FuturesExchange
 }
 
+// NewBinanceFuturesAdapter creates a Binance futures adapter.
 func NewBinanceFuturesAdapter(exchange FuturesExchange) *BinanceFuturesAdapter {
 	return &BinanceFuturesAdapter{
 		futures: exchange,
 	}
 }
 
+// Prepare applies margin mode and leverage settings for a Binance symbol.
 func (adapter *BinanceFuturesAdapter) Prepare(symbol string, req FuturesConfig) error {
 	// Binance may reject setting a margin mode that is already active. Fetching it
 	// during explicit preparation lets us avoid that unnecessary SetMarginMode call.
@@ -48,6 +52,7 @@ func (adapter *BinanceFuturesAdapter) Prepare(symbol string, req FuturesConfig) 
 	return err
 }
 
+// OrderParams returns Binance-specific parameters for a futures order.
 func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[string]any {
 	params := map[string]any{}
 
