@@ -1,6 +1,8 @@
 package exchange
 
 import (
+	"fmt"
+
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
@@ -69,6 +71,29 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	client.futuresConfigs = adapters.FuturesConfig{}
 	client.preparedFuturesSymbols = nil
 
+	positionMode, err := client.iExchange.FetchPositionMode(
+		ccxt.WithFetchPositionModeSymbol(symbols[0]),
+	)
+	if err != nil {
+		return err
+	}
+
+	currentHedged, ok := positionMode["hedged"].(bool)
+	if !ok {
+		return fmt.Errorf("exchange: position mode response is missing hedged value")
+	}
+
+	// If account already is in the requested mode, don't send request.
+	if currentHedged != hedged {
+		_, err = client.iExchange.SetPositionMode(
+			hedged,
+			ccxt.WithSetPositionModeSymbol(symbols[0]),
+		)
+		if err != nil {
+			return fmt.Errorf("set futures position mode: %w", err)
+		}
+	}
+
 	cfg := adapters.FuturesConfig{
 		Leverage:   leverage,
 		MarginMode: marginMode,
@@ -76,16 +101,6 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	}
 
 	if err := cfg.Validate(); err != nil {
-		return err
-	}
-
-	// Position mode is account-level state. A single valid futures symbol gives
-	// CCXT enough market information to select the correct provider endpoint.
-	_, err := client.iExchange.SetPositionMode(
-		hedged,
-		ccxt.WithSetPositionModeSymbol(symbols[0]),
-	)
-	if err != nil {
 		return err
 	}
 
