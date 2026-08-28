@@ -5,6 +5,7 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// ApplyPlanUpdate validates and applies a strategy's requested plan transition.
 func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 
 	if err := eng.validate(); err != nil {

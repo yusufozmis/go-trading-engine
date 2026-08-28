@@ -4,15 +4,24 @@ import "errors"
 
 // Engine Errors
 var (
+	// ErrInvalidEntryPlanBracket indicates an invalid entry, TP, and stop relationship.
 	ErrInvalidEntryPlanBracket = errors.New("invalid entry plan tp/sl bracket")
-	ErrNilEngine               = errors.New("nil engine")
-	ErrInvalidEntryPlanType    = errors.New("invalid entry plan type")
-	ErrInvalidPlanMode         = errors.New("invalid plan mode")
-	ErrExpectedSinglePlan      = errors.New("expected single plan")
-	ErrInvalidPositionState    = errors.New("invalid position state")
+	// ErrNilEngine indicates an operation on a nil engine.
+	ErrNilEngine = errors.New("nil engine")
+	// ErrInvalidEntryPlanType indicates an unsupported entry-plan state.
+	ErrInvalidEntryPlanType = errors.New("invalid entry plan type")
+	// ErrInvalidPlanMode indicates an unsupported plan-update mode.
+	ErrInvalidPlanMode = errors.New("invalid plan mode")
+	// ErrExpectedSinglePlan indicates that confirmation received the wrong plan count.
+	ErrExpectedSinglePlan = errors.New("expected single plan")
+	// ErrInvalidPositionState indicates an unsupported position state.
+	ErrInvalidPositionState = errors.New("invalid position state")
+	// ErrPositionOrPendingExists indicates that the engine is already occupied.
 	ErrPositionOrPendingExists = errors.New("position or a pending position exists")
+	// ErrEntryPlanMarketMismatch indicates that a plan targets another market.
 	ErrEntryPlanMarketMismatch = errors.New("entry plan market does not match engine")
-	ErrCandleMarketMismatch    = errors.New("candle market does not match engine")
+	// ErrCandleMarketMismatch indicates that a candle targets another market.
+	ErrCandleMarketMismatch = errors.New("candle market does not match engine")
 	// ErrInvalidPositionAction indicates that a position action would violate
 	// the engine's position invariants.
 	ErrInvalidPositionAction = errors.New("invalid position action")
@@ -23,10 +32,14 @@ var (
 
 // Backtest Errors
 var (
-	ErrNilBacktester       = errors.New("nil backtester")
-	ErrNilStrategy         = errors.New("nil strategy")
+	// ErrNilBacktester indicates an operation on a nil backtester.
+	ErrNilBacktester = errors.New("nil backtester")
+	// ErrNilStrategy indicates that a backtest received no strategy.
+	ErrNilStrategy = errors.New("nil strategy")
+	// ErrInvalidSetOfCandles indicates malformed or inconsistent candle data.
 	ErrInvalidSetOfCandles = errors.New("invalid set of candles")
-	ErrEmptyCandleSet      = errors.New("empty candle set")
+	// ErrEmptyCandleSet indicates that a backtest received no candles.
+	ErrEmptyCandleSet = errors.New("empty candle set")
 )
 
 // Stream Errors

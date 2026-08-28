@@ -1,5 +1,6 @@
 package types
 
+// Position contains the engine state and pricing data for one position.
 type Position struct {
 	Symbol    string
 	Timeframe string
@@ -12,6 +13,7 @@ type Position struct {
 	State      PositionState
 }
 
+// PerformanceResult summarizes realized backtest results for one market.
 type PerformanceResult struct {
 	Symbol    string
 	Timeframe string

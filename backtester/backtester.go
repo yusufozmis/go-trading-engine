@@ -7,6 +7,7 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// Backtester owns an immutable snapshot of historical candles for one market.
 type Backtester struct {
 	symbol           string
 	timeframe        string
@@ -66,6 +67,7 @@ func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 	return nil
 }
 
+// NewBacktester validates and snapshots candles for repeated backtest runs.
 func NewBacktester(symbol, timeframe string,
 	candles []types.Candle,
 	isCloseAutomated bool,

@@ -6,6 +6,7 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// Performance calculates realized profit and loss from confirmed closed positions.
 func (eng *Engine) Performance() types.PerformanceResult {
 
 	if eng == nil {
