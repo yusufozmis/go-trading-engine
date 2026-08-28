@@ -14,7 +14,7 @@ type Backtester struct {
 	candles          []types.Candle
 }
 
-func Validate(symbol, timeframe string, candles []types.Candle) error {
+func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 	if len(candles) == 0 {
 		return errors.ErrEmptyCandleSet
 	}
@@ -53,7 +53,7 @@ func Validate(symbol, timeframe string, candles []types.Candle) error {
 			return errors.ErrInvalidPrice
 		}
 		if math.IsNaN(volume) || math.IsInf(volume, 0) || volume < 0 {
-			return errors.ErrInvalidPrice
+			return errors.ErrInvalidVolume
 		}
 
 		if low > high ||
@@ -72,7 +72,7 @@ func NewBacktester(symbol, timeframe string,
 ) (*Backtester, error) {
 	candlesCopy := append([]types.Candle(nil), candles...)
 
-	if err := Validate(symbol, timeframe, candlesCopy); err != nil {
+	if err := validateCandles(symbol, timeframe, candlesCopy); err != nil {
 		return nil, err
 	}
 
