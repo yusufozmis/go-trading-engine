@@ -11,6 +11,9 @@ import (
 // MoveTPSLFromPlan re-anchors TP/SL to the candle close while preserving
 // the plan's original reward distance and risk distance.
 func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64, newSL float64, err error) {
+	if err := validateCandleData(candle); err != nil {
+		return 0, 0, err
+	}
 
 	entry := plan.EntryPrice
 	tp := plan.TakeProfit
@@ -37,6 +40,45 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	}
 
 	return newEntry - rewardDist, newEntry + riskDist, nil
+}
+
+func (eng *Engine) validateCandle(candle types.Candle) error {
+	if err := eng.validate(); err != nil {
+		return err
+	}
+	if candle.Symbol != eng.symbol || candle.Timeframe != eng.timeframe {
+		return errors.ErrCandleMarketMismatch
+	}
+
+	return validateCandleData(candle)
+}
+
+func validateCandleData(candle types.Candle) error {
+	prices := []float64{
+		candle.PriceData.OpenPrice,
+		candle.PriceData.HighPrice,
+		candle.PriceData.LowPrice,
+		candle.PriceData.ClosePrice,
+	}
+	for _, price := range prices {
+		if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
+			return errors.ErrInvalidPrice
+		}
+	}
+
+	if math.IsNaN(candle.Volume) || math.IsInf(candle.Volume, 0) || candle.Volume < 0 {
+		return errors.ErrInvalidVolume
+	}
+
+	low := candle.PriceData.LowPrice
+	high := candle.PriceData.HighPrice
+	open := candle.PriceData.OpenPrice
+	closePrice := candle.PriceData.ClosePrice
+	if low > high || open < low || open > high || closePrice < low || closePrice > high {
+		return errors.ErrInvalidSetOfCandles
+	}
+
+	return nil
 }
 
 // validateEntryPlan ensures that a plan targets this engine and that its

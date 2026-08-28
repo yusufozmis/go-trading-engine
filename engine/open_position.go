@@ -10,11 +10,8 @@ import (
 // fill. A non-nil action remains unconfirmed until ConfirmOpenPosition is called.
 func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction, error) {
 
-	if err := eng.validate(); err != nil {
+	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
-	}
-	if !eng.acceptsCandle(candle) {
-		return nil, errors.ErrCandleMarketMismatch
 	}
 
 	if eng.PositionExists() {

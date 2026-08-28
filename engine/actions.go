@@ -22,4 +22,6 @@ type OpenPositionAction struct {
 type ClosePositionAction struct {
 	// Position contains the close reason and the realized TP or stop price.
 	Position types.Position
+	// Side identifies the long or short position that live execution must close.
+	Side types.PositionSide
 }

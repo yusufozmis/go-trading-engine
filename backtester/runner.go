@@ -42,7 +42,9 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, erro
 		}
 
 		if eng.PendingExists() {
-			eng.CheckConfirmation(candle)
+			if _, err := eng.CheckConfirmation(candle); err != nil {
+				return types.PerformanceResult{}, err
+			}
 		}
 
 		openAction, err := eng.DecideOpenPosition(candle)

@@ -5,9 +5,14 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
-	if !eng.acceptsCandle(candle) || eng.pendingConfirmation == nil {
-		return false
+// CheckConfirmation applies candle to the pending confirmation plan and reports
+// whether that plan became an active entry plan.
+func (eng *Engine) CheckConfirmation(candle types.Candle) (bool, error) {
+	if err := eng.validateCandle(candle); err != nil {
+		return false, err
+	}
+	if eng.pendingConfirmation == nil {
+		return false, nil
 	}
 
 	plan := *eng.pendingConfirmation
@@ -17,35 +22,37 @@ func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
 	case types.ConfirmationWaitingBiggerThanEntry:
 		if closePrice <= plan.StopLoss || closePrice >= plan.TakeProfit {
 			eng.pendingConfirmation = nil
-			return false
+			return false, nil
 		}
 		if closePrice >= plan.EntryPrice {
 			plan.Type = types.LONG_OPEN
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
-			return true
+			return true, nil
 		}
 
 	case types.ConfirmationWaitingSmallerThanEntry:
 		if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
 			eng.pendingConfirmation = nil
-			return false
+			return false, nil
 		}
 		if closePrice <= plan.EntryPrice {
 			plan.Type = types.SHORT_OPEN
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
-			return true
+			return true, nil
 		}
 	}
 
-	return false
+	return false, nil
 }
 
+// PendingExists reports whether the engine is waiting for entry confirmation.
 func (eng *Engine) PendingExists() bool {
 	return eng != nil && eng.pendingConfirmation != nil
 }
 
+// SetPending validates and records one confirmation plan.
 func (eng *Engine) SetPending(pending types.EntryPlan) error {
 
 	if err := eng.validate(); err != nil {
