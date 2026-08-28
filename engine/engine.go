@@ -1,17 +1,18 @@
 package engine
 
 import (
+	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 type Engine struct {
-	Symbol    string
-	Timeframe string
+	symbol    string
+	timeframe string
 
 	isCloseAutomated bool
-	LastPosition     *types.Position
+	lastPosition     *types.Position
 
-	ClosedPositions []types.Position
+	closedPositions []types.Position
 
 	lockKeyMap  map[string]bool
 	activePlans []types.EntryPlan
@@ -19,11 +20,19 @@ type Engine struct {
 	pendingConfirmation *types.EntryPlan
 }
 
-func NewEngine(symbol, timeframe string, isCloseAutomated bool) *Engine {
+func NewEngine(symbol, timeframe string, isCloseAutomated bool) (*Engine, error) {
+
+	if symbol == "" {
+		return nil, errors.ErrNilSymbol
+	}
+	if timeframe == "" {
+		return nil, errors.ErrNilTimeframe
+	}
+
 	return &Engine{
-		Symbol:           symbol,
-		Timeframe:        timeframe,
+		symbol:           symbol,
+		timeframe:        timeframe,
 		isCloseAutomated: isCloseAutomated,
 		lockKeyMap:       make(map[string]bool),
-	}
+	}, nil
 }

@@ -9,6 +9,9 @@ var (
 	ErrInvalidEntryPlanType    = errors.New("invalid entry plan type")
 	ErrInvalidPlanMode         = errors.New("invalid plan mode")
 	ErrExpectedSinglePlan      = errors.New("expected single plan")
+	ErrInvalidPositionState    = errors.New("invalid position state")
+	ErrPositionOrPendingExists = errors.New("position or a pending position exists")
+	ErrEntryPlanMarketMismatch = errors.New("entry plan market does not match engine")
 )
 
 // Backtest Errors
@@ -43,6 +46,7 @@ var (
 	ErrInvalidSide       = errors.New("invalid side")
 	ErrInvalidAmount     = errors.New("invalid amount")
 	ErrInvalidPrice      = errors.New("invalid price")
+	ErrInvalidVolume     = errors.New("invalid volume")
 	ErrInvalidLeverage   = errors.New("invalid leverage")
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
 	// ErrInsufficientFunds indicates that an exchange rejected an order because

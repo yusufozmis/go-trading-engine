@@ -8,7 +8,7 @@ func (eng *Engine) ClosePosition(candle types.Candle) {
 		return
 	}
 
-	if eng.LastPosition == nil {
+	if eng.lastPosition == nil {
 		return
 	}
 
@@ -16,7 +16,7 @@ func (eng *Engine) ClosePosition(candle types.Candle) {
 		return
 	}
 
-	if eng.LastPosition.Timestamp == candle.Timestamp {
+	if eng.lastPosition.Timestamp == candle.Timestamp {
 		return
 	}
 
@@ -34,11 +34,11 @@ func (eng *Engine) closeAutomated(candle types.Candle) {
 		return
 	}
 
-	if eng.LastPosition == nil {
+	if eng.lastPosition == nil {
 		return
 	}
 
-	pos := eng.LastPosition
+	pos := eng.lastPosition
 	if pos.State != types.LONG_OPEN && pos.State != types.SHORT_OPEN {
 		return
 	}
@@ -52,23 +52,23 @@ func (eng *Engine) closeAutomated(candle types.Candle) {
 	// Eğer TP ve SL fiyatlarının ikisi de mumun içerisindeyse (high'dan küçük lowdan büyük)
 	// en kötüyü varsay ve database'e SL olarak geçir
 	if isTp && isSL {
-		eng.LastPosition.State = types.ClosedByStop
+		eng.lastPosition.State = types.ClosedByStop
 
-		eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+		eng.closedPositions = append(eng.closedPositions, *pos)
 
 		return
 	}
 	if isTp {
-		eng.LastPosition.State = types.ClosedByProfit
+		eng.lastPosition.State = types.ClosedByProfit
 
-		eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+		eng.closedPositions = append(eng.closedPositions, *pos)
 
 	}
 	if isSL {
 
-		eng.LastPosition.State = types.ClosedByStop
+		eng.lastPosition.State = types.ClosedByStop
 
-		eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+		eng.closedPositions = append(eng.closedPositions, *pos)
 
 	}
 }
@@ -79,11 +79,11 @@ func (eng *Engine) closeWithCandle(candle types.Candle) {
 		return
 	}
 
-	if eng.LastPosition == nil {
+	if eng.lastPosition == nil {
 		return
 	}
 
-	pos := eng.LastPosition
+	pos := eng.lastPosition
 
 	if pos.State == types.LONG_OPEN {
 
@@ -91,19 +91,19 @@ func (eng *Engine) closeWithCandle(candle types.Candle) {
 
 		if candle.PriceData.ClosePrice <= pos.StopLoss {
 
-			eng.LastPosition.State = types.ClosedByStop
+			eng.lastPosition.State = types.ClosedByStop
 
-			eng.LastPosition.StopLoss = candle.PriceData.ClosePrice
+			eng.lastPosition.StopLoss = candle.PriceData.ClosePrice
 
-			eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+			eng.closedPositions = append(eng.closedPositions, *pos)
 
 		} else if isTP {
 
-			eng.LastPosition.State = types.ClosedByProfit
+			eng.lastPosition.State = types.ClosedByProfit
 
-			eng.LastPosition.TP = candle.PriceData.ClosePrice
+			eng.lastPosition.TP = candle.PriceData.ClosePrice
 
-			eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+			eng.closedPositions = append(eng.closedPositions, *pos)
 
 		}
 	}
@@ -113,19 +113,19 @@ func (eng *Engine) closeWithCandle(candle types.Candle) {
 
 		if candle.PriceData.ClosePrice >= pos.StopLoss {
 
-			eng.LastPosition.State = types.ClosedByStop
+			eng.lastPosition.State = types.ClosedByStop
 
-			eng.LastPosition.StopLoss = candle.PriceData.ClosePrice
+			eng.lastPosition.StopLoss = candle.PriceData.ClosePrice
 
-			eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+			eng.closedPositions = append(eng.closedPositions, *pos)
 
 		} else if isTP {
 
-			eng.LastPosition.State = types.ClosedByProfit
+			eng.lastPosition.State = types.ClosedByProfit
 
-			eng.LastPosition.TP = candle.PriceData.ClosePrice
+			eng.lastPosition.TP = candle.PriceData.ClosePrice
 
-			eng.ClosedPositions = append(eng.ClosedPositions, *pos)
+			eng.closedPositions = append(eng.closedPositions, *pos)
 
 		}
 	}

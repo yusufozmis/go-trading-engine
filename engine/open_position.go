@@ -64,8 +64,8 @@ func (eng *Engine) OpenPosition(candle types.Candle) error {
 		}
 
 		pos := types.Position{
-			Symbol:     eng.Symbol,
-			Timeframe:  eng.Timeframe,
+			Symbol:     eng.symbol,
+			Timeframe:  eng.timeframe,
 			Timestamp:  candle.Timestamp,
 			EntryPrice: closePrice,
 			TP:         newTP,
@@ -98,16 +98,16 @@ func (eng *Engine) SetPosition(position types.Position) bool {
 		return false
 	}
 
-	if eng.LastPosition == nil {
-		eng.LastPosition = &position
+	if eng.lastPosition == nil {
+		eng.lastPosition = &position
 		return true
 	}
 
-	if eng.LastPosition.State == types.LONG_OPEN || eng.LastPosition.State == types.SHORT_OPEN {
+	if eng.lastPosition.State == types.LONG_OPEN || eng.lastPosition.State == types.SHORT_OPEN {
 		return false
 	}
 
-	eng.LastPosition = &position
+	eng.lastPosition = &position
 
 	return true
 }
@@ -118,11 +118,11 @@ func (eng *Engine) PositionExists() bool {
 		return false
 	}
 
-	if eng.LastPosition == nil {
+	if eng.lastPosition == nil {
 		return false
 	}
 
-	if eng.LastPosition.State == types.LONG_OPEN || eng.LastPosition.State == types.SHORT_OPEN {
+	if eng.lastPosition.State == types.LONG_OPEN || eng.lastPosition.State == types.SHORT_OPEN {
 		return true
 	}
 

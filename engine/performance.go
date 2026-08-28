@@ -40,8 +40,8 @@ func (eng *Engine) Performance() types.PerformanceResult {
 	fmt.Printf("Net P/L: $%.2f\n", netPL)*/
 
 	return types.PerformanceResult{
-		Symbol:    eng.Symbol,
-		Timeframe: eng.Timeframe,
+		Symbol:    eng.symbol,
+		Timeframe: eng.timeframe,
 		TPcount:   tpCount,
 		SLcount:   slCount,
 		Profit:    profit,
