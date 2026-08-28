@@ -39,6 +39,48 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	return newEntry - rewardDist, newEntry + riskDist, nil
 }
 
+// validateEntryPlan ensures that a plan targets this engine and that its
+// prices form a valid bracket for the requested direction.
+func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
+	if eng == nil {
+		return errors.ErrNilEngine
+	}
+
+	if plan.Symbol != eng.symbol || plan.Timeframe != eng.timeframe {
+		return errors.ErrEntryPlanMarketMismatch
+	}
+
+	prices := [...]float64{
+		plan.EntryPrice,
+		plan.StopLoss,
+		plan.TakeProfit,
+	}
+	for _, price := range prices {
+		if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
+			return errors.ErrInvalidPrice
+		}
+	}
+
+	if math.IsNaN(plan.LockPrice) || math.IsInf(plan.LockPrice, 0) {
+		return errors.ErrInvalidPrice
+	}
+
+	switch plan.Type {
+	case types.LONG_OPEN, types.ConfirmationWaitingBiggerThanEntry:
+		if plan.TakeProfit <= plan.EntryPrice || plan.StopLoss >= plan.EntryPrice {
+			return errors.ErrInvalidEntryPlanBracket
+		}
+	case types.SHORT_OPEN, types.ConfirmationWaitingSmallerThanEntry:
+		if plan.TakeProfit >= plan.EntryPrice || plan.StopLoss <= plan.EntryPrice {
+			return errors.ErrInvalidEntryPlanBracket
+		}
+	default:
+		return errors.ErrInvalidEntryPlanType
+	}
+
+	return nil
+}
+
 func entryPlanLockKey(plan types.EntryPlan) string {
 
 	key := strconv.FormatFloat(plan.LockPrice, 'g', -1, 64)

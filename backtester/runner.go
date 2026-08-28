@@ -6,6 +6,9 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// Run executes the backtest with strategy.
+// Each call must receive a fresh strategy instance because Run does not reset
+// state accumulated by the strategy during previous executions.
 func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, error) {
 
 	if b == nil {
@@ -16,12 +19,12 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, erro
 		return types.PerformanceResult{}, errors.ErrNilStrategy
 	}
 
-	eng := engine.NewEngine(b.symbol, b.timeframe, b.isCloseAutomated)
+	eng, err := engine.NewEngine(b.symbol, b.timeframe, b.isCloseAutomated)
+	if err != nil {
+		return types.PerformanceResult{}, nil
+	}
 
-	var candleSet []types.Candle
-	candleSet = append(candleSet, b.candles...)
-
-	for _, candle := range candleSet {
+	for _, candle := range b.candles {
 
 		strategy.AddBar(candle)
 

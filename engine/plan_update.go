@@ -17,6 +17,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 	case types.ReplacePlans:
 		if len(update.Plans) == 0 {
 			eng.activePlans = nil
+			eng.pendingConfirmation = nil
 			return nil
 		}
 
@@ -24,11 +25,15 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			if plan.Type != types.LONG_OPEN && plan.Type != types.SHORT_OPEN {
 				return errors.ErrInvalidEntryPlanType
 			}
+			if err := eng.validateEntryPlan(plan); err != nil {
+				return err
+			}
 		}
 
 		plansCopy := make([]types.EntryPlan, len(update.Plans))
 		copy(plansCopy, update.Plans)
 		eng.activePlans = plansCopy
+		eng.pendingConfirmation = nil
 		return nil
 
 	case types.ClearPlans:
@@ -45,6 +50,9 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
 			pending.Type != types.ConfirmationWaitingSmallerThanEntry {
 			return errors.ErrInvalidEntryPlanType
+		}
+		if err := eng.validateEntryPlan(pending); err != nil {
+			return err
 		}
 
 		eng.activePlans = nil

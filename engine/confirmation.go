@@ -1,6 +1,9 @@
 package engine
 
-import "github.com/yusufozmis/go-trading-engine/types"
+import (
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/types"
+)
 
 func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
 	if eng == nil || eng.pendingConfirmation == nil {
@@ -40,39 +43,28 @@ func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
 }
 
 func (eng *Engine) PendingExists() bool {
-
-	if eng == nil {
-		return false
-	}
-
-	if eng.pendingConfirmation == nil {
-		eng.pendingConfirmation = &types.EntryPlan{}
-		return false
-	}
-
-	if eng.pendingConfirmation.Type == types.ConfirmationWaitingBiggerThanEntry ||
-		eng.pendingConfirmation.Type == types.ConfirmationWaitingSmallerThanEntry {
-		return true
-	}
-
-	return false
+	return eng != nil && eng.pendingConfirmation != nil
 }
 
-func (eng *Engine) SetPending(pending types.EntryPlan) {
+func (eng *Engine) SetPending(pending types.EntryPlan) error {
 
 	if eng == nil {
-		return
+		return errors.ErrNilEngine
 	}
 
 	if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
 		pending.Type != types.ConfirmationWaitingSmallerThanEntry {
-		return
+		return errors.ErrInvalidEntryPlanType
+	}
+	if err := eng.validateEntryPlan(pending); err != nil {
+		return err
 	}
 
 	if eng.PositionExists() || eng.PendingExists() {
-		return
+		return errors.ErrPositionOrPendingExists
 	}
 
 	eng.pendingConfirmation = &pending
 
+	return nil
 }

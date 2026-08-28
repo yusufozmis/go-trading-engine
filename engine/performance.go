@@ -15,7 +15,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 	tpCount, slCount := 0, 0
 	var profit, loss float64
 
-	for _, pos := range eng.ClosedPositions {
+	for _, pos := range eng.closedPositions {
 
 		if pos.State == types.ClosedByProfit {
 			tpCount++
