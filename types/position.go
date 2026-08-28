@@ -1,8 +1,9 @@
 package types
 
 type Position struct {
-	Symbol     string
-	Timeframe  string
+	Symbol    string
+	Timeframe string
+	// Timestamp is the position's opening Unix timestamp in milliseconds.
 	Timestamp  int64
 	EntryPrice float64
 	StopLoss   float64
