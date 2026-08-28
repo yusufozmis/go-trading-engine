@@ -1,8 +1,8 @@
 package engine
 
 import (
-	"fmt"
 	"math"
+	"strconv"
 
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
@@ -41,7 +41,7 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 
 func entryPlanLockKey(plan types.EntryPlan) string {
 
-	key := fmt.Sprintf("%.6f", plan.LockPrice)
+	key := strconv.FormatFloat(plan.LockPrice, 'g', -1, 64)
 
 	return plan.Symbol + "|" + plan.Timeframe + "|" + key
 }
