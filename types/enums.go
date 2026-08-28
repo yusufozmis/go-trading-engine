@@ -8,7 +8,9 @@ type PositionSide string
 type SpotSide string
 
 const (
-	LONG_OPEN PositionState = iota
+	UNSPECIFIED PositionState = iota
+
+	LONG_OPEN
 	SHORT_OPEN
 
 	ConfirmationWaitingBiggerThanEntry
