@@ -18,19 +18,21 @@ func (eng *Engine) OpenPosition(candle types.Candle) error {
 
 	closePrice := candle.PriceData.ClosePrice
 
-	entryPlans := eng.activePlans
-	if len(entryPlans) == 0 {
+	if len(eng.activePlans) == 0 {
 		return nil
 	}
 
-	for i, plan := range entryPlans {
+	for i := 0; i < len(eng.activePlans); {
+		plan := eng.activePlans[i]
 
 		lockKey := entryPlanLockKey(plan)
 		if eng.lockKeyMap[lockKey] {
+			i++
 			continue
 		}
 
 		if candle.Symbol != plan.Symbol || candle.Timeframe != plan.Timeframe {
+			i++
 			continue
 		}
 
@@ -46,10 +48,12 @@ func (eng *Engine) OpenPosition(candle types.Candle) error {
 		}
 
 		if !canOpen {
+			i++
 			continue
 		}
 
 		if common.HasPriceMovedTooFar(plan.EntryPrice, candle.PriceData.ClosePrice) {
+			// The next plan shifts into this index, so process the same index again.
 			eng.removeActivePlanAt(i)
 			continue
 		}
