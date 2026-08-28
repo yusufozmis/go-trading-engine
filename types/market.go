@@ -3,6 +3,7 @@ package types
 type Candle struct {
 	Symbol    string
 	Timeframe string
+	// Timestamp is the candle's Unix timestamp in milliseconds.
 	Timestamp int64
 	PriceData Prices
 	Volume    float64
