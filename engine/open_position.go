@@ -41,9 +41,9 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		canOpen := false
 
 		switch plan.Type {
-		case types.LONG_OPEN:
+		case types.LongOpen:
 			canOpen = closePrice >= plan.EntryPrice
-		case types.SHORT_OPEN:
+		case types.ShortOpen:
 			canOpen = closePrice <= plan.EntryPrice
 		default:
 			return nil, errors.ErrInvalidEntryPlanType
@@ -110,7 +110,11 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 		return errors.ErrStalePositionAction
 	}
 
-	if !eng.SetPosition(action.Position) {
+	accepted, err := eng.SetPosition(action.Position)
+	if err != nil {
+		return err
+	}
+	if !accepted {
 		return errors.ErrInvalidPositionAction
 	}
 
@@ -120,29 +124,29 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 }
 
 // SetPosition records position when the engine does not already have an open
-// position. It returns whether the position was accepted.
-func (eng *Engine) SetPosition(position types.Position) bool {
+// position. It reports whether the position was accepted and why it was rejected.
+func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 
-	if eng == nil {
-		return false
+	if err := eng.validate(); err != nil {
+		return false, err
 	}
 
 	if !eng.validPosition(position) {
-		return false
+		return false, errors.ErrInvalidPositionAction
 	}
 
 	if eng.lastPosition == nil {
 		eng.lastPosition = &position
-		return true
+		return true, nil
 	}
 
-	if eng.lastPosition.State == types.LONG_OPEN || eng.lastPosition.State == types.SHORT_OPEN {
-		return false
+	if eng.lastPosition.State == types.LongOpen || eng.lastPosition.State == types.ShortOpen {
+		return false, errors.ErrPositionOrPendingExists
 	}
 
 	eng.lastPosition = &position
 
-	return true
+	return true, nil
 }
 
 // PositionExists reports whether the engine currently tracks an open position.
@@ -156,7 +160,7 @@ func (eng *Engine) PositionExists() bool {
 		return false
 	}
 
-	if eng.lastPosition.State == types.LONG_OPEN || eng.lastPosition.State == types.SHORT_OPEN {
+	if eng.lastPosition.State == types.LongOpen || eng.lastPosition.State == types.ShortOpen {
 		return true
 	}
 

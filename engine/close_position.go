@@ -37,7 +37,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	currentPosition := eng.lastPosition
 	closedPosition := action.Position
 	expectedSide := types.PositionLong
-	if currentPosition.State == types.SHORT_OPEN {
+	if currentPosition.State == types.ShortOpen {
 		expectedSide = types.PositionShort
 	}
 	if action.Side != expectedSide {
@@ -79,7 +79,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {
 	position := *eng.lastPosition
 	side := types.PositionLong
-	if position.State == types.SHORT_OPEN {
+	if position.State == types.ShortOpen {
 		side = types.PositionShort
 	}
 
@@ -111,7 +111,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 	closePrice := candle.PriceData.ClosePrice
 
 	switch position.State {
-	case types.LONG_OPEN:
+	case types.LongOpen:
 		if closePrice <= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.StopLoss = closePrice
@@ -128,7 +128,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 				Side:     types.PositionLong,
 			}
 		}
-	case types.SHORT_OPEN:
+	case types.ShortOpen:
 		if closePrice >= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.StopLoss = closePrice

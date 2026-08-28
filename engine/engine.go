@@ -1,3 +1,4 @@
+// Package engine evaluates strategy plans and tracks confirmed position state.
 package engine
 
 import (
@@ -51,10 +52,4 @@ func (eng *Engine) validate() error {
 		return errors.ErrNilTimeframe
 	}
 	return nil
-}
-
-func (eng *Engine) acceptsCandle(candle types.Candle) bool {
-	return eng.validate() == nil &&
-		candle.Symbol == eng.symbol &&
-		candle.Timeframe == eng.timeframe
 }

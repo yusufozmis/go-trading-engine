@@ -18,8 +18,8 @@ type PerformanceResult struct {
 	Symbol    string
 	Timeframe string
 
-	TPcount int
-	SLcount int
+	TPCount int
+	SLCount int
 
 	Profit float64
 	Loss   float64

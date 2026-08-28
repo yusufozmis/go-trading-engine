@@ -23,7 +23,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		}
 
 		for _, plan := range update.Plans {
-			if plan.Type != types.LONG_OPEN && plan.Type != types.SHORT_OPEN {
+			if plan.Type != types.LongOpen && plan.Type != types.ShortOpen {
 				return errors.ErrInvalidEntryPlanType
 			}
 			if err := eng.validateEntryPlan(plan); err != nil {

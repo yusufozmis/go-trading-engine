@@ -1,3 +1,4 @@
+// Package types defines the shared market, strategy, and position contracts.
 package types
 
 // PlanUpdateMode controls how a plan update changes existing engine plans.
@@ -19,10 +20,10 @@ const (
 	// UNSPECIFIED is the zero value for an unspecified position state.
 	UNSPECIFIED PositionState = iota
 
-	// LONG_OPEN identifies an open long position.
-	LONG_OPEN
-	// SHORT_OPEN identifies an open short position.
-	SHORT_OPEN
+	// LongOpen identifies an open long position.
+	LongOpen
+	// ShortOpen identifies an open short position.
+	ShortOpen
 
 	// ConfirmationWaitingBiggerThanEntry waits for price to cross above entry.
 	ConfirmationWaitingBiggerThanEntry

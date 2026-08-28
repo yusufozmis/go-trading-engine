@@ -1,3 +1,4 @@
+// Package common contains shared calculations used by the trading engine.
 package common
 
 import (

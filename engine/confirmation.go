@@ -25,7 +25,7 @@ func (eng *Engine) CheckConfirmation(candle types.Candle) (bool, error) {
 			return false, nil
 		}
 		if closePrice >= plan.EntryPrice {
-			plan.Type = types.LONG_OPEN
+			plan.Type = types.LongOpen
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
 			return true, nil
@@ -37,7 +37,7 @@ func (eng *Engine) CheckConfirmation(candle types.Candle) (bool, error) {
 			return false, nil
 		}
 		if closePrice <= plan.EntryPrice {
-			plan.Type = types.SHORT_OPEN
+			plan.Type = types.ShortOpen
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
 			return true, nil
@@ -71,6 +71,7 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 		return errors.ErrPositionOrPendingExists
 	}
 
+	eng.activePlans = nil
 	eng.pendingConfirmation = &pending
 
 	return nil

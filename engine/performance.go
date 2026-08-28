@@ -34,17 +34,11 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		}
 	}
 
-	/*netPL := profit - loss
-
-	fmt.Printf("TP: %d | SL: %d \n", tpCount, slCount)
-	fmt.Printf("Total profit: $%.2f | Total loss: $%.2f\n", profit, loss)
-	fmt.Printf("Net P/L: $%.2f\n", netPL)*/
-
 	return types.PerformanceResult{
 		Symbol:    eng.symbol,
 		Timeframe: eng.timeframe,
-		TPcount:   tpCount,
-		SLcount:   slCount,
+		TPCount:   tpCount,
+		SLCount:   slCount,
 		Profit:    profit,
 		Loss:      loss,
 	}

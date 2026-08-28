@@ -1,3 +1,4 @@
+// Package backtester runs strategies against immutable historical candle sets.
 package backtester
 
 import (

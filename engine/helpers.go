@@ -14,6 +14,9 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	if err := validateCandleData(candle); err != nil {
 		return 0, 0, err
 	}
+	if err := validateEntryPlanData(plan); err != nil {
+		return 0, 0, err
+	}
 
 	entry := plan.EntryPrice
 	tp := plan.TakeProfit
@@ -92,6 +95,10 @@ func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
 		return errors.ErrEntryPlanMarketMismatch
 	}
 
+	return validateEntryPlanData(plan)
+}
+
+func validateEntryPlanData(plan types.EntryPlan) error {
 	prices := [...]float64{
 		plan.EntryPrice,
 		plan.StopLoss,
@@ -108,11 +115,11 @@ func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
 	}
 
 	switch plan.Type {
-	case types.LONG_OPEN, types.ConfirmationWaitingBiggerThanEntry:
+	case types.LongOpen, types.ConfirmationWaitingBiggerThanEntry:
 		if plan.TakeProfit <= plan.EntryPrice || plan.StopLoss >= plan.EntryPrice {
 			return errors.ErrInvalidEntryPlanBracket
 		}
-	case types.SHORT_OPEN, types.ConfirmationWaitingSmallerThanEntry:
+	case types.ShortOpen, types.ConfirmationWaitingSmallerThanEntry:
 		if plan.TakeProfit >= plan.EntryPrice || plan.StopLoss <= plan.EntryPrice {
 			return errors.ErrInvalidEntryPlanBracket
 		}
@@ -143,9 +150,9 @@ func (eng *Engine) validPosition(position types.Position) bool {
 	}
 
 	switch position.State {
-	case types.LONG_OPEN:
+	case types.LongOpen:
 		return position.TP > position.EntryPrice && position.StopLoss < position.EntryPrice
-	case types.SHORT_OPEN:
+	case types.ShortOpen:
 		return position.TP < position.EntryPrice && position.StopLoss > position.EntryPrice
 	default:
 		return false
