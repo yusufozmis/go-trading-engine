@@ -16,6 +16,7 @@ var (
 	ErrNilBacktester       = errors.New("nil backtester")
 	ErrNilStrategy         = errors.New("nil strategy")
 	ErrInvalidSetOfCandles = errors.New("invalid set of candles")
+	ErrEmptyCandleSet      = errors.New("empty candle set")
 )
 
 // Stream Errors
