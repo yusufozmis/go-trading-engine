@@ -45,13 +45,28 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, erro
 			eng.CheckConfirmation(candle)
 		}
 
-		err = eng.OpenPosition(candle)
+		openAction, err := eng.DecideOpenPosition(candle)
 		if err != nil {
 			return types.PerformanceResult{}, err
 		}
+		if openAction != nil {
+			// Backtests assume immediate execution, so a decided action can be
+			// confirmed without waiting for an external exchange operation.
+			if err := eng.ConfirmOpenPosition(*openAction); err != nil {
+				return types.PerformanceResult{}, err
+			}
+		}
 
 		if eng.PositionExists() {
-			eng.ClosePosition(candle)
+			closeAction, err := eng.DecideClosePosition(candle)
+			if err != nil {
+				return types.PerformanceResult{}, err
+			}
+			if closeAction != nil {
+				if err := eng.ConfirmClosePosition(*closeAction); err != nil {
+					return types.PerformanceResult{}, err
+				}
+			}
 		}
 	}
 

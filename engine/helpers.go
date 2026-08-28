@@ -110,6 +110,16 @@ func (eng *Engine) validPosition(position types.Position) bool {
 	}
 }
 
+func (eng *Engine) activePlanIndex(target types.EntryPlan) int {
+	for i, plan := range eng.activePlans {
+		if plan == target {
+			return i
+		}
+	}
+
+	return -1
+}
+
 func entryPlanLockKey(plan types.EntryPlan) string {
 
 	key := strconv.FormatFloat(plan.LockPrice, 'g', -1, 64)

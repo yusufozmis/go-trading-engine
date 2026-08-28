@@ -13,6 +13,12 @@ var (
 	ErrPositionOrPendingExists = errors.New("position or a pending position exists")
 	ErrEntryPlanMarketMismatch = errors.New("entry plan market does not match engine")
 	ErrCandleMarketMismatch    = errors.New("candle market does not match engine")
+	// ErrInvalidPositionAction indicates that a position action would violate
+	// the engine's position invariants.
+	ErrInvalidPositionAction = errors.New("invalid position action")
+	// ErrStalePositionAction indicates that engine state changed after an action
+	// was decided and before it was confirmed.
+	ErrStalePositionAction = errors.New("stale position action")
 )
 
 // Backtest Errors

@@ -1,132 +1,135 @@
 package engine
 
-import "github.com/yusufozmis/go-trading-engine/types"
+import (
+	"math"
 
-func (eng *Engine) ClosePosition(candle types.Candle) {
+	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/types"
+)
 
+// DecideClosePosition evaluates whether the current candle closes the tracked
+// position without mutating engine state.
+func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionAction, error) {
+	if err := eng.validate(); err != nil {
+		return nil, err
+	}
 	if !eng.acceptsCandle(candle) {
-		return
+		return nil, errors.ErrCandleMarketMismatch
 	}
-
-	if eng.lastPosition == nil {
-		return
-	}
-
-	if !eng.PositionExists() {
-		return
-	}
-
-	if candle.Timestamp <= eng.lastPosition.Timestamp {
-		return
+	if !eng.PositionExists() || candle.Timestamp <= eng.lastPosition.Timestamp {
+		return nil, nil
 	}
 
 	if eng.isCloseAutomated {
-		eng.closeAutomated(candle)
-	} else {
-		eng.closeWithCandle(candle)
+		return eng.automatedCloseAction(candle), nil
 	}
 
+	return eng.candleCloseAction(candle), nil
 }
 
-func (eng *Engine) closeAutomated(candle types.Candle) {
-
-	if eng == nil {
-		return
+// ConfirmClosePosition records a previously decided action as successfully
+// closed. It rejects actions that no longer match the tracked open position.
+func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
+	if err := eng.validate(); err != nil {
+		return err
+	}
+	if !eng.PositionExists() {
+		return errors.ErrStalePositionAction
 	}
 
-	if eng.lastPosition == nil {
-		return
+	currentPosition := eng.lastPosition
+	closedPosition := action.Position
+	if currentPosition.Symbol != closedPosition.Symbol ||
+		currentPosition.Timeframe != closedPosition.Timeframe ||
+		currentPosition.Timestamp != closedPosition.Timestamp ||
+		currentPosition.EntryPrice != closedPosition.EntryPrice ||
+		currentPosition.Amount != closedPosition.Amount {
+		return errors.ErrStalePositionAction
 	}
 
-	pos := eng.lastPosition
-	if pos.State != types.LONG_OPEN && pos.State != types.SHORT_OPEN {
-		return
+	var closePrice float64
+	switch closedPosition.State {
+	case types.ClosedByProfit:
+		closePrice = closedPosition.TP
+		if closedPosition.StopLoss != currentPosition.StopLoss {
+			return errors.ErrInvalidPositionAction
+		}
+	case types.ClosedByStop:
+		closePrice = closedPosition.StopLoss
+		if closedPosition.TP != currentPosition.TP {
+			return errors.ErrInvalidPositionAction
+		}
+	default:
+		return errors.ErrInvalidPositionAction
+	}
+	if math.IsNaN(closePrice) || math.IsInf(closePrice, 0) || closePrice <= 0 {
+		return errors.ErrInvalidPositionAction
 	}
 
-	// low price < TP < high price. Bunu kontrol etme sebebi TPnin gelip gelmediğini görmek.
-	isTp := pos.TP <= candle.PriceData.HighPrice && pos.TP >= candle.PriceData.LowPrice
+	eng.lastPosition = &closedPosition
+	eng.closedPositions = append(eng.closedPositions, closedPosition)
+	return nil
+}
 
-	// low price < StopLoss < high price. Bunu kontrol etme sebebi stop'un gelip gelmediğini görmek.
-	isSL := pos.StopLoss <= candle.PriceData.HighPrice && pos.StopLoss >= candle.PriceData.LowPrice
+func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {
+	position := *eng.lastPosition
+	isTP := position.TP <= candle.PriceData.HighPrice && position.TP >= candle.PriceData.LowPrice
+	isSL := position.StopLoss <= candle.PriceData.HighPrice && position.StopLoss >= candle.PriceData.LowPrice
 
-	// Eğer TP ve SL fiyatlarının ikisi de mumun içerisindeyse (high'dan küçük lowdan büyük)
-	// en kötüyü varsay ve database'e SL olarak geçir
-	if isTp && isSL {
-		eng.lastPosition.State = types.ClosedByStop
-
-		eng.closedPositions = append(eng.closedPositions, *pos)
-
-		return
-	}
-	if isTp {
-		eng.lastPosition.State = types.ClosedByProfit
-
-		eng.closedPositions = append(eng.closedPositions, *pos)
-
-	}
+	// When both thresholds occur within one candle, preserve the existing
+	// conservative backtest rule and assume that the stop was reached first.
 	if isSL {
-
-		eng.lastPosition.State = types.ClosedByStop
-
-		eng.closedPositions = append(eng.closedPositions, *pos)
-
+		position.State = types.ClosedByStop
+		return &ClosePositionAction{
+			Position: position,
+		}
 	}
+	if isTP {
+		position.State = types.ClosedByProfit
+		return &ClosePositionAction{
+			Position: position,
+		}
+	}
+
+	return nil
 }
 
-func (eng *Engine) closeWithCandle(candle types.Candle) {
+func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
+	position := *eng.lastPosition
+	closePrice := candle.PriceData.ClosePrice
 
-	if eng == nil {
-		return
-	}
-
-	if eng.lastPosition == nil {
-		return
-	}
-
-	pos := eng.lastPosition
-
-	if pos.State == types.LONG_OPEN {
-
-		isTP := candle.PriceData.ClosePrice >= pos.TP
-
-		if candle.PriceData.ClosePrice <= pos.StopLoss {
-
-			eng.lastPosition.State = types.ClosedByStop
-
-			eng.lastPosition.StopLoss = candle.PriceData.ClosePrice
-
-			eng.closedPositions = append(eng.closedPositions, *pos)
-
-		} else if isTP {
-
-			eng.lastPosition.State = types.ClosedByProfit
-
-			eng.lastPosition.TP = candle.PriceData.ClosePrice
-
-			eng.closedPositions = append(eng.closedPositions, *pos)
-
+	switch position.State {
+	case types.LONG_OPEN:
+		if closePrice <= position.StopLoss {
+			position.State = types.ClosedByStop
+			position.StopLoss = closePrice
+			return &ClosePositionAction{
+				Position: position,
+			}
+		}
+		if closePrice >= position.TP {
+			position.State = types.ClosedByProfit
+			position.TP = closePrice
+			return &ClosePositionAction{
+				Position: position,
+			}
+		}
+	case types.SHORT_OPEN:
+		if closePrice >= position.StopLoss {
+			position.State = types.ClosedByStop
+			position.StopLoss = closePrice
+			return &ClosePositionAction{
+				Position: position,
+			}
+		}
+		if closePrice <= position.TP {
+			position.State = types.ClosedByProfit
+			position.TP = closePrice
+			return &ClosePositionAction{
+				Position: position,
+			}
 		}
 	}
-	if pos.State == types.SHORT_OPEN {
 
-		isTP := candle.PriceData.ClosePrice <= pos.TP
-
-		if candle.PriceData.ClosePrice >= pos.StopLoss {
-
-			eng.lastPosition.State = types.ClosedByStop
-
-			eng.lastPosition.StopLoss = candle.PriceData.ClosePrice
-
-			eng.closedPositions = append(eng.closedPositions, *pos)
-
-		} else if isTP {
-
-			eng.lastPosition.State = types.ClosedByProfit
-
-			eng.lastPosition.TP = candle.PriceData.ClosePrice
-
-			eng.closedPositions = append(eng.closedPositions, *pos)
-
-		}
-	}
+	return nil
 }

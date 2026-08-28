@@ -5,6 +5,8 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+// Engine evaluates strategy plans and tracks confirmed position state.
+// Its methods must not be called concurrently.
 type Engine struct {
 	symbol    string
 	timeframe string
@@ -20,6 +22,7 @@ type Engine struct {
 	pendingConfirmation *types.EntryPlan
 }
 
+// NewEngine creates an engine for one symbol and timeframe.
 func NewEngine(symbol, timeframe string, isCloseAutomated bool) (*Engine, error) {
 
 	if symbol == "" {
