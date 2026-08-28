@@ -13,7 +13,7 @@ func (client *Client) FetchSpotUSDTBalance() (float64, error) {
 
 	balance, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return 0, err
+		return 0, normalizeError(err)
 	}
 
 	amount := balance.Total["USDT"]
@@ -49,7 +49,7 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 
 	balance, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return 0, err
+		return 0, normalizeError(err)
 	}
 
 	amount := balance.Total[*marketInfo.BaseCurrency]
@@ -71,7 +71,7 @@ func (client *Client) FetchFuturesUSDTBalance() (float64, error) {
 		map[string]any{"type": "swap"},
 	)
 	if err != nil {
-		return 0, err
+		return 0, normalizeError(err)
 	}
 
 	amount := balance.Total["USDT"]

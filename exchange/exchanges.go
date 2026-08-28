@@ -39,7 +39,7 @@ func NewBinance() (*Client, error) {
 
 	markets, err := pro.LoadMarkets()
 	if err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 
 	return &Client{
@@ -56,7 +56,7 @@ func NewOKX() (*Client, error) {
 
 	markets, err := pro.LoadMarkets()
 	if err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 
 	return &Client{

@@ -315,7 +315,7 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 		symbol,
 		ccxt.WithUnWatchOHLCVTimeframe(timeframe),
 	)
-	return err
+	return normalizeError(err)
 }
 
 // CloseCandleStream shuts down the running candle stream and detaches it from the client.
@@ -408,7 +408,12 @@ func (s *Client) watch(key subKey, token uint64) {
 			// Publish only terminal errors from the watcher that still owns the key.
 			if s.stream.clearIfCurrent(key, token) {
 				s.stream.emit(CandleUpdate{
-					Err:       fmt.Errorf("watch OHLCV %q %q: %w", key.symbol, key.timeframe, err),
+					Err: fmt.Errorf(
+						"watch OHLCV %q %q: %w",
+						key.symbol,
+						key.timeframe,
+						normalizeError(err),
+					),
 					Symbol:    key.symbol,
 					Timeframe: key.timeframe,
 				})

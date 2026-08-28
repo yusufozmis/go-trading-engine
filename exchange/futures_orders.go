@@ -104,7 +104,7 @@ func (client *Client) CloseFuturesPosition(
 		ccxt.WithFetchPositionsSymbols([]string{symbol}),
 	)
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	for _, position := range positions {
@@ -158,7 +158,7 @@ func (client *Client) CloseFuturesPosition(
 				client.futuresAdapter.OrderParams(req),
 			),
 		)
-		return err
+		return normalizeError(err)
 	}
 
 	return errors.ErrPositionNotFound
@@ -226,7 +226,7 @@ func (client *Client) reduceFuturesPosition(
 		ccxt.WithFetchPositionsSymbols([]string{symbol}),
 	)
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	for _, position := range positions {
@@ -293,7 +293,7 @@ func (client *Client) reduceFuturesPosition(
 			req.Amount,
 			options...,
 		)
-		return err
+		return normalizeError(err)
 	}
 
 	return errors.ErrPositionNotFound
@@ -322,7 +322,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 			MarginMode: req.MarginMode,
 			Hedged:     req.Hedged,
 		}); err != nil {
-			return err
+			return normalizeError(err)
 		}
 		client.preparedFuturesSymbols[req.Symbol] = true
 	}
@@ -334,7 +334,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 		req.Amount,
 		options...,
 	)
-	return err
+	return normalizeError(err)
 }
 
 func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) error {

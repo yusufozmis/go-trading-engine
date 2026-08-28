@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	stderrors "errors"
 	"fmt"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
@@ -82,7 +83,7 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 		ccxt.WithFetchPositionModeSymbol(symbols[0]),
 	)
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	currentHedged, ok := positionMode["hedged"].(bool)
@@ -97,7 +98,19 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 			ccxt.WithSetPositionModeSymbol(symbols[0]),
 		)
 		if err != nil {
-			return fmt.Errorf("set futures position mode: %w", err)
+			normalizedErr := normalizeError(err)
+
+			// Broad provider rejections become position-mode-specific only here,
+			// where the operation that caused the error is known.
+			if stderrors.Is(normalizedErr, errors.ErrOperationRejected) {
+				return fmt.Errorf(
+					"%w: set futures position mode: %w",
+					errors.ErrPositionModeChangeRejected,
+					normalizedErr,
+				)
+			}
+
+			return fmt.Errorf("set futures position mode: %w", normalizedErr)
 		}
 	}
 
@@ -119,7 +132,7 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 		}
 
 		if err := client.futuresAdapter.Prepare(symbol, cfg); err != nil {
-			return err
+			return normalizeError(err)
 		}
 
 		preparedSymbols[symbol] = true

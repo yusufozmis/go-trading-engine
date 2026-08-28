@@ -45,11 +45,7 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 	}
 
 	_, err := client.iExchange.CreateOrder(symbol, "market", side.String(), amount)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return normalizeError(err)
 }
 
 // CreateSpotLimitOrder creates a spot limit order for a base-asset amount at price.
@@ -97,11 +93,7 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 	}
 
 	_, err := client.iExchange.CreateOrder(symbol, "limit", side.String(), amount, ccxt.WithCreateOrderPrice(price))
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return normalizeError(err)
 }
 
 // CloseSpotPositionMarket sells the total base-asset balance at market price.
@@ -126,7 +118,7 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	amount := balances.Balances[*marketInfo.BaseCurrency].Total
@@ -148,11 +140,7 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 		symbol,
 		*amount,
 	)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return normalizeError(err)
 }
 
 // CloseSpotPositionLimit places a limit order to sell the total base-asset balance.
@@ -181,7 +169,7 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	amount := balances.Balances[*marketInfo.BaseCurrency].Total
@@ -204,10 +192,7 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 		*amount,
 		price,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return normalizeError(err)
 }
 
 // ReduceSpotPositionMarket reduces a spot holding by selling the specified
@@ -237,7 +222,7 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
@@ -259,11 +244,7 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 		symbol,
 		amount,
 	)
-	if err != nil {
-		return err
-	}
-
-	return nil
+	return normalizeError(err)
 }
 
 // ReduceSpotPositionLimit reduces a spot holding by placing a limit sell order
@@ -297,7 +278,7 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 
 	balances, err := client.iExchange.FetchBalance()
 	if err != nil {
-		return err
+		return normalizeError(err)
 	}
 
 	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
@@ -320,8 +301,5 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 		amount,
 		price,
 	)
-	if err != nil {
-		return err
-	}
-	return nil
+	return normalizeError(err)
 }

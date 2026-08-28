@@ -42,7 +42,7 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 		ccxt.WithFetchOHLCVLimit(limit+1),
 	)
 	if err != nil {
-		return nil, err
+		return nil, normalizeError(err)
 	}
 
 	if len(candles) == 0 {
@@ -105,7 +105,7 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 
 	fundingRate, err := client.iExchange.FetchFundingRate(symbol)
 	if err != nil {
-		return 0, err
+		return 0, normalizeError(err)
 	}
 
 	rate := fundingRate.FundingRate
