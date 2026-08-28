@@ -64,6 +64,11 @@ func (eng *Engine) SetPending(pending types.EntryPlan) {
 		return
 	}
 
+	if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
+		pending.Type != types.ConfirmationWaitingSmallerThanEntry {
+		return
+	}
+
 	if eng.PositionExists() || eng.PendingExists() {
 		return
 	}

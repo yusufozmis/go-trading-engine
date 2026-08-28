@@ -20,6 +20,12 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			return nil
 		}
 
+		for _, plan := range update.Plans {
+			if plan.Type != types.LONG_OPEN && plan.Type != types.SHORT_OPEN {
+				return errors.ErrInvalidEntryPlanType
+			}
+		}
+
 		plansCopy := make([]types.EntryPlan, len(update.Plans))
 		copy(plansCopy, update.Plans)
 		eng.activePlans = plansCopy
@@ -36,6 +42,11 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			return errors.ErrExpectedSinglePlan
 		}
 		pending := update.Plans[0]
+		if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
+			pending.Type != types.ConfirmationWaitingSmallerThanEntry {
+			return errors.ErrInvalidEntryPlanType
+		}
+
 		eng.activePlans = nil
 		eng.pendingConfirmation = &pending
 		return nil

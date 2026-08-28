@@ -94,6 +94,10 @@ func (eng *Engine) SetPosition(position types.Position) bool {
 		return false
 	}
 
+	if position.State != types.LONG_OPEN && position.State != types.SHORT_OPEN {
+		return false
+	}
+
 	if eng.LastPosition == nil {
 		eng.LastPosition = &position
 		return true
