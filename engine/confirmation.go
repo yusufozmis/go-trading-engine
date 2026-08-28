@@ -6,7 +6,7 @@ import (
 )
 
 func (eng *Engine) CheckConfirmation(candle types.Candle) bool {
-	if eng == nil || eng.pendingConfirmation == nil {
+	if !eng.acceptsCandle(candle) || eng.pendingConfirmation == nil {
 		return false
 	}
 
@@ -48,8 +48,8 @@ func (eng *Engine) PendingExists() bool {
 
 func (eng *Engine) SetPending(pending types.EntryPlan) error {
 
-	if eng == nil {
-		return errors.ErrNilEngine
+	if err := eng.validate(); err != nil {
+		return err
 	}
 
 	if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&

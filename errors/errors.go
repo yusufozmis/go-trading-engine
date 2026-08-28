@@ -12,6 +12,7 @@ var (
 	ErrInvalidPositionState    = errors.New("invalid position state")
 	ErrPositionOrPendingExists = errors.New("position or a pending position exists")
 	ErrEntryPlanMarketMismatch = errors.New("entry plan market does not match engine")
+	ErrCandleMarketMismatch    = errors.New("candle market does not match engine")
 )
 
 // Backtest Errors

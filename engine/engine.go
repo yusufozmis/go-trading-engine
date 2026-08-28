@@ -36,3 +36,22 @@ func NewEngine(symbol, timeframe string, isCloseAutomated bool) (*Engine, error)
 		lockKeyMap:       make(map[string]bool),
 	}, nil
 }
+
+func (eng *Engine) validate() error {
+	if eng == nil {
+		return errors.ErrNilEngine
+	}
+	if eng.symbol == "" {
+		return errors.ErrNilSymbol
+	}
+	if eng.timeframe == "" {
+		return errors.ErrNilTimeframe
+	}
+	return nil
+}
+
+func (eng *Engine) acceptsCandle(candle types.Candle) bool {
+	return eng.validate() == nil &&
+		candle.Symbol == eng.symbol &&
+		candle.Timeframe == eng.timeframe
+}

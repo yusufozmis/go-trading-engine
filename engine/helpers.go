@@ -42,8 +42,8 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 // validateEntryPlan ensures that a plan targets this engine and that its
 // prices form a valid bracket for the requested direction.
 func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
-	if eng == nil {
-		return errors.ErrNilEngine
+	if err := eng.validate(); err != nil {
+		return err
 	}
 
 	if plan.Symbol != eng.symbol || plan.Timeframe != eng.timeframe {
@@ -79,6 +79,35 @@ func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
 	}
 
 	return nil
+}
+
+func (eng *Engine) validPosition(position types.Position) bool {
+	if eng.validate() != nil ||
+		position.Symbol != eng.symbol ||
+		position.Timeframe != eng.timeframe {
+		return false
+	}
+
+	values := [...]float64{
+		position.EntryPrice,
+		position.StopLoss,
+		position.TP,
+		position.Amount,
+	}
+	for _, value := range values {
+		if math.IsNaN(value) || math.IsInf(value, 0) || value <= 0 {
+			return false
+		}
+	}
+
+	switch position.State {
+	case types.LONG_OPEN:
+		return position.TP > position.EntryPrice && position.StopLoss < position.EntryPrice
+	case types.SHORT_OPEN:
+		return position.TP < position.EntryPrice && position.StopLoss > position.EntryPrice
+	default:
+		return false
+	}
 }
 
 func entryPlanLockKey(plan types.EntryPlan) string {

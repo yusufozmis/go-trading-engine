@@ -7,8 +7,8 @@ import (
 
 func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 
-	if eng == nil {
-		return errors.ErrNilEngine
+	if err := eng.validate(); err != nil {
+		return err
 	}
 
 	switch update.Mode {

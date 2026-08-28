@@ -8,8 +8,11 @@ import (
 
 func (eng *Engine) OpenPosition(candle types.Candle) error {
 
-	if eng == nil {
-		return errors.ErrNilEngine
+	if err := eng.validate(); err != nil {
+		return err
+	}
+	if !eng.acceptsCandle(candle) {
+		return errors.ErrCandleMarketMismatch
 	}
 
 	if eng.PositionExists() {
@@ -94,7 +97,7 @@ func (eng *Engine) SetPosition(position types.Position) bool {
 		return false
 	}
 
-	if position.State != types.LONG_OPEN && position.State != types.SHORT_OPEN {
+	if !eng.validPosition(position) {
 		return false
 	}
 

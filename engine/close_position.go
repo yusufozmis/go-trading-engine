@@ -4,7 +4,7 @@ import "github.com/yusufozmis/go-trading-engine/types"
 
 func (eng *Engine) ClosePosition(candle types.Candle) {
 
-	if eng == nil {
+	if !eng.acceptsCandle(candle) {
 		return
 	}
 
@@ -16,7 +16,7 @@ func (eng *Engine) ClosePosition(candle types.Candle) {
 		return
 	}
 
-	if eng.lastPosition.Timestamp == candle.Timestamp {
+	if candle.Timestamp <= eng.lastPosition.Timestamp {
 		return
 	}
 
