@@ -21,7 +21,7 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, erro
 
 	eng, err := engine.NewEngine(b.symbol, b.timeframe, b.isCloseAutomated)
 	if err != nil {
-		return types.PerformanceResult{}, nil
+		return types.PerformanceResult{}, err
 	}
 
 	for _, candle := range b.candles {
