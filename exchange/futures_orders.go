@@ -70,11 +70,27 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 	return client.createFuturesOrder(req)
 }
 
-// CreateFuturesWithTPSL opens a market futures position and asks the provider
-// to attach market take-profit and stop-loss orders to the same entry request.
-// The position amount is interpreted as a base-asset quantity and estimated as
-// contracts from market metadata. Currently, only OKX supports this operation.
-func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
+// CreateFuturesMarketOrderWithTPSL opens a market futures position and asks the
+// provider to attach market take-profit, stop-loss, or both to the same entry
+// request. The position amount is interpreted as a base-asset quantity and
+// estimated as contracts from market metadata. Currently, only OKX supports
+// this operation.
+func (client *Client) CreateFuturesMarketOrderWithTPSL(position types.Position) error {
+	return client.createFuturesOrderWithTPSL(position, "market")
+}
+
+// CreateFuturesLimitOrderWithTPSL opens a limit futures position at the
+// position's entry price and asks the provider to attach market take-profit,
+// stop-loss, or both to the same entry request. The position amount is
+// interpreted as a base-asset quantity and estimated as contracts from market
+// metadata. Currently, only OKX supports this operation.
+func (client *Client) CreateFuturesLimitOrderWithTPSL(position types.Position) error {
+	return client.createFuturesOrderWithTPSL(position, "limit")
+}
+
+// createFuturesOrderWithTPSL contains the validation and request construction
+// shared by the market and limit attached-protection methods.
+func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderType string) error {
 	if err := client.validateConfigured(); err != nil {
 		return err
 	}
@@ -107,11 +123,14 @@ func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
 	req := adapters.FuturesOrderRequest{
 		Symbol:     position.Symbol,
 		Side:       side,
-		Type:       "market",
+		Type:       orderType,
 		Amount:     contractAmount,
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
+	}
+	if orderType == "limit" {
+		req.Price = position.EntryPrice
 	}
 	if position.StopLoss != 0 {
 		req.StopLoss = &position.StopLoss

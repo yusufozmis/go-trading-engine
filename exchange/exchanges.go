@@ -1,3 +1,5 @@
+// Package exchange provides unified market-data, streaming, account, and order
+// operations for supported exchange providers.
 package exchange
 
 import (
