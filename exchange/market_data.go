@@ -115,3 +115,19 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 
 	return (*rate) * 100, nil
 }
+
+// SupportedTimeframes returns the unified CCXT timeframe values supported by
+// the active provider. The returned order is unspecified.
+func (client *Client) SupportedTimeframes() []string {
+	if client == nil || client.iExchange == nil {
+		return nil
+	}
+
+	timeframes := client.iExchange.GetTimeframes()
+	supported := make([]string, 0, len(timeframes))
+	for timeframe := range timeframes {
+		supported = append(supported, timeframe)
+	}
+
+	return supported
+}
