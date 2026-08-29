@@ -19,6 +19,8 @@ type Position struct {
 	State      PositionState
 }
 
+// Validate reports whether the position contains valid identity, pricing,
+// amount, and state values.
 func (pos *Position) Validate() error {
 	if pos == nil {
 		return errors.ErrNilPosition
