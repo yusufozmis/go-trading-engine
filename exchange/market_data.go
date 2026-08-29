@@ -2,14 +2,22 @@ package exchange
 
 import (
 	"math"
+	"time"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// FetchCandles returns up to limit fully formed candles for the given symbol and timeframe,
-// conservatively dropping the newest fetched candle because it may still be in progress.
+const (
+	binanceOHLCVPageSize int64 = 1000
+	okxOHLCVPageSize     int64 = 200
+)
+
+// FetchCandles returns up to limit fully formed candles for the given symbol and
+// timeframe. Requests larger than one provider page are paginated automatically.
+// The newest fetched candle is conservatively dropped because it may still be
+// in progress.
 func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]types.Candle, error) {
 
 	if err := client.Validate(); err != nil {
@@ -27,20 +35,20 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 	if timeframe == "" {
 		return nil, apperrors.ErrNilTimeframe
 	}
+	if _, supported := client.iExchange.GetTimeframes()[timeframe]; !supported {
+		return nil, apperrors.ErrInvalidTimeframe
+	}
 
 	if limit <= 0 {
 		return nil, apperrors.ErrInvalidLimit
 	}
 
-	if limit == math.MaxInt64 {
+	if limit > math.MaxInt64-2 {
 		return nil, apperrors.ErrLimitTooLarge
 	}
 
-	candles, err := client.iExchange.FetchOHLCV(
-		symbol,
-		ccxt.WithFetchOHLCVTimeframe(timeframe),
-		ccxt.WithFetchOHLCVLimit(limit+1),
-	)
+	requestedLimit := limit + 1
+	candles, err := client.fetchOHLCVPages(symbol, timeframe, requestedLimit)
 	if err != nil {
 		return nil, normalizeError(err)
 	}
@@ -53,18 +61,95 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 	// It may still be forming, and without an exchange-specific confirm flag
 	// we cannot know for sure.
 	candles = candles[:len(candles)-1]
+	if len(candles) == 0 {
+		return nil, apperrors.ErrNoCandles
+	}
 
 	if limit > 0 && int64(len(candles)) > limit {
 		candles = candles[len(candles)-int(limit):]
 	}
 
-	var wrapped []types.Candle
+	return candles, nil
+}
 
-	for _, ohlcv := range candles {
-		wrapped = append(wrapped, client.wrapOHLCV(symbol, timeframe, ohlcv))
+// fetchOHLCVPages walks forward through provider pages because CCXT Go's
+// built-in deterministic paginator cannot dispatch FetchOHLCV reliably.
+func (client *Client) fetchOHLCVPages(
+	symbol string,
+	timeframe string,
+	requestedLimit int64,
+) ([]types.Candle, error) {
+	timeframeMilliseconds := ccxt.ParseTimeframe(timeframe) * 1000
+	if timeframeMilliseconds <= 0 {
+		return nil, apperrors.ErrInvalidTimeframe
 	}
 
-	return wrapped, nil
+	// Start one interval earlier than required, then retain the newest candles.
+	// This avoids losing the current candle when the request lands exactly on a
+	// timeframe boundary.
+	fetchLimit := requestedLimit + 1
+	if fetchLimit > math.MaxInt64/timeframeMilliseconds {
+		return nil, apperrors.ErrLimitTooLarge
+	}
+	lookback := fetchLimit * timeframeMilliseconds
+	now := time.Now().UnixMilli()
+	since := max(now-lookback, 0)
+
+	maxCalls := fetchLimit / client.ohlcvPageSize
+	if fetchLimit%client.ohlcvPageSize != 0 {
+		maxCalls++
+	}
+	maxCalls++ // Allow one final partial page at the current timestamp.
+
+	var candles []types.Candle
+	for range maxCalls {
+		page, err := client.iExchange.FetchOHLCV(
+			symbol,
+			ccxt.WithFetchOHLCVTimeframe(timeframe),
+			ccxt.WithFetchOHLCVSince(since),
+			ccxt.WithFetchOHLCVLimit(client.ohlcvPageSize),
+		)
+		if err != nil {
+			return nil, err
+		}
+		if len(page) == 0 {
+			break
+		}
+
+		for _, candle := range page {
+			if candle.Timestamp <= 0 {
+				return nil, apperrors.ErrInvalidTimestamp
+			}
+
+			if len(candles) == 0 {
+				candles = append(candles, client.wrapOHLCV(symbol, timeframe, candle))
+				continue
+			}
+
+			lastTimestamp := candles[len(candles)-1].Timestamp
+			switch {
+			case candle.Timestamp == lastTimestamp:
+				continue
+			case candle.Timestamp < lastTimestamp:
+				return nil, apperrors.ErrInvalidSetOfCandles
+			default:
+				candles = append(candles, client.wrapOHLCV(symbol, timeframe, candle))
+			}
+		}
+
+		lastTimestamp := page[len(page)-1].Timestamp
+		nextSince := lastTimestamp + timeframeMilliseconds
+		if nextSince <= since || nextSince > now {
+			break
+		}
+		since = nextSince
+	}
+
+	if int64(len(candles)) > requestedLimit {
+		candles = candles[len(candles)-int(requestedLimit):]
+	}
+
+	return candles, nil
 }
 
 func (client *Client) wrapOHLCV(symbol, timeframe string, ohlcv ccxt.OHLCV) types.Candle {

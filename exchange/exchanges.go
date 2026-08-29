@@ -16,6 +16,7 @@ import (
 type Client struct {
 	iExchange      ccxt.IExchange
 	futuresAdapter adapters.FuturesAdapter
+	ohlcvPageSize  int64
 
 	stream *candleStream
 
@@ -47,6 +48,7 @@ func NewBinance() (*Client, error) {
 	return &Client{
 		iExchange:      pro,
 		futuresAdapter: adapters.NewBinanceFuturesAdapter(core),
+		ohlcvPageSize:  binanceOHLCVPageSize,
 		markets:        markets,
 	}, nil
 }
@@ -64,6 +66,7 @@ func NewOKX() (*Client, error) {
 	return &Client{
 		iExchange:      pro,
 		futuresAdapter: adapters.NewOKXFuturesAdapter(core),
+		ohlcvPageSize:  okxOHLCVPageSize,
 		markets:        markets,
 	}, nil
 }

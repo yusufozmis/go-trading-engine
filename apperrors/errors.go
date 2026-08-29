@@ -82,6 +82,8 @@ var (
 	ErrNilSymbol = errors.New("nil symbol")
 	// ErrNilTimeframe indicates that a required timeframe is empty.
 	ErrNilTimeframe = errors.New("nil timeframe")
+	// ErrInvalidTimeframe indicates that the provider does not support the timeframe.
+	ErrInvalidTimeframe = errors.New("invalid timeframe")
 	// ErrInvalidSide indicates an unsupported order or position side.
 	ErrInvalidSide = errors.New("invalid side")
 	// ErrInvalidAmount indicates a non-finite or non-positive order amount.

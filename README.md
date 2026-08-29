@@ -272,7 +272,8 @@ import (
 - Exchange metadata is loaded when a client is constructed.
 - Funding rates are returned as percentages.
 - `FetchCandles` conservatively excludes the newest fetched candle because it
-  may still be forming.
+  may still be forming and automatically paginates requests larger than one
+  provider page.
 
 The library is not financial advice. Exchange behavior, fees, precision rules,
 minimum order sizes, and API availability can change; callers remain responsible
