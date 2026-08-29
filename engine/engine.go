@@ -27,7 +27,8 @@ type Engine struct {
 	maxEntryDeviation *float64
 }
 
-// NewEngine creates an engine for one symbol and timeframe.
+// NewEngine creates an engine for one symbol and timeframe. Callers may provide
+// a custom position sizer or use one from the engine/positionsizers package.
 func NewEngine(symbol, timeframe string,
 	positionSizer types.PositionSizer,
 	opts ...options.Option) (*Engine, error) {
