@@ -2,6 +2,7 @@
 package engine
 
 import (
+	"github.com/yusufozmis/go-trading-engine/engine/options"
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -12,8 +13,7 @@ type Engine struct {
 	symbol    string
 	timeframe string
 
-	isCloseAutomated bool
-	lastPosition     *types.Position
+	lastPosition *types.Position
 
 	closedPositions []types.Position
 
@@ -21,10 +21,14 @@ type Engine struct {
 	activePlans []types.EntryPlan
 
 	pendingConfirmation *types.EntryPlan
+
+	isCloseAutomated  bool
+	maxEntryDeviation *float64
 }
 
 // NewEngine creates an engine for one symbol and timeframe.
-func NewEngine(symbol, timeframe string, isCloseAutomated bool) (*Engine, error) {
+func NewEngine(symbol, timeframe string,
+	opts ...options.Option) (*Engine, error) {
 
 	if symbol == "" {
 		return nil, errors.ErrNilSymbol
@@ -33,11 +37,24 @@ func NewEngine(symbol, timeframe string, isCloseAutomated bool) (*Engine, error)
 		return nil, errors.ErrNilTimeframe
 	}
 
+	cfg := options.Config{}
+
+	for _, opt := range opts {
+		if opt == nil {
+			continue
+		}
+
+		if err := opt(&cfg); err != nil {
+			return nil, err
+		}
+	}
+
 	return &Engine{
-		symbol:           symbol,
-		timeframe:        timeframe,
-		isCloseAutomated: isCloseAutomated,
-		lockKeyMap:       make(map[string]bool),
+		symbol:            symbol,
+		timeframe:         timeframe,
+		lockKeyMap:        make(map[string]bool),
+		maxEntryDeviation: cfg.MaxEntryDeviation,
+		isCloseAutomated:  cfg.IsCloseAutomated,
 	}, nil
 }
 

@@ -4,16 +4,17 @@ package backtester
 import (
 	"math"
 
+	"github.com/yusufozmis/go-trading-engine/engine/options"
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 // Backtester owns an immutable snapshot of historical candles for one market.
 type Backtester struct {
-	symbol           string
-	timeframe        string
-	isCloseAutomated bool
-	candles          []types.Candle
+	symbol    string
+	timeframe string
+	options   []options.Option
+	candles   []types.Candle
 }
 
 func validateCandles(symbol, timeframe string, candles []types.Candle) error {
@@ -71,7 +72,7 @@ func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 // NewBacktester validates and snapshots candles for repeated backtest runs.
 func NewBacktester(symbol, timeframe string,
 	candles []types.Candle,
-	isCloseAutomated bool,
+	opts ...options.Option,
 ) (*Backtester, error) {
 	candlesCopy := append([]types.Candle(nil), candles...)
 
@@ -80,9 +81,9 @@ func NewBacktester(symbol, timeframe string,
 	}
 
 	return &Backtester{
-		symbol:           symbol,
-		timeframe:        timeframe,
-		isCloseAutomated: isCloseAutomated,
-		candles:          candlesCopy,
+		symbol:    symbol,
+		timeframe: timeframe,
+		candles:   candlesCopy,
+		options:   append([]options.Option(nil), opts...),
 	}, nil
 }

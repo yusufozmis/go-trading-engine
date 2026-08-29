@@ -61,6 +61,12 @@ var (
 	ErrStreamNotRunning = errors.New("exchange: candle stream is not running")
 )
 
+// Options Errors
+var (
+	// ErrInvalidMaxEntryDeviation indicates a non-finite or non-positive deviation limit.
+	ErrInvalidMaxEntryDeviation = errors.New("invalid max entry deviation")
+)
+
 // Exchange Errors
 var (
 	// ErrNilAPIKey indicates that authenticated exchange configuration omitted the API key.

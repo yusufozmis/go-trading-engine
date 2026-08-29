@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"math"
+
 	"github.com/yusufozmis/go-trading-engine/common"
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
@@ -54,8 +56,8 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 			continue
 		}
 
-		if common.HasPriceMovedTooFar(plan.EntryPrice, candle.PriceData.ClosePrice) {
-			// The next plan shifts into this index, so process the same index again.
+		if eng.maxEntryDeviation != nil &&
+			eng.hasPriceMovedTooFar(plan.EntryPrice, candle.PriceData.ClosePrice) {
 			eng.removeActivePlanAt(i)
 			continue
 		}
@@ -165,4 +167,9 @@ func (eng *Engine) PositionExists() bool {
 	}
 
 	return false
+}
+
+func (eng *Engine) hasPriceMovedTooFar(entry, currentPrice float64) bool {
+	deviation := math.Abs(currentPrice-entry) / entry
+	return deviation >= *eng.maxEntryDeviation
 }
