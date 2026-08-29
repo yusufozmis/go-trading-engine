@@ -4,7 +4,7 @@ import (
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -102,14 +102,14 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 	case types.ShortOpen:
 		side = types.PositionShort
 	default:
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	if err := position.Validate(); err != nil {
 		return err
 	}
 	if position.StopLoss == 0 && position.TP == 0 {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	contractAmount, err := client.baseAmountToContracts(position.Symbol, position.Amount)
@@ -153,23 +153,23 @@ func (client *Client) CloseFuturesPosition(
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, exists := client.markets[symbol]
 	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if !positionSide.Valid() {
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	client.futuresMu.Lock()
 	defer client.futuresMu.Unlock()
 
 	if client.futuresAdapter == nil {
-		return errors.ErrUnsupportedProvider
+		return apperrors.ErrUnsupportedProvider
 	}
 
 	positions, err := client.iExchange.FetchPositions(
@@ -233,7 +233,7 @@ func (client *Client) CloseFuturesPosition(
 		return normalizeError(err)
 	}
 
-	return errors.ErrPositionNotFound
+	return apperrors.ErrPositionNotFound
 }
 
 // ReduceFuturesPositionMarket reduces the requested side of an open perpetual
@@ -280,18 +280,18 @@ func (client *Client) reduceFuturesPosition(
 
 	if orderType == "limit" &&
 		(math.IsNaN(price) || math.IsInf(price, 0) || price <= 0) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	if !positionSide.Valid() {
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	client.futuresMu.Lock()
 	defer client.futuresMu.Unlock()
 
 	if client.futuresAdapter == nil {
-		return errors.ErrUnsupportedProvider
+		return apperrors.ErrUnsupportedProvider
 	}
 
 	positions, err := client.iExchange.FetchPositions(
@@ -316,7 +316,7 @@ func (client *Client) reduceFuturesPosition(
 		}
 
 		if *position.Contracts < contractAmount {
-			return errors.ErrNotEnoughAmount
+			return apperrors.ErrNotEnoughAmount
 		}
 
 		// Prefer the position's actual settings because the client config may
@@ -368,7 +368,7 @@ func (client *Client) reduceFuturesPosition(
 		return normalizeError(err)
 	}
 
-	return errors.ErrPositionNotFound
+	return apperrors.ErrPositionNotFound
 }
 
 func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
@@ -438,7 +438,7 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 	}
 
 	if client.futuresAdapter == nil {
-		return errors.ErrUnsupportedProvider
+		return apperrors.ErrUnsupportedProvider
 	}
 
 	if err := client.futuresConfigs.Validate(); err != nil {
@@ -446,25 +446,25 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 	}
 
 	if req.Symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, exists := client.markets[req.Symbol]
 	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if !req.Side.Valid() {
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	if math.IsNaN(req.Amount) || math.IsInf(req.Amount, 0) || req.Amount <= 0 {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	if req.Type == "limit" {
 		if math.IsNaN(req.Price) || math.IsInf(req.Price, 0) || req.Price <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 	}
 
@@ -475,32 +475,32 @@ func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) err
 // requested base-asset quantity using the exchange's loaded market metadata.
 func (client *Client) baseAmountToContracts(symbol string, amount float64) (float64, error) {
 	if symbol == "" {
-		return 0, errors.ErrNilSymbol
+		return 0, apperrors.ErrNilSymbol
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
-		return 0, errors.ErrInvalidAmount
+		return 0, apperrors.ErrInvalidAmount
 	}
 
 	marketInfo, exists := client.markets[symbol]
 	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-		return 0, errors.ErrInvalidSymbol
+		return 0, apperrors.ErrInvalidSymbol
 	}
 
 	// Inverse contracts are quote-denominated and require a price to convert a
 	// base-asset amount safely; this metadata-only conversion is linear-only.
 	if marketInfo.Linear == nil || !*marketInfo.Linear {
-		return 0, errors.ErrUnsupportedFuturesMarket
+		return 0, apperrors.ErrUnsupportedFuturesMarket
 	}
 
 	if marketInfo.ContractSize == nil || math.IsNaN(*marketInfo.ContractSize) ||
 		math.IsInf(*marketInfo.ContractSize, 0) || *marketInfo.ContractSize <= 0 {
-		return 0, errors.ErrContractSizeUnavailable
+		return 0, apperrors.ErrContractSizeUnavailable
 	}
 
 	contractAmount := amount / *marketInfo.ContractSize
 	if math.IsNaN(contractAmount) || math.IsInf(contractAmount, 0) || contractAmount <= 0 {
-		return 0, errors.ErrInvalidAmount
+		return 0, apperrors.ErrInvalidAmount
 	}
 
 	return contractAmount, nil

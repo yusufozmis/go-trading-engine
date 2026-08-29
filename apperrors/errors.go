@@ -1,5 +1,5 @@
-// Package errors defines sentinel errors returned by the trading engine.
-package errors
+// Package apperrors defines sentinel errors returned by the trading engine.
+package apperrors
 
 import "errors"
 

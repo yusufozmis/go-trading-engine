@@ -4,7 +4,7 @@ import (
 	"math"
 	"strconv"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -26,14 +26,14 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	riskDist := math.Abs(entry - sl)
 
 	if rewardDist == 0 || riskDist == 0 {
-		return 0, 0, errors.ErrInvalidEntryPlanBracket
+		return 0, 0, apperrors.ErrInvalidEntryPlanBracket
 	}
 
 	isLong := tp > entry && sl < entry
 	isShort := tp < entry && sl > entry
 
 	if !isLong && !isShort {
-		return 0, 0, errors.ErrInvalidEntryPlanBracket
+		return 0, 0, apperrors.ErrInvalidEntryPlanBracket
 	}
 
 	newEntry := candle.PriceData.ClosePrice
@@ -50,7 +50,7 @@ func (eng *Engine) validateCandle(candle types.Candle) error {
 		return err
 	}
 	if candle.Symbol != eng.symbol || candle.Timeframe != eng.timeframe {
-		return errors.ErrCandleMarketMismatch
+		return apperrors.ErrCandleMarketMismatch
 	}
 
 	return validateCandleData(candle)
@@ -65,12 +65,12 @@ func validateCandleData(candle types.Candle) error {
 	}
 	for _, price := range prices {
 		if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 	}
 
 	if math.IsNaN(candle.Volume) || math.IsInf(candle.Volume, 0) || candle.Volume < 0 {
-		return errors.ErrInvalidVolume
+		return apperrors.ErrInvalidVolume
 	}
 
 	low := candle.PriceData.LowPrice
@@ -78,7 +78,7 @@ func validateCandleData(candle types.Candle) error {
 	open := candle.PriceData.OpenPrice
 	closePrice := candle.PriceData.ClosePrice
 	if low > high || open < low || open > high || closePrice < low || closePrice > high {
-		return errors.ErrInvalidSetOfCandles
+		return apperrors.ErrInvalidSetOfCandles
 	}
 
 	return nil
@@ -92,7 +92,7 @@ func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
 	}
 
 	if plan.Symbol != eng.symbol || plan.Timeframe != eng.timeframe {
-		return errors.ErrEntryPlanMarketMismatch
+		return apperrors.ErrEntryPlanMarketMismatch
 	}
 
 	return validateEntryPlanData(plan)
@@ -106,25 +106,25 @@ func validateEntryPlanData(plan types.EntryPlan) error {
 	}
 	for _, price := range prices {
 		if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 	}
 
 	if math.IsNaN(plan.LockPrice) || math.IsInf(plan.LockPrice, 0) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	switch plan.Type {
 	case types.LongOpen, types.ConfirmationWaitingBiggerThanEntry:
 		if plan.TakeProfit <= plan.EntryPrice || plan.StopLoss >= plan.EntryPrice {
-			return errors.ErrInvalidEntryPlanBracket
+			return apperrors.ErrInvalidEntryPlanBracket
 		}
 	case types.ShortOpen, types.ConfirmationWaitingSmallerThanEntry:
 		if plan.TakeProfit >= plan.EntryPrice || plan.StopLoss <= plan.EntryPrice {
-			return errors.ErrInvalidEntryPlanBracket
+			return apperrors.ErrInvalidEntryPlanBracket
 		}
 	default:
-		return errors.ErrInvalidEntryPlanType
+		return apperrors.ErrInvalidEntryPlanType
 	}
 
 	return nil

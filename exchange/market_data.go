@@ -4,7 +4,7 @@ import (
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -17,23 +17,23 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 	}
 
 	if symbol == "" {
-		return nil, errors.ErrNilSymbol
+		return nil, apperrors.ErrNilSymbol
 	}
 
 	if _, exists := client.markets[symbol]; !exists {
-		return nil, errors.ErrInvalidSymbol
+		return nil, apperrors.ErrInvalidSymbol
 	}
 
 	if timeframe == "" {
-		return nil, errors.ErrNilTimeframe
+		return nil, apperrors.ErrNilTimeframe
 	}
 
 	if limit <= 0 {
-		return nil, errors.ErrInvalidLimit
+		return nil, apperrors.ErrInvalidLimit
 	}
 
 	if limit == math.MaxInt64 {
-		return nil, errors.ErrLimitTooLarge
+		return nil, apperrors.ErrLimitTooLarge
 	}
 
 	candles, err := client.iExchange.FetchOHLCV(
@@ -46,7 +46,7 @@ func (client *Client) FetchCandles(symbol, timeframe string, limit int64) ([]typ
 	}
 
 	if len(candles) == 0 {
-		return nil, errors.ErrNoCandles
+		return nil, apperrors.ErrNoCandles
 	}
 
 	// Never trust the newest candle.
@@ -91,16 +91,16 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 	}
 
 	if symbol == "" {
-		return 0, errors.ErrNilSymbol
+		return 0, apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return 0, errors.ErrInvalidSymbol
+		return 0, apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Swap == nil || !*marketInfo.Swap {
-		return 0, errors.ErrInvalidSymbol
+		return 0, apperrors.ErrInvalidSymbol
 	}
 
 	fundingRate, err := client.iExchange.FetchFundingRate(symbol)
@@ -110,7 +110,7 @@ func (client *Client) FetchFundingRate(symbol string) (float64, error) {
 
 	rate := fundingRate.FundingRate
 	if rate == nil {
-		return 0, errors.ErrFundingRateUnavailable
+		return 0, apperrors.ErrFundingRateUnavailable
 	}
 
 	return (*rate) * 100, nil

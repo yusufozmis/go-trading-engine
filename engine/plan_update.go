@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -24,7 +24,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 
 		for _, plan := range update.Plans {
 			if plan.Type != types.LongOpen && plan.Type != types.ShortOpen {
-				return errors.ErrInvalidEntryPlanType
+				return apperrors.ErrInvalidEntryPlanType
 			}
 			if err := eng.validateEntryPlan(plan); err != nil {
 				return err
@@ -45,12 +45,12 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 	case types.ConfirmationWaiting:
 
 		if len(update.Plans) != 1 {
-			return errors.ErrExpectedSinglePlan
+			return apperrors.ErrExpectedSinglePlan
 		}
 		pending := update.Plans[0]
 		if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
 			pending.Type != types.ConfirmationWaitingSmallerThanEntry {
-			return errors.ErrInvalidEntryPlanType
+			return apperrors.ErrInvalidEntryPlanType
 		}
 		if err := eng.validateEntryPlan(pending); err != nil {
 			return err
@@ -61,7 +61,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		return nil
 
 	default:
-		return errors.ErrInvalidPlanMode
+		return apperrors.ErrInvalidPlanMode
 	}
 }
 

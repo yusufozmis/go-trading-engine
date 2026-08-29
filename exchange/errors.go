@@ -4,7 +4,7 @@ import (
 	stderrors "errors"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	apperrors "github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 )
 
 // normalizeError exposes a stable library error while preserving the original

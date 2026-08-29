@@ -4,7 +4,7 @@ import (
 	"fmt"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -78,11 +78,11 @@ func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[s
 // AttachSL rejects this operation because Binance USD-M cannot attach a
 // stop-loss to the opening order. It requires a separate conditional order.
 func (adapter *BinanceFuturesAdapter) AttachSL(FuturesOrderRequest) (map[string]any, error) {
-	return nil, errors.ErrAttachedTPSLUnsupported
+	return nil, apperrors.ErrAttachedTPSLUnsupported
 }
 
 // AttachTP rejects this operation because Binance USD-M cannot attach a
 // take-profit to the opening order. It requires a separate conditional order.
 func (adapter *BinanceFuturesAdapter) AttachTP(FuturesOrderRequest) (map[string]any, error) {
-	return nil, errors.ErrAttachedTPSLUnsupported
+	return nil, apperrors.ErrAttachedTPSLUnsupported
 }

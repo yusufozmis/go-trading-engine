@@ -4,7 +4,7 @@ package options
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 )
 
 // Option applies one validated engine configuration change.
@@ -21,7 +21,7 @@ type Config struct {
 func WithMaxEntryDeviation(deviation float64) Option {
 	return func(cfg *Config) error {
 		if math.IsNaN(deviation) || math.IsInf(deviation, 0) || deviation <= 0 {
-			return errors.ErrInvalidMaxEntryDeviation
+			return apperrors.ErrInvalidMaxEntryDeviation
 		}
 
 		cfg.MaxEntryDeviation = &deviation

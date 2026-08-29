@@ -4,8 +4,8 @@ package backtester
 import (
 	"math"
 
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/engine/options"
-	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -20,22 +20,22 @@ type Backtester struct {
 
 func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 	if len(candles) == 0 {
-		return errors.ErrEmptyCandleSet
+		return apperrors.ErrEmptyCandleSet
 	}
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 	if timeframe == "" {
-		return errors.ErrNilTimeframe
+		return apperrors.ErrNilTimeframe
 	}
 
 	for i, candle := range candles {
 		if candle.Symbol != symbol || candle.Timeframe != timeframe {
-			return errors.ErrInvalidSetOfCandles
+			return apperrors.ErrInvalidSetOfCandles
 		}
 
 		if i > 0 && candle.Timestamp <= candles[i-1].Timestamp {
-			return errors.ErrInvalidSetOfCandles
+			return apperrors.ErrInvalidSetOfCandles
 		}
 
 		low := candle.PriceData.LowPrice
@@ -45,25 +45,25 @@ func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 		volume := candle.Volume
 
 		if math.IsNaN(low) || math.IsInf(low, 0) || low <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 		if math.IsNaN(high) || math.IsInf(high, 0) || high <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 		if math.IsNaN(open) || math.IsInf(open, 0) || open <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 		if math.IsNaN(close) || math.IsInf(close, 0) || close <= 0 {
-			return errors.ErrInvalidPrice
+			return apperrors.ErrInvalidPrice
 		}
 		if math.IsNaN(volume) || math.IsInf(volume, 0) || volume < 0 {
-			return errors.ErrInvalidVolume
+			return apperrors.ErrInvalidVolume
 		}
 
 		if low > high ||
 			open < low || open > high ||
 			close < low || close > high {
-			return errors.ErrInvalidSetOfCandles
+			return apperrors.ErrInvalidSetOfCandles
 		}
 
 	}
@@ -83,7 +83,7 @@ func NewBacktester(symbol, timeframe string,
 	}
 
 	if positionSizer == nil {
-		return nil, errors.ErrNilPositionSizer
+		return nil, apperrors.ErrNilPositionSizer
 	}
 
 	return &Backtester{

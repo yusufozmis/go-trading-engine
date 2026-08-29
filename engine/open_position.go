@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -47,7 +47,7 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		case types.ShortOpen:
 			canOpen = closePrice <= plan.EntryPrice
 		default:
-			return nil, errors.ErrInvalidEntryPlanType
+			return nil, apperrors.ErrInvalidEntryPlanType
 		}
 
 		if !canOpen {
@@ -81,7 +81,7 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 			return nil, err
 		}
 		if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
-			return nil, errors.ErrInvalidAmount
+			return nil, apperrors.ErrInvalidAmount
 		}
 
 		position.Amount = amount
@@ -104,20 +104,20 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 		return err
 	}
 	if eng.PositionExists() {
-		return errors.ErrPositionOrPendingExists
+		return apperrors.ErrPositionOrPendingExists
 	}
 	if action.Position.State != action.plan.Type || !eng.validPosition(action.Position) {
-		return errors.ErrInvalidPositionAction
+		return apperrors.ErrInvalidPositionAction
 	}
 
 	planIndex := eng.activePlanIndex(action.plan)
 	if planIndex < 0 {
-		return errors.ErrStalePositionAction
+		return apperrors.ErrStalePositionAction
 	}
 
 	lockKey := entryPlanLockKey(action.plan)
 	if eng.lockKeyMap[lockKey] {
-		return errors.ErrStalePositionAction
+		return apperrors.ErrStalePositionAction
 	}
 
 	accepted, err := eng.SetPosition(action.Position)
@@ -125,7 +125,7 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 		return err
 	}
 	if !accepted {
-		return errors.ErrInvalidPositionAction
+		return apperrors.ErrInvalidPositionAction
 	}
 
 	eng.lockKeyMap[lockKey] = true
@@ -142,7 +142,7 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	}
 
 	if !eng.validPosition(position) {
-		return false, errors.ErrInvalidPositionAction
+		return false, apperrors.ErrInvalidPositionAction
 	}
 
 	if eng.lastPosition == nil {
@@ -151,7 +151,7 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	}
 
 	if eng.lastPosition.State == types.LongOpen || eng.lastPosition.State == types.ShortOpen {
-		return false, errors.ErrPositionOrPendingExists
+		return false, apperrors.ErrPositionOrPendingExists
 	}
 
 	eng.lastPosition = &position

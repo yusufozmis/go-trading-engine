@@ -4,7 +4,7 @@ import (
 	"math"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -15,33 +15,33 @@ func (client *Client) CreateSpotMarketOrder(symbol string, side types.SpotSide, 
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok || marketInfo.Spot == nil || !*marketInfo.Spot {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if !side.Valid() {
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	if amount <= 0 {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if amount < *minAmount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err := client.iExchange.CreateOrder(symbol, "market", side.String(), amount)
@@ -55,41 +55,41 @@ func (client *Client) CreateSpotLimitOrder(symbol string, side types.SpotSide, a
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok || marketInfo.Spot == nil || !*marketInfo.Spot {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if !side.Valid() {
-		return errors.ErrInvalidSide
+		return apperrors.ErrInvalidSide
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	if amount <= 0 {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	if math.IsNaN(price) || math.IsInf(price, 0) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	if price <= 0 {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if amount < *minAmount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err := client.iExchange.CreateOrder(symbol, "limit", side.String(), amount, ccxt.WithCreateOrderPrice(price))
@@ -103,17 +103,17 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Spot == nil || !*marketInfo.Spot ||
 		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	balances, err := client.iExchange.FetchBalance()
@@ -124,16 +124,16 @@ func (client *Client) CloseSpotPositionMarket(symbol string) error {
 	amount := balances.Balances[*marketInfo.BaseCurrency].Total
 
 	if amount == nil {
-		return errors.ErrBalanceNotFound
+		return apperrors.ErrBalanceNotFound
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if *amount < *minAmount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateMarketSellOrder(
@@ -150,21 +150,21 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Spot == nil || !*marketInfo.Spot ||
 		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	balances, err := client.iExchange.FetchBalance()
@@ -175,16 +175,16 @@ func (client *Client) CloseSpotPositionLimit(symbol string, price float64) error
 	amount := balances.Balances[*marketInfo.BaseCurrency].Total
 
 	if amount == nil {
-		return errors.ErrBalanceNotFound
+		return apperrors.ErrBalanceNotFound
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if *amount < *minAmount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateLimitSellOrder(
@@ -203,21 +203,21 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Spot == nil || !*marketInfo.Spot ||
 		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	balances, err := client.iExchange.FetchBalance()
@@ -228,16 +228,16 @@ func (client *Client) ReduceSpotPositionMarket(symbol string, amount float64) er
 	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
 
 	if freeBalance == nil {
-		return errors.ErrBalanceNotFound
+		return apperrors.ErrBalanceNotFound
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if amount < *minAmount || *freeBalance < amount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateMarketSellOrder(
@@ -255,25 +255,25 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 	}
 
 	if symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Spot == nil || !*marketInfo.Spot ||
 		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
-		return errors.ErrInvalidSymbol
+		return apperrors.ErrInvalidSymbol
 	}
 
 	if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	if math.IsNaN(price) || math.IsInf(price, 0) || price <= 0 {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	balances, err := client.iExchange.FetchBalance()
@@ -284,16 +284,16 @@ func (client *Client) ReduceSpotPositionLimit(symbol string, amount, price float
 	freeBalance := balances.Balances[*marketInfo.BaseCurrency].Free
 
 	if freeBalance == nil {
-		return errors.ErrBalanceNotFound
+		return apperrors.ErrBalanceNotFound
 	}
 
 	minAmount := marketInfo.Limits.Amount.Min
 	if minAmount == nil {
-		return errors.ErrMinimumAmountUnavailable
+		return apperrors.ErrMinimumAmountUnavailable
 	}
 
 	if amount < *minAmount || *freeBalance < amount {
-		return errors.ErrNotEnoughAmount
+		return apperrors.ErrNotEnoughAmount
 	}
 
 	_, err = client.iExchange.CreateLimitSellOrder(

@@ -1,7 +1,7 @@
 package engine
 
 import (
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -61,14 +61,14 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 
 	if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
 		pending.Type != types.ConfirmationWaitingSmallerThanEntry {
-		return errors.ErrInvalidEntryPlanType
+		return apperrors.ErrInvalidEntryPlanType
 	}
 	if err := eng.validateEntryPlan(pending); err != nil {
 		return err
 	}
 
 	if eng.PositionExists() || eng.PendingExists() {
-		return errors.ErrPositionOrPendingExists
+		return apperrors.ErrPositionOrPendingExists
 	}
 
 	eng.activePlans = nil

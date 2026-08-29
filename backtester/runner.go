@@ -1,8 +1,8 @@
 package backtester
 
 import (
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/engine"
-	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -12,11 +12,11 @@ import (
 func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, error) {
 
 	if b == nil {
-		return types.PerformanceResult{}, errors.ErrNilBacktester
+		return types.PerformanceResult{}, apperrors.ErrNilBacktester
 	}
 
 	if strategy == nil {
-		return types.PerformanceResult{}, errors.ErrNilStrategy
+		return types.PerformanceResult{}, apperrors.ErrNilStrategy
 	}
 
 	eng, err := engine.NewEngine(b.symbol, b.timeframe,

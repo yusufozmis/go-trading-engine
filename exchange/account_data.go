@@ -1,7 +1,7 @@
 package exchange
 
 import (
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 )
 
 // FetchSpotUSDTBalance returns the account's total USDT balance.
@@ -19,7 +19,7 @@ func (client *Client) FetchSpotUSDTBalance() (float64, error) {
 	amount := balance.Total["USDT"]
 
 	if amount == nil {
-		return 0, errors.ErrBalanceNotFound
+		return 0, apperrors.ErrBalanceNotFound
 	}
 
 	return *amount, nil
@@ -34,17 +34,17 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 	}
 
 	if symbol == "" {
-		return 0, errors.ErrNilSymbol
+		return 0, apperrors.ErrNilSymbol
 	}
 
 	marketInfo, ok := client.markets[symbol]
 	if !ok {
-		return 0, errors.ErrInvalidSymbol
+		return 0, apperrors.ErrInvalidSymbol
 	}
 
 	if marketInfo.Spot == nil || !*marketInfo.Spot ||
 		marketInfo.BaseCurrency == nil || *marketInfo.BaseCurrency == "" {
-		return 0, errors.ErrInvalidSymbol
+		return 0, apperrors.ErrInvalidSymbol
 	}
 
 	balance, err := client.iExchange.FetchBalance()
@@ -55,7 +55,7 @@ func (client *Client) FetchSpotBalance(symbol string) (float64, error) {
 	amount := balance.Total[*marketInfo.BaseCurrency]
 
 	if amount == nil {
-		return 0, errors.ErrBalanceNotFound
+		return 0, apperrors.ErrBalanceNotFound
 	}
 
 	return *amount, nil
@@ -76,7 +76,7 @@ func (client *Client) FetchFuturesUSDTBalance() (float64, error) {
 
 	amount := balance.Total["USDT"]
 	if amount == nil {
-		return 0, errors.ErrBalanceNotFound
+		return 0, apperrors.ErrBalanceNotFound
 	}
 
 	return *amount, nil

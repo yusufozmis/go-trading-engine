@@ -3,7 +3,7 @@ package types
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 )
 
 // Position contains the engine state and pricing data for one position.
@@ -23,50 +23,50 @@ type Position struct {
 // amount, and state values.
 func (pos *Position) Validate() error {
 	if pos == nil {
-		return errors.ErrNilPosition
+		return apperrors.ErrNilPosition
 	}
 
 	if pos.Symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 
 	if pos.Timeframe == "" {
-		return errors.ErrNilTimeframe
+		return apperrors.ErrNilTimeframe
 	}
 
 	if pos.Timestamp <= 0 {
-		return errors.ErrInvalidTimestamp
+		return apperrors.ErrInvalidTimestamp
 	}
 
 	if !validPositiveFloat(pos.EntryPrice) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 	if pos.StopLoss != 0 && !validPositiveFloat(pos.StopLoss) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 	if pos.TP != 0 && !validPositiveFloat(pos.TP) {
-		return errors.ErrInvalidPrice
+		return apperrors.ErrInvalidPrice
 	}
 
 	if !validPositiveFloat(pos.Amount) {
-		return errors.ErrInvalidAmount
+		return apperrors.ErrInvalidAmount
 	}
 
 	switch pos.State {
 	case LongOpen:
 		if pos.StopLoss != 0 && pos.StopLoss >= pos.EntryPrice {
-			return errors.ErrInvalidTPSLBracket
+			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP <= pos.EntryPrice {
-			return errors.ErrInvalidTPSLBracket
+			return apperrors.ErrInvalidTPSLBracket
 		}
 
 	case ShortOpen:
 		if pos.StopLoss != 0 && pos.StopLoss <= pos.EntryPrice {
-			return errors.ErrInvalidTPSLBracket
+			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP >= pos.EntryPrice {
-			return errors.ErrInvalidTPSLBracket
+			return apperrors.ErrInvalidTPSLBracket
 		}
 
 	case ClosedByStop, ClosedByProfit:
@@ -74,7 +74,7 @@ func (pos *Position) Validate() error {
 		// so only the individual price fields can be validated here.
 
 	default:
-		return errors.ErrInvalidPositionState
+		return apperrors.ErrInvalidPositionState
 	}
 
 	return nil

@@ -3,7 +3,7 @@ package engine
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -31,7 +31,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		return err
 	}
 	if !eng.PositionExists() {
-		return errors.ErrStalePositionAction
+		return apperrors.ErrStalePositionAction
 	}
 
 	currentPosition := eng.lastPosition
@@ -41,7 +41,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		expectedSide = types.PositionShort
 	}
 	if action.Side != expectedSide {
-		return errors.ErrInvalidPositionAction
+		return apperrors.ErrInvalidPositionAction
 	}
 
 	if currentPosition.Symbol != closedPosition.Symbol ||
@@ -49,7 +49,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.Timestamp != closedPosition.Timestamp ||
 		currentPosition.EntryPrice != closedPosition.EntryPrice ||
 		currentPosition.Amount != closedPosition.Amount {
-		return errors.ErrStalePositionAction
+		return apperrors.ErrStalePositionAction
 	}
 
 	var closePrice float64
@@ -57,18 +57,18 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	case types.ClosedByProfit:
 		closePrice = closedPosition.TP
 		if closedPosition.StopLoss != currentPosition.StopLoss {
-			return errors.ErrInvalidPositionAction
+			return apperrors.ErrInvalidPositionAction
 		}
 	case types.ClosedByStop:
 		closePrice = closedPosition.StopLoss
 		if closedPosition.TP != currentPosition.TP {
-			return errors.ErrInvalidPositionAction
+			return apperrors.ErrInvalidPositionAction
 		}
 	default:
-		return errors.ErrInvalidPositionAction
+		return apperrors.ErrInvalidPositionAction
 	}
 	if math.IsNaN(closePrice) || math.IsInf(closePrice, 0) || closePrice <= 0 {
-		return errors.ErrInvalidPositionAction
+		return apperrors.ErrInvalidPositionAction
 	}
 
 	eng.lastPosition = &closedPosition

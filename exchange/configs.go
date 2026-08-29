@@ -5,7 +5,7 @@ import (
 	"fmt"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -21,11 +21,11 @@ type ExchangeConfig struct {
 func (cfg *ExchangeConfig) Validate() error {
 
 	if cfg.APIKey == "" {
-		return errors.ErrNilAPIKey
+		return apperrors.ErrNilAPIKey
 	}
 
 	if cfg.SecretKey == "" {
-		return errors.ErrNilSecretKey
+		return apperrors.ErrNilSecretKey
 	}
 
 	return nil
@@ -41,26 +41,26 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	}
 
 	if leverage <= 0 {
-		return errors.ErrInvalidLeverage
+		return apperrors.ErrInvalidLeverage
 	}
 
 	if !marginMode.Valid() {
-		return errors.ErrInvalidMarginMode
+		return apperrors.ErrInvalidMarginMode
 	}
 
 	if len(symbols) == 0 {
-		return errors.ErrEmptySymbols
+		return apperrors.ErrEmptySymbols
 	}
 
 	// Validate the complete input before changing either local or remote state.
 	for _, symbol := range symbols {
 		if symbol == "" {
-			return errors.ErrNilSymbol
+			return apperrors.ErrNilSymbol
 		}
 
 		marketInfo, exists := client.markets[symbol]
 		if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-			return errors.ErrInvalidSymbol
+			return apperrors.ErrInvalidSymbol
 		}
 	}
 
@@ -70,7 +70,7 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 	defer client.futuresMu.Unlock()
 
 	if client.futuresAdapter == nil {
-		return errors.ErrUnsupportedProvider
+		return apperrors.ErrUnsupportedProvider
 	}
 
 	// Invalidate the previous symbol preparation before making remote changes.
@@ -102,10 +102,10 @@ func (client *Client) SetFuturesConfig(leverage int64, marginMode types.MarginMo
 
 			// Broad provider rejections become position-mode-specific only here,
 			// where the operation that caused the error is known.
-			if stderrors.Is(normalizedErr, errors.ErrOperationRejected) {
+			if stderrors.Is(normalizedErr, apperrors.ErrOperationRejected) {
 				return fmt.Errorf(
 					"%w: set futures position mode: %w",
-					errors.ErrPositionModeChangeRejected,
+					apperrors.ErrPositionModeChangeRejected,
 					normalizedErr,
 				)
 			}
@@ -158,14 +158,14 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	}
 
 	if client.configured {
-		return errors.ErrConfigAlreadySet
+		return apperrors.ErrConfigAlreadySet
 	}
 
 	required := client.iExchange.GetRequiredCredentials()
 	requiresPassword, _ := required["password"].(bool)
 
 	if requiresPassword && exchangeCfg.Password == "" {
-		return errors.ErrNilPassword
+		return apperrors.ErrNilPassword
 	}
 
 	client.iExchange.SetApiKey(exchangeCfg.APIKey)

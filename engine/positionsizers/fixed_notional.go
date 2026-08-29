@@ -4,7 +4,7 @@ package positionsizers
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -19,7 +19,7 @@ type FixedNotionalSizer struct {
 // 10 produces an amount of 1.
 func NewFixedNotionalSizer(notional float64) (FixedNotionalSizer, error) {
 	if math.IsNaN(notional) || math.IsInf(notional, 0) || notional <= 0 {
-		return FixedNotionalSizer{}, errors.ErrInvalidAmount
+		return FixedNotionalSizer{}, apperrors.ErrInvalidAmount
 	}
 
 	return FixedNotionalSizer{notional: notional}, nil
@@ -28,11 +28,11 @@ func NewFixedNotionalSizer(notional float64) (FixedNotionalSizer, error) {
 // CalculatePositionSize returns the fixed notional divided by the actual entry price.
 func (s FixedNotionalSizer) CalculatePositionSize(position types.Position) (float64, error) {
 	if math.IsNaN(s.notional) || math.IsInf(s.notional, 0) || s.notional <= 0 {
-		return 0, errors.ErrInvalidAmount
+		return 0, apperrors.ErrInvalidAmount
 	}
 	if math.IsNaN(position.EntryPrice) || math.IsInf(position.EntryPrice, 0) ||
 		position.EntryPrice <= 0 {
-		return 0, errors.ErrInvalidPrice
+		return 0, apperrors.ErrInvalidPrice
 	}
 
 	return s.notional / position.EntryPrice, nil

@@ -2,8 +2,8 @@
 package engine
 
 import (
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/engine/options"
-	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -34,10 +34,10 @@ func NewEngine(symbol, timeframe string,
 	opts ...options.Option) (*Engine, error) {
 
 	if symbol == "" {
-		return nil, errors.ErrNilSymbol
+		return nil, apperrors.ErrNilSymbol
 	}
 	if timeframe == "" {
-		return nil, errors.ErrNilTimeframe
+		return nil, apperrors.ErrNilTimeframe
 	}
 
 	cfg := options.Config{}
@@ -53,7 +53,7 @@ func NewEngine(symbol, timeframe string,
 	}
 
 	if positionSizer == nil {
-		return nil, errors.ErrNilPositionSizer
+		return nil, apperrors.ErrNilPositionSizer
 	}
 
 	return &Engine{
@@ -68,13 +68,13 @@ func NewEngine(symbol, timeframe string,
 
 func (eng *Engine) validate() error {
 	if eng == nil {
-		return errors.ErrNilEngine
+		return apperrors.ErrNilEngine
 	}
 	if eng.symbol == "" {
-		return errors.ErrNilSymbol
+		return apperrors.ErrNilSymbol
 	}
 	if eng.timeframe == "" {
-		return errors.ErrNilTimeframe
+		return apperrors.ErrNilTimeframe
 	}
 	return nil
 }

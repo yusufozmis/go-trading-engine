@@ -2,7 +2,7 @@ package adapters
 
 import (
 	ccxt "github.com/ccxt/ccxt/go/v4"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
@@ -43,11 +43,11 @@ type FuturesConfig struct {
 // Validate reports whether the futures configuration is supported.
 func (cfg FuturesConfig) Validate() error {
 	if cfg.Leverage <= 0 {
-		return errors.ErrInvalidLeverage
+		return apperrors.ErrInvalidLeverage
 	}
 
 	if !cfg.MarginMode.Valid() {
-		return errors.ErrInvalidMarginMode
+		return apperrors.ErrInvalidMarginMode
 	}
 
 	return nil

@@ -7,7 +7,7 @@ import (
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
-	"github.com/yusufozmis/go-trading-engine/errors"
+	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
 )
 
@@ -72,11 +72,11 @@ func NewOKX() (*Client, error) {
 func (client *Client) Validate() error {
 
 	if client == nil {
-		return errors.ErrNilClient
+		return apperrors.ErrNilClient
 	}
 
 	if client.iExchange == nil {
-		return errors.ErrUninitializedClient
+		return apperrors.ErrUninitializedClient
 	}
 
 	return nil
@@ -88,7 +88,7 @@ func (client *Client) validateConfigured() error {
 	}
 
 	if !client.configured {
-		return errors.ErrClientNotConfigured
+		return apperrors.ErrClientNotConfigured
 	}
 
 	return nil
