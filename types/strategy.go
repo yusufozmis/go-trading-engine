@@ -31,3 +31,9 @@ type PlanUpdate struct {
 	Mode  PlanUpdateMode
 	Plans []EntryPlan
 }
+
+// PositionSizer calculates the amount for a position using its actual entry,
+// stop-loss, take-profit, market, and side values.
+type PositionSizer interface {
+	CalculatePositionSize(position Position) (float64, error)
+}

@@ -19,7 +19,8 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, erro
 		return types.PerformanceResult{}, errors.ErrNilStrategy
 	}
 
-	eng, err := engine.NewEngine(b.symbol, b.timeframe, b.options...)
+	eng, err := engine.NewEngine(b.symbol, b.timeframe,
+		b.positionSizer, b.options...)
 	if err != nil {
 		return types.PerformanceResult{}, err
 	}

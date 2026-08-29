@@ -27,6 +27,8 @@ var (
 	// ErrStalePositionAction indicates that engine state changed after an action
 	// was decided and before it was confirmed.
 	ErrStalePositionAction = errors.New("stale position action")
+	// ErrNilPositionSizer indicates that the user provided a nil position sizer.
+	ErrNilPositionSizer = errors.New("nil position sizer")
 )
 
 // Backtest Errors

@@ -3,7 +3,6 @@ package engine
 import (
 	"math"
 
-	"github.com/yusufozmis/go-trading-engine/common"
 	"github.com/yusufozmis/go-trading-engine/errors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -67,21 +66,30 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 			return nil, err
 		}
 
-		pos := types.Position{
+		position := types.Position{
 			Symbol:     eng.symbol,
 			Timeframe:  eng.timeframe,
 			Timestamp:  candle.Timestamp,
 			EntryPrice: closePrice,
 			TP:         newTP,
 			StopLoss:   newSL,
-			Amount:     common.CalculatePositionSizeForBacktest(closePrice, newSL),
 			State:      plan.Type,
 		}
+
+		amount, err := eng.positionSizer.CalculatePositionSize(position)
+		if err != nil {
+			return nil, err
+		}
+		if math.IsNaN(amount) || math.IsInf(amount, 0) || amount <= 0 {
+			return nil, errors.ErrInvalidAmount
+		}
+
+		position.Amount = amount
 
 		// The plan is intentionally left active until the caller confirms that
 		// execution succeeded. A failed live order can therefore be retried.
 		return &OpenPositionAction{
-			Position: pos,
+			Position: position,
 			plan:     plan,
 		}, nil
 	}

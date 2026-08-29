@@ -11,10 +11,11 @@ import (
 
 // Backtester owns an immutable snapshot of historical candles for one market.
 type Backtester struct {
-	symbol    string
-	timeframe string
-	options   []options.Option
-	candles   []types.Candle
+	symbol        string
+	timeframe     string
+	positionSizer types.PositionSizer
+	options       []options.Option
+	candles       []types.Candle
 }
 
 func validateCandles(symbol, timeframe string, candles []types.Candle) error {
@@ -72,6 +73,7 @@ func validateCandles(symbol, timeframe string, candles []types.Candle) error {
 // NewBacktester validates and snapshots candles for repeated backtest runs.
 func NewBacktester(symbol, timeframe string,
 	candles []types.Candle,
+	positionSizer types.PositionSizer,
 	opts ...options.Option,
 ) (*Backtester, error) {
 	candlesCopy := append([]types.Candle(nil), candles...)
@@ -80,10 +82,15 @@ func NewBacktester(symbol, timeframe string,
 		return nil, err
 	}
 
+	if positionSizer == nil {
+		return nil, errors.ErrNilPositionSizer
+	}
+
 	return &Backtester{
-		symbol:    symbol,
-		timeframe: timeframe,
-		candles:   candlesCopy,
-		options:   append([]options.Option(nil), opts...),
+		symbol:        symbol,
+		timeframe:     timeframe,
+		candles:       candlesCopy,
+		positionSizer: positionSizer,
+		options:       append([]options.Option(nil), opts...),
 	}, nil
 }

@@ -22,12 +22,14 @@ type Engine struct {
 
 	pendingConfirmation *types.EntryPlan
 
+	positionSizer     types.PositionSizer
 	isCloseAutomated  bool
 	maxEntryDeviation *float64
 }
 
 // NewEngine creates an engine for one symbol and timeframe.
 func NewEngine(symbol, timeframe string,
+	positionSizer types.PositionSizer,
 	opts ...options.Option) (*Engine, error) {
 
 	if symbol == "" {
@@ -49,10 +51,15 @@ func NewEngine(symbol, timeframe string,
 		}
 	}
 
+	if positionSizer == nil {
+		return nil, errors.ErrNilPositionSizer
+	}
+
 	return &Engine{
 		symbol:            symbol,
 		timeframe:         timeframe,
 		lockKeyMap:        make(map[string]bool),
+		positionSizer:     positionSizer,
 		maxEntryDeviation: cfg.MaxEntryDeviation,
 		isCloseAutomated:  cfg.IsCloseAutomated,
 	}, nil
