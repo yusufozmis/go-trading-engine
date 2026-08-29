@@ -92,6 +92,9 @@ func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
 	if err := position.Validate(); err != nil {
 		return err
 	}
+	if position.StopLoss == 0 && position.TP == 0 {
+		return errors.ErrInvalidPrice
+	}
 
 	contractAmount, err := client.baseAmountToContracts(position.Symbol, position.Amount)
 	if err != nil {
@@ -106,11 +109,15 @@ func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
 		Side:       side,
 		Type:       "market",
 		Amount:     contractAmount,
-		StopLoss:   &position.StopLoss,
-		TakeProfit: &position.TP,
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
+	}
+	if position.StopLoss != 0 {
+		req.StopLoss = &position.StopLoss
+	}
+	if position.TP != 0 {
+		req.TakeProfit = &position.TP
 	}
 
 	return client.createFuturesOrder(req)
@@ -356,14 +363,19 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 
 	params := client.futuresAdapter.OrderParams(req)
 
-	// Protective prices are nil for every existing order method. Only the new
-	// attached TP/SL flow reaches the adapter capability below.
-	if req.StopLoss != nil || req.TakeProfit != nil {
-		if req.StopLoss == nil || req.TakeProfit == nil {
-			return errors.ErrInvalidPrice
+	// Each protection is translated independently so providers can support an
+	// attached stop-loss, take-profit, or both without changing the order flow.
+	if req.StopLoss != nil {
+		attachedParams, err := client.futuresAdapter.AttachSL(req)
+		if err != nil {
+			return err
 		}
-
-		attachedParams, err := client.futuresAdapter.AttachedTPSLParams(req)
+		for key, value := range attachedParams {
+			params[key] = value
+		}
+	}
+	if req.TakeProfit != nil {
+		attachedParams, err := client.futuresAdapter.AttachTP(req)
 		if err != nil {
 			return err
 		}

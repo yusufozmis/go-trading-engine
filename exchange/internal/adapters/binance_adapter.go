@@ -75,9 +75,14 @@ func (adapter *BinanceFuturesAdapter) OrderParams(req FuturesOrderRequest) map[s
 	return params
 }
 
-// AttachedTPSLParams rejects this operation because Binance USD-M cannot
-// attach both TP and SL to the opening order. Emulating it requires separate
-// conditional orders and lifecycle management, which is a different contract.
-func (adapter *BinanceFuturesAdapter) AttachedTPSLParams(FuturesOrderRequest) (map[string]any, error) {
+// AttachSL rejects this operation because Binance USD-M cannot attach a
+// stop-loss to the opening order. It requires a separate conditional order.
+func (adapter *BinanceFuturesAdapter) AttachSL(FuturesOrderRequest) (map[string]any, error) {
+	return nil, errors.ErrAttachedTPSLUnsupported
+}
+
+// AttachTP rejects this operation because Binance USD-M cannot attach a
+// take-profit to the opening order. It requires a separate conditional order.
+func (adapter *BinanceFuturesAdapter) AttachTP(FuturesOrderRequest) (map[string]any, error) {
 	return nil, errors.ErrAttachedTPSLUnsupported
 }

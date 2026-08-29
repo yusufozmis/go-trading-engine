@@ -36,9 +36,13 @@ func (pos *Position) Validate() error {
 		return errors.ErrInvalidTimestamp
 	}
 
-	if !validPositiveFloat(pos.EntryPrice) ||
-		!validPositiveFloat(pos.StopLoss) ||
-		!validPositiveFloat(pos.TP) {
+	if !validPositiveFloat(pos.EntryPrice) {
+		return errors.ErrInvalidPrice
+	}
+	if pos.StopLoss != 0 && !validPositiveFloat(pos.StopLoss) {
+		return errors.ErrInvalidPrice
+	}
+	if pos.TP != 0 && !validPositiveFloat(pos.TP) {
 		return errors.ErrInvalidPrice
 	}
 
@@ -48,14 +52,18 @@ func (pos *Position) Validate() error {
 
 	switch pos.State {
 	case LongOpen:
-		if !(pos.StopLoss < pos.EntryPrice &&
-			pos.EntryPrice < pos.TP) {
+		if pos.StopLoss != 0 && pos.StopLoss >= pos.EntryPrice {
+			return errors.ErrInvalidTPSLBracket
+		}
+		if pos.TP != 0 && pos.TP <= pos.EntryPrice {
 			return errors.ErrInvalidTPSLBracket
 		}
 
 	case ShortOpen:
-		if !(pos.TP < pos.EntryPrice &&
-			pos.EntryPrice < pos.StopLoss) {
+		if pos.StopLoss != 0 && pos.StopLoss <= pos.EntryPrice {
+			return errors.ErrInvalidTPSLBracket
+		}
+		if pos.TP != 0 && pos.TP >= pos.EntryPrice {
 			return errors.ErrInvalidTPSLBracket
 		}
 
