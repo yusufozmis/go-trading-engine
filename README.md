@@ -202,7 +202,7 @@ the arrival of a newer timestamp:
 ```go
 updates, err := client.RunCandleStream(
 	[]string{"BTC/USDT"},
-	[]string{"5m"},
+	[]string{types.Timeframe5Minutes},
 	exchange.ClosedOnly,
 )
 if err != nil {
@@ -231,6 +231,11 @@ Call `CloseCandleStream` to stop all watchers and close the updates channel.
 `RunCandleStream`, `Subscribe`, `Unsubscribe`, and `CloseCandleStream` must not be
 called concurrently. Account queries and order methods may be used while candle
 updates are being consumed.
+
+Timeframe constants such as `types.Timeframe5Minutes` use CCXT's unified
+values. Provider-specific formats are translated by CCXT. Use
+`client.SupportedTimeframes()` to discover which unified values the active
+provider supports.
 
 ## Error Handling
 
