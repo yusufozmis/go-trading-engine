@@ -70,6 +70,52 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 	return client.createFuturesOrder(req)
 }
 
+// CreateFuturesWithTPSL opens a market futures position and asks the provider
+// to attach market take-profit and stop-loss orders to the same entry request.
+// The position amount is interpreted as a base-asset quantity and estimated as
+// contracts from market metadata. Currently, only OKX supports this operation.
+func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
+	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+
+	var side types.PositionSide
+	switch position.State {
+	case types.LongOpen:
+		side = types.PositionLong
+	case types.ShortOpen:
+		side = types.PositionShort
+	default:
+		return errors.ErrInvalidSide
+	}
+
+	if err := position.Validate(); err != nil {
+		return err
+	}
+
+	contractAmount, err := client.baseAmountToContracts(position.Symbol, position.Amount)
+	if err != nil {
+		return err
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+
+	req := adapters.FuturesOrderRequest{
+		Symbol:     position.Symbol,
+		Side:       side,
+		Type:       "market",
+		Amount:     contractAmount,
+		StopLoss:   position.StopLoss,
+		TakeProfit: position.TP,
+		Leverage:   client.futuresConfigs.Leverage,
+		MarginMode: client.futuresConfigs.MarginMode,
+		Hedged:     client.futuresConfigs.Hedged,
+	}
+
+	return client.createFuturesOrder(req)
+}
+
 // CloseFuturesPosition closes the entire open position for the requested side.
 // Binance support is currently limited to USD-M (linear) futures positions.
 func (client *Client) CloseFuturesPosition(
@@ -308,8 +354,22 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 		return err
 	}
 
+	params := client.futuresAdapter.OrderParams(req)
+
+	// Protective prices are zero for every existing order method. Only the new
+	// attached TP/SL flow reaches the adapter capability below.
+	if req.StopLoss != 0 || req.TakeProfit != 0 {
+		attachedParams, err := client.futuresAdapter.AttachedTPSLParams(req)
+		if err != nil {
+			return err
+		}
+		for key, value := range attachedParams {
+			params[key] = value
+		}
+	}
+
 	options := []ccxt.CreateOrderOptions{
-		ccxt.WithCreateOrderParams(client.futuresAdapter.OrderParams(req)),
+		ccxt.WithCreateOrderParams(params),
 	}
 
 	if req.Type == "limit" {

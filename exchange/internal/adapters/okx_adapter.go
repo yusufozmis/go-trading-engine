@@ -75,3 +75,18 @@ func (adapter *OKXFuturesAdapter) OrderParams(req FuturesOrderRequest) map[strin
 
 	return params
 }
+
+// AttachedTPSLParams uses CCXT's unified attached-order shape. CCXT translates
+// these values into OKX attachAlgoOrds on the same request as the entry order.
+func (adapter *OKXFuturesAdapter) AttachedTPSLParams(req FuturesOrderRequest) (map[string]any, error) {
+	return map[string]any{
+		"stopLoss": map[string]any{
+			"triggerPrice": req.StopLoss,
+			"type":         "market",
+		},
+		"takeProfit": map[string]any{
+			"triggerPrice": req.TakeProfit,
+			"type":         "market",
+		},
+	}, nil
+}

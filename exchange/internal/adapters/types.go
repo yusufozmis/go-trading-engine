@@ -25,6 +25,8 @@ type FuturesOrderRequest struct {
 	Type       string
 	Amount     float64
 	Price      float64
+	StopLoss   float64
+	TakeProfit float64
 	Leverage   int64
 	MarginMode types.MarginMode
 	Hedged     bool
@@ -58,4 +60,7 @@ type FuturesAdapter interface {
 	Prepare(symbol string, req FuturesConfig) error
 	// OrderParams translates an order into provider-specific parameters.
 	OrderParams(req FuturesOrderRequest) map[string]any
+	// AttachedTPSLParams translates protective prices for providers that can
+	// attach both orders to the futures entry in the same request.
+	AttachedTPSLParams(req FuturesOrderRequest) (map[string]any, error)
 }
