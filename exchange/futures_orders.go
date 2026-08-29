@@ -106,8 +106,8 @@ func (client *Client) CreateFuturesWithTPSL(position types.Position) error {
 		Side:       side,
 		Type:       "market",
 		Amount:     contractAmount,
-		StopLoss:   position.StopLoss,
-		TakeProfit: position.TP,
+		StopLoss:   &position.StopLoss,
+		TakeProfit: &position.TP,
 		Leverage:   client.futuresConfigs.Leverage,
 		MarginMode: client.futuresConfigs.MarginMode,
 		Hedged:     client.futuresConfigs.Hedged,
@@ -356,9 +356,13 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 
 	params := client.futuresAdapter.OrderParams(req)
 
-	// Protective prices are zero for every existing order method. Only the new
+	// Protective prices are nil for every existing order method. Only the new
 	// attached TP/SL flow reaches the adapter capability below.
-	if req.StopLoss != 0 || req.TakeProfit != 0 {
+	if req.StopLoss != nil || req.TakeProfit != nil {
+		if req.StopLoss == nil || req.TakeProfit == nil {
+			return errors.ErrInvalidPrice
+		}
+
 		attachedParams, err := client.futuresAdapter.AttachedTPSLParams(req)
 		if err != nil {
 			return err

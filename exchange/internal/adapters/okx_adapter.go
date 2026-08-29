@@ -81,11 +81,11 @@ func (adapter *OKXFuturesAdapter) OrderParams(req FuturesOrderRequest) map[strin
 func (adapter *OKXFuturesAdapter) AttachedTPSLParams(req FuturesOrderRequest) (map[string]any, error) {
 	return map[string]any{
 		"stopLoss": map[string]any{
-			"triggerPrice": req.StopLoss,
+			"triggerPrice": *req.StopLoss,
 			"type":         "market",
 		},
 		"takeProfit": map[string]any{
-			"triggerPrice": req.TakeProfit,
+			"triggerPrice": *req.TakeProfit,
 			"type":         "market",
 		},
 	}, nil

@@ -25,8 +25,8 @@ type FuturesOrderRequest struct {
 	Type       string
 	Amount     float64
 	Price      float64
-	StopLoss   float64
-	TakeProfit float64
+	StopLoss   *float64
+	TakeProfit *float64
 	Leverage   int64
 	MarginMode types.MarginMode
 	Hedged     bool
