@@ -31,9 +31,9 @@ func WithMaxEntryDeviation(deviation float64) Option {
 
 // WithAutomatedClose controls whether candle high and low prices can trigger
 // take-profit and stop-loss closes.
-func WithAutomatedClose(isCloseAutomated bool) Option {
+func WithAutomatedClose() Option {
 	return func(cfg *Config) error {
-		cfg.IsCloseAutomated = isCloseAutomated
+		cfg.IsCloseAutomated = true
 		return nil
 	}
 }
