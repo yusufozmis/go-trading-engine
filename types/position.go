@@ -96,4 +96,7 @@ type PerformanceResult struct {
 
 	Profit float64
 	Loss   float64
+
+	TradingFees float64
+	NetProfit   float64
 }

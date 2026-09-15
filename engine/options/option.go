@@ -14,6 +14,7 @@ type Option func(*Config) error
 type Config struct {
 	IsCloseAutomated  bool
 	MaxEntryDeviation *float64
+	TradingFeeRate    float64
 }
 
 // WithMaxEntryDeviation limits how far execution may move from the planned
@@ -34,6 +35,22 @@ func WithMaxEntryDeviation(deviation float64) Option {
 func WithAutomatedClose() Option {
 	return func(cfg *Config) error {
 		cfg.IsCloseAutomated = true
+		return nil
+	}
+}
+
+// WithTradingFeeRate applies the same feeRate independently to the entry and
+// exit fill of every closed position. Fees use quote notional (price times
+// amount), as required by linear futures such as USDT-margined perpetuals.
+// The rate is a decimal fraction, so 0.0005 means 0.05% per fill. When omitted,
+// trading fees default to zero. If supplied more than once, the last rate
+// replaces earlier rates.
+func WithTradingFeeRate(feeRate float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(feeRate) || math.IsInf(feeRate, 0) || feeRate <= 0 {
+			return apperrors.ErrInvalidTradingFeeRate
+		}
+		cfg.TradingFeeRate = feeRate
 		return nil
 	}
 }

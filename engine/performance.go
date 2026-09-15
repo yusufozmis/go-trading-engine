@@ -6,40 +6,60 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// Performance calculates realized profit and loss from confirmed closed positions.
+// Performance calculates gross profit, gross loss, trading fees, and net profit
+// from confirmed closed positions. The configured trading fee rate is applied
+// independently to each position's entry and exit notional.
 func (eng *Engine) Performance() types.PerformanceResult {
-
 	if eng == nil {
 		return types.PerformanceResult{}
 	}
 
-	tpCount, slCount := 0, 0
-	var profit, loss float64
+	tpCount := 0
+	slCount := 0
 
-	for _, pos := range eng.closedPositions {
+	var profit float64
+	var loss float64
+	var tradingFees float64
 
-		if pos.State == types.ClosedByProfit {
+	for _, position := range eng.closedPositions {
+		var exitPrice float64
+
+		switch position.State {
+		case types.ClosedByProfit:
 			tpCount++
+			exitPrice = position.TP
 
-			diff := math.Abs(pos.TP - pos.EntryPrice)
-			profit += (diff * pos.Amount)
+			difference := math.Abs(position.TP - position.EntryPrice)
+			profit += difference * position.Amount
 
-		}
-		if pos.State == types.ClosedByStop {
+		case types.ClosedByStop:
 			slCount++
+			exitPrice = position.StopLoss
 
-			diff := math.Abs(pos.EntryPrice - pos.StopLoss)
-			loss += (diff * pos.Amount)
+			difference := math.Abs(position.EntryPrice - position.StopLoss)
+			loss += difference * position.Amount
 
+		default:
+			continue
 		}
+
+		entryNotional := position.EntryPrice * position.Amount
+		exitNotional := exitPrice * position.Amount
+
+		entryFee := entryNotional * eng.tradingFeeRate
+		exitFee := exitNotional * eng.tradingFeeRate
+
+		tradingFees += entryFee + exitFee
 	}
 
 	return types.PerformanceResult{
-		Symbol:    eng.symbol,
-		Timeframe: eng.timeframe,
-		TPCount:   tpCount,
-		SLCount:   slCount,
-		Profit:    profit,
-		Loss:      loss,
+		Symbol:      eng.symbol,
+		Timeframe:   eng.timeframe,
+		TPCount:     tpCount,
+		SLCount:     slCount,
+		Profit:      profit,
+		Loss:        loss,
+		TradingFees: tradingFees,
+		NetProfit:   profit - loss - tradingFees,
 	}
 }

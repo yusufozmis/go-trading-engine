@@ -25,6 +25,7 @@ type Engine struct {
 	positionSizer     types.PositionSizer
 	isCloseAutomated  bool
 	maxEntryDeviation *float64
+	tradingFeeRate    float64
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -63,6 +64,7 @@ func NewEngine(symbol, timeframe string,
 		positionSizer:     positionSizer,
 		maxEntryDeviation: cfg.MaxEntryDeviation,
 		isCloseAutomated:  cfg.IsCloseAutomated,
+		tradingFeeRate:    cfg.TradingFeeRate,
 	}, nil
 }
 
