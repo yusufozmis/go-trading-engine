@@ -9,6 +9,7 @@ import (
 	ccxtpro "github.com/ccxt/ccxt/go/v4/pro"
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/exchange/internal/adapters"
+	"github.com/yusufozmis/go-trading-engine/exchange/options"
 )
 
 // Client provides market-data, streaming, account, and order operations for a
@@ -36,8 +37,21 @@ type Client struct {
 }
 
 // NewBinance creates a Binance client and loads its current market metadata.
-func NewBinance() (*Client, error) {
+func NewBinance(opts ...options.ClientOption) (*Client, error) {
+	cfg := options.ClientOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+
 	pro := ccxtpro.NewBinance(nil)
+
+	// Binance demo trading is distinct from its legacy sandbox/testnet.
+	if cfg.PaperTrading {
+		pro.EnableDemoTrading(true)
+	}
+
 	core := ccxt.NewBinanceFromCore(pro.Core.BinanceCore)
 
 	markets, err := pro.LoadMarkets()
@@ -54,8 +68,21 @@ func NewBinance() (*Client, error) {
 }
 
 // NewOKX creates an OKX client and loads its current market metadata.
-func NewOKX() (*Client, error) {
+func NewOKX(opts ...options.ClientOption) (*Client, error) {
+	cfg := options.ClientOptions{}
+	for _, opt := range opts {
+		if opt != nil {
+			opt(&cfg)
+		}
+	}
+
 	pro := ccxtpro.NewOkx(nil)
+
+	// CCXT maps OKX sandbox mode to the provider's demo-trading environment.
+	if cfg.PaperTrading {
+		pro.SetSandboxMode(true)
+	}
+
 	core := ccxt.NewOkxFromCore(pro.Core.OkxCore)
 
 	markets, err := pro.LoadMarkets()
