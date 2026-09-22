@@ -10,13 +10,15 @@ import (
 type Position struct {
 	Symbol    string
 	Timeframe string
-	// Timestamp is the position's opening Unix timestamp in milliseconds.
-	Timestamp  int64
-	EntryPrice float64
-	StopLoss   float64
-	TP         float64
-	Amount     float64
-	State      PositionState
+	// OpenTimestamp is the position's opening Unix timestamp in milliseconds.
+	OpenTimestamp int64
+	// CloseTimestamp is the position's close Unix timestamp in milliseconds.
+	CloseTimestamp int64
+	EntryPrice     float64
+	StopLoss       float64
+	TP             float64
+	Amount         float64
+	State          PositionState
 }
 
 // Validate reports whether the position contains valid identity, pricing,
@@ -34,8 +36,21 @@ func (pos *Position) Validate() error {
 		return apperrors.ErrNilTimeframe
 	}
 
-	if pos.Timestamp <= 0 {
+	if pos.OpenTimestamp <= 0 {
 		return apperrors.ErrInvalidTimestamp
+	}
+
+	switch pos.State {
+	case LongOpen, ShortOpen:
+		if pos.CloseTimestamp != 0 {
+			return apperrors.ErrInvalidTimestamp
+		}
+
+	case ClosedByStop, ClosedByProfit:
+		if pos.CloseTimestamp == 0 ||
+			pos.CloseTimestamp < pos.OpenTimestamp {
+			return apperrors.ErrInvalidTimestamp
+		}
 	}
 
 	if !validPositiveFloat(pos.EntryPrice) {

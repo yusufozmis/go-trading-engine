@@ -67,13 +67,13 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		}
 
 		position := types.Position{
-			Symbol:     eng.symbol,
-			Timeframe:  eng.timeframe,
-			Timestamp:  candle.Timestamp,
-			EntryPrice: closePrice,
-			TP:         newTP,
-			StopLoss:   newSL,
-			State:      plan.Type,
+			Symbol:        eng.symbol,
+			Timeframe:     eng.timeframe,
+			OpenTimestamp: candle.Timestamp,
+			EntryPrice:    closePrice,
+			TP:            newTP,
+			StopLoss:      newSL,
+			State:         plan.Type,
 		}
 
 		amount, err := eng.positionSizer.CalculatePositionSize(position)

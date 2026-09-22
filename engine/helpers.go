@@ -133,7 +133,9 @@ func validateEntryPlanData(plan types.EntryPlan) error {
 func (eng *Engine) validPosition(position types.Position) bool {
 	if eng.validate() != nil ||
 		position.Symbol != eng.symbol ||
-		position.Timeframe != eng.timeframe {
+		position.Timeframe != eng.timeframe ||
+		position.OpenTimestamp <= 0 ||
+		position.CloseTimestamp != 0 {
 		return false
 	}
 
