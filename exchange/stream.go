@@ -311,7 +311,7 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 		return nil
 	}
 
-	_, err := s.iExchange.UnWatchOHLCV(
+	_, err := s.streamExchange.UnWatchOHLCV(
 		symbol,
 		ccxt.WithUnWatchOHLCVTimeframe(timeframe),
 	)
@@ -322,13 +322,11 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 // Order matters:
 // 1. mark the stream closed and clear active subscriptions
 // 2. close done so blocked senders can stop
-// 3. unwatch active subscriptions so WatchOHLCV should return
+// 3. close the dedicated stream exchange so pending WatchOHLCV calls return
 // 4. wait for watcher goroutines
 // 5. only then close s.stream
 //
 // The channel must be closed last; closing it earlier risks "send on closed channel".
-// Remaining limitation: if UnWatchOHLCV does not make pending WatchOHLCV calls return,
-// Close can still hang in wg.Wait().
 func (s *Client) CloseCandleStream() error {
 	if err := s.Validate(); err != nil {
 		return err
@@ -343,20 +341,16 @@ func (s *Client) CloseCandleStream() error {
 	stream.closeOnce.Do(func() {
 		stream.mu.Lock()
 		stream.closed = true
-
-		keys := make([]subKey, 0, len(stream.activeSymbols))
-		for key := range stream.activeSymbols {
-			keys = append(keys, key)
-		}
+		clear(stream.activeSymbols)
 		stream.mu.Unlock()
 
 		close(stream.done)
 
 		var errs []error
-		for _, key := range keys {
-			if err := s.Unsubscribe(key.symbol, key.timeframe); err != nil {
-				errs = append(errs, err)
-			}
+		// This closes only the CCXT instance dedicated to candle streaming. REST,
+		// account, and order operations continue through the main exchange instance.
+		for _, err := range s.streamExchange.Close() {
+			errs = append(errs, normalizeError(err))
 		}
 
 		stream.wg.Wait()
@@ -384,7 +378,7 @@ func (s *Client) watch(key subKey, token uint64) {
 			return
 		}
 
-		candles, err := s.iExchange.WatchOHLCV(
+		candles, err := s.streamExchange.WatchOHLCV(
 			key.symbol,
 			ccxt.WithWatchOHLCVTimeframe(key.timeframe),
 		)

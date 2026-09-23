@@ -15,7 +15,10 @@ import (
 // Client provides market-data, streaming, account, and order operations for a
 // configured exchange provider.
 type Client struct {
-	iExchange      ccxt.IExchange
+	iExchange ccxt.IExchange
+	// streamExchange owns only candle WebSocket connections so closing a stream
+	// cannot interrupt account, market-data, or order operations.
+	streamExchange ccxt.IExchange
 	futuresAdapter adapters.FuturesAdapter
 	ohlcvPageSize  int64
 
@@ -46,6 +49,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	}
 
 	pro := ccxtpro.NewBinance(nil)
+	streamPro := ccxtpro.NewBinance(nil)
 
 	// Binance demo trading is distinct from its legacy sandbox/testnet.
 	if cfg.PaperTrading {
@@ -58,9 +62,13 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	if err != nil {
 		return nil, normalizeError(err)
 	}
+	// The dedicated stream instance needs the same symbol metadata, but loading
+	// it again would make a duplicate markets request during construction.
+	streamPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
 
 	return &Client{
 		iExchange:      pro,
+		streamExchange: streamPro,
 		futuresAdapter: adapters.NewBinanceFuturesAdapter(core),
 		ohlcvPageSize:  binanceOHLCVPageSize,
 		markets:        markets,
@@ -77,6 +85,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	}
 
 	pro := ccxtpro.NewOkx(nil)
+	streamPro := ccxtpro.NewOkx(nil)
 
 	// CCXT maps OKX sandbox mode to the provider's demo-trading environment.
 	if cfg.PaperTrading {
@@ -89,9 +98,13 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	if err != nil {
 		return nil, normalizeError(err)
 	}
+	// The dedicated stream instance needs the same symbol metadata, but loading
+	// it again would make a duplicate markets request during construction.
+	streamPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
 
 	return &Client{
 		iExchange:      pro,
+		streamExchange: streamPro,
 		futuresAdapter: adapters.NewOKXFuturesAdapter(core),
 		ohlcvPageSize:  okxOHLCVPageSize,
 		markets:        markets,
