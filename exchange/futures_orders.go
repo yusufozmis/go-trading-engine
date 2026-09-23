@@ -95,16 +95,6 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 		return err
 	}
 
-	var side types.PositionSide
-	switch position.State {
-	case types.LongOpen:
-		side = types.PositionLong
-	case types.ShortOpen:
-		side = types.PositionShort
-	default:
-		return apperrors.ErrInvalidSide
-	}
-
 	if err := position.Validate(); err != nil {
 		return err
 	}
@@ -122,7 +112,7 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 
 	req := adapters.FuturesOrderRequest{
 		Symbol:     position.Symbol,
-		Side:       side,
+		Side:       position.Side,
 		Type:       orderType,
 		Amount:     contractAmount,
 		Leverage:   client.futuresConfigs.Leverage,

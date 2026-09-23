@@ -4,8 +4,11 @@ package types
 // PlanUpdateMode controls how a plan update changes existing engine plans.
 type PlanUpdateMode uint
 
-// PositionState identifies entry, confirmation, and close states.
+// PositionState identifies whether a position is open or why it was closed.
 type PositionState uint
+
+// ConfirmationState identifies how an entry plan waits for price confirmation.
+type ConfirmationState uint
 
 // MarginMode identifies an exchange futures margin mode.
 type MarginMode string
@@ -20,23 +23,22 @@ const (
 	// UNSPECIFIED is the zero value for an unspecified position state.
 	UNSPECIFIED PositionState = iota
 
-	// LongOpen identifies an open long position.
-	LongOpen
-	// ShortOpen identifies an open short position.
-	ShortOpen
-
-	// ConfirmationWaitingBiggerThanEntry waits for price to cross above entry.
-	ConfirmationWaitingBiggerThanEntry
-	// ConfirmationWaitingSmallerThanEntry waits for price to cross below entry.
-	ConfirmationWaitingSmallerThanEntry
-
-	// CancelSignal identifies a strategy cancellation signal.
-	CancelSignal
+	// PositionOpen identifies an open position. Side contains its direction.
+	PositionOpen
 
 	// ClosedByStop identifies a position closed by its stop-loss.
 	ClosedByStop
 	// ClosedByProfit identifies a position closed by its take-profit.
 	ClosedByProfit
+)
+
+const (
+	// ConfirmationNone makes an entry plan immediately eligible for execution.
+	ConfirmationNone ConfirmationState = iota
+	// ConfirmationWaitingAboveEntry waits for price to reach or cross above entry.
+	ConfirmationWaitingAboveEntry
+	// ConfirmationWaitingBelowEntry waits for price to reach or cross below entry.
+	ConfirmationWaitingBelowEntry
 )
 
 const (
@@ -96,6 +98,16 @@ func (s PositionSide) String() string {
 func (s PositionSide) Valid() bool {
 	switch s {
 	case PositionLong, PositionShort:
+		return true
+	default:
+		return false
+	}
+}
+
+// Valid reports whether s is a supported confirmation state.
+func (s ConfirmationState) Valid() bool {
+	switch s {
+	case ConfirmationNone, ConfirmationWaitingAboveEntry, ConfirmationWaitingBelowEntry:
 		return true
 	default:
 		return false

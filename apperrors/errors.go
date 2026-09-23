@@ -9,8 +9,8 @@ var (
 	ErrInvalidEntryPlanBracket = errors.New("invalid entry plan tp/sl bracket")
 	// ErrNilEngine indicates an operation on a nil engine.
 	ErrNilEngine = errors.New("nil engine")
-	// ErrInvalidEntryPlanType indicates an unsupported entry-plan state.
-	ErrInvalidEntryPlanType = errors.New("invalid entry plan type")
+	// ErrInvalidConfirmationState indicates an unsupported confirmation state.
+	ErrInvalidConfirmationState = errors.New("invalid confirmation state")
 	// ErrInvalidPlanMode indicates an unsupported plan-update mode.
 	ErrInvalidPlanMode = errors.New("invalid plan mode")
 	// ErrExpectedSinglePlan indicates that confirmation received the wrong plan count.

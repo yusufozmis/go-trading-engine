@@ -29,20 +29,16 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 		return 0, 0, apperrors.ErrInvalidEntryPlanBracket
 	}
 
-	isLong := tp > entry && sl < entry
-	isShort := tp < entry && sl > entry
-
-	if !isLong && !isShort {
-		return 0, 0, apperrors.ErrInvalidEntryPlanBracket
-	}
-
 	newEntry := candle.PriceData.ClosePrice
 
-	if isLong {
+	switch plan.Side {
+	case types.PositionLong:
 		return newEntry + rewardDist, newEntry - riskDist, nil
+	case types.PositionShort:
+		return newEntry - rewardDist, newEntry + riskDist, nil
+	default:
+		return 0, 0, apperrors.ErrInvalidSide
 	}
-
-	return newEntry - rewardDist, newEntry + riskDist, nil
 }
 
 func (eng *Engine) validateCandle(candle types.Candle) error {
@@ -99,6 +95,13 @@ func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
 }
 
 func validateEntryPlanData(plan types.EntryPlan) error {
+	if !plan.Side.Valid() {
+		return apperrors.ErrInvalidSide
+	}
+	if !plan.Confirmation.Valid() {
+		return apperrors.ErrInvalidConfirmationState
+	}
+
 	prices := [...]float64{
 		plan.EntryPrice,
 		plan.StopLoss,
@@ -114,17 +117,17 @@ func validateEntryPlanData(plan types.EntryPlan) error {
 		return apperrors.ErrInvalidPrice
 	}
 
-	switch plan.Type {
-	case types.LongOpen, types.ConfirmationWaitingBiggerThanEntry:
+	switch plan.Side {
+	case types.PositionLong:
 		if plan.TakeProfit <= plan.EntryPrice || plan.StopLoss >= plan.EntryPrice {
 			return apperrors.ErrInvalidEntryPlanBracket
 		}
-	case types.ShortOpen, types.ConfirmationWaitingSmallerThanEntry:
+	case types.PositionShort:
 		if plan.TakeProfit >= plan.EntryPrice || plan.StopLoss <= plan.EntryPrice {
 			return apperrors.ErrInvalidEntryPlanBracket
 		}
 	default:
-		return apperrors.ErrInvalidEntryPlanType
+		return apperrors.ErrInvalidSide
 	}
 
 	return nil
@@ -135,7 +138,8 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.Symbol != eng.symbol ||
 		position.Timeframe != eng.timeframe ||
 		position.OpenTimestamp <= 0 ||
-		position.CloseTimestamp != 0 {
+		position.CloseTimestamp != 0 ||
+		position.State != types.PositionOpen {
 		return false
 	}
 
@@ -151,11 +155,13 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		}
 	}
 
-	switch position.State {
-	case types.LongOpen:
-		return position.TP > position.EntryPrice && position.StopLoss < position.EntryPrice
-	case types.ShortOpen:
-		return position.TP < position.EntryPrice && position.StopLoss > position.EntryPrice
+	switch position.Side {
+	case types.PositionLong:
+		return position.TP > position.EntryPrice &&
+			position.StopLoss < position.EntryPrice
+	case types.PositionShort:
+		return position.TP < position.EntryPrice &&
+			position.StopLoss > position.EntryPrice
 	default:
 		return false
 	}

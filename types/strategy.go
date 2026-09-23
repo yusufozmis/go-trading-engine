@@ -17,7 +17,8 @@ type EntryPlan struct {
 	Symbol    string
 	Timeframe string
 
-	Type PositionState
+	Side         PositionSide
+	Confirmation ConfirmationState
 
 	EntryPrice float64
 	StopLoss   float64

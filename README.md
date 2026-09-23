@@ -176,14 +176,15 @@ take-profit, or both:
 
 ```go
 position := types.Position{
-	Symbol:     "BTC/USDT:USDT",
-	Timeframe:  "5m",
-	Timestamp:  time.Now().UnixMilli(),
-	EntryPrice: 60_000,
-	StopLoss:   59_000,
-	TP:         62_000,
-	Amount:     0.001,
-	State:      types.LongOpen,
+	Symbol:        "BTC/USDT:USDT",
+	Timeframe:     "5m",
+	OpenTimestamp: time.Now().UnixMilli(),
+	Side:          types.PositionLong,
+	EntryPrice:    60_000,
+	StopLoss:      59_000,
+	TP:            62_000,
+	Amount:        0.001,
+	State:         types.PositionOpen,
 }
 
 err = client.CreateFuturesLimitOrderWithTPSL(position)

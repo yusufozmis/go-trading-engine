@@ -23,8 +23,8 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		}
 
 		for _, plan := range update.Plans {
-			if plan.Type != types.LongOpen && plan.Type != types.ShortOpen {
-				return apperrors.ErrInvalidEntryPlanType
+			if plan.Confirmation != types.ConfirmationNone {
+				return apperrors.ErrInvalidConfirmationState
 			}
 			if err := eng.validateEntryPlan(plan); err != nil {
 				return err
@@ -48,9 +48,9 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			return apperrors.ErrExpectedSinglePlan
 		}
 		pending := update.Plans[0]
-		if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
-			pending.Type != types.ConfirmationWaitingSmallerThanEntry {
-			return apperrors.ErrInvalidEntryPlanType
+		if pending.Confirmation != types.ConfirmationWaitingAboveEntry &&
+			pending.Confirmation != types.ConfirmationWaitingBelowEntry {
+			return apperrors.ErrInvalidConfirmationState
 		}
 		if err := eng.validateEntryPlan(pending); err != nil {
 			return err

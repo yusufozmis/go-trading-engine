@@ -40,17 +40,10 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		return apperrors.ErrInvalidPositionAction
 	}
 
-	expectedSide := types.PositionLong
-	if currentPosition.State == types.ShortOpen {
-		expectedSide = types.PositionShort
-	}
-	if action.Side != expectedSide {
-		return apperrors.ErrInvalidPositionAction
-	}
-
 	if currentPosition.Symbol != closedPosition.Symbol ||
 		currentPosition.Timeframe != closedPosition.Timeframe ||
 		currentPosition.OpenTimestamp != closedPosition.OpenTimestamp ||
+		currentPosition.Side != closedPosition.Side ||
 		currentPosition.EntryPrice != closedPosition.EntryPrice ||
 		currentPosition.Amount != closedPosition.Amount {
 		return apperrors.ErrStalePositionAction
@@ -82,10 +75,6 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 
 func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {
 	position := *eng.lastPosition
-	side := types.PositionLong
-	if position.State == types.ShortOpen {
-		side = types.PositionShort
-	}
 
 	isTP := position.TP <= candle.PriceData.HighPrice && position.TP >= candle.PriceData.LowPrice
 	isSL := position.StopLoss <= candle.PriceData.HighPrice && position.StopLoss >= candle.PriceData.LowPrice
@@ -97,7 +86,6 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 		position.CloseTimestamp = candle.Timestamp
 		return &ClosePositionAction{
 			Position: position,
-			Side:     side,
 		}
 	}
 	if isTP {
@@ -105,7 +93,6 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 		position.CloseTimestamp = candle.Timestamp
 		return &ClosePositionAction{
 			Position: position,
-			Side:     side,
 		}
 	}
 
@@ -116,15 +103,14 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 	position := *eng.lastPosition
 	closePrice := candle.PriceData.ClosePrice
 
-	switch position.State {
-	case types.LongOpen:
+	switch position.Side {
+	case types.PositionLong:
 		if closePrice <= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.StopLoss = closePrice
 			position.CloseTimestamp = candle.Timestamp
 			return &ClosePositionAction{
 				Position: position,
-				Side:     types.PositionLong,
 			}
 		}
 		if closePrice >= position.TP {
@@ -133,17 +119,15 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 			position.CloseTimestamp = candle.Timestamp
 			return &ClosePositionAction{
 				Position: position,
-				Side:     types.PositionLong,
 			}
 		}
-	case types.ShortOpen:
+	case types.PositionShort:
 		if closePrice >= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.StopLoss = closePrice
 			position.CloseTimestamp = candle.Timestamp
 			return &ClosePositionAction{
 				Position: position,
-				Side:     types.PositionShort,
 			}
 		}
 		if closePrice <= position.TP {
@@ -152,7 +136,6 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 			position.CloseTimestamp = candle.Timestamp
 			return &ClosePositionAction{
 				Position: position,
-				Side:     types.PositionShort,
 			}
 		}
 	}

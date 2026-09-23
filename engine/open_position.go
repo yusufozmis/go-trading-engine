@@ -40,14 +40,13 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		}
 
 		canOpen := false
-
-		switch plan.Type {
-		case types.LongOpen:
+		switch plan.Side {
+		case types.PositionLong:
 			canOpen = closePrice >= plan.EntryPrice
-		case types.ShortOpen:
+		case types.PositionShort:
 			canOpen = closePrice <= plan.EntryPrice
 		default:
-			return nil, apperrors.ErrInvalidEntryPlanType
+			return nil, apperrors.ErrInvalidSide
 		}
 
 		if !canOpen {
@@ -70,10 +69,11 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 			Symbol:        eng.symbol,
 			Timeframe:     eng.timeframe,
 			OpenTimestamp: candle.Timestamp,
+			Side:          plan.Side,
 			EntryPrice:    closePrice,
 			TP:            newTP,
 			StopLoss:      newSL,
-			State:         plan.Type,
+			State:         types.PositionOpen,
 		}
 
 		amount, err := eng.positionSizer.CalculatePositionSize(position)
@@ -106,7 +106,11 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 	if eng.PositionExists() {
 		return apperrors.ErrPositionOrPendingExists
 	}
-	if action.Position.State != action.plan.Type || !eng.validPosition(action.Position) {
+
+	if action.Position.Side != action.plan.Side {
+		return apperrors.ErrInvalidPositionAction
+	}
+	if action.Position.State != types.PositionOpen || !eng.validPosition(action.Position) {
 		return apperrors.ErrInvalidPositionAction
 	}
 
@@ -150,7 +154,7 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 		return true, nil
 	}
 
-	if eng.lastPosition.State == types.LongOpen || eng.lastPosition.State == types.ShortOpen {
+	if eng.lastPosition.State == types.PositionOpen {
 		return false, apperrors.ErrPositionOrPendingExists
 	}
 
@@ -170,7 +174,7 @@ func (eng *Engine) PositionExists() bool {
 		return false
 	}
 
-	if eng.lastPosition.State == types.LongOpen || eng.lastPosition.State == types.ShortOpen {
+	if eng.lastPosition.State == types.PositionOpen {
 		return true
 	}
 

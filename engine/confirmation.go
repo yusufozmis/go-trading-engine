@@ -18,30 +18,40 @@ func (eng *Engine) CheckConfirmation(candle types.Candle) (bool, error) {
 	plan := *eng.pendingConfirmation
 	closePrice := candle.PriceData.ClosePrice
 
-	switch plan.Type {
-	case types.ConfirmationWaitingBiggerThanEntry:
+	switch plan.Side {
+	case types.PositionLong:
 		if closePrice <= plan.StopLoss || closePrice >= plan.TakeProfit {
 			eng.pendingConfirmation = nil
 			return false, nil
 		}
+	case types.PositionShort:
+		if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
+			eng.pendingConfirmation = nil
+			return false, nil
+		}
+	default:
+		return false, apperrors.ErrInvalidSide
+	}
+
+	switch plan.Confirmation {
+	case types.ConfirmationWaitingAboveEntry:
 		if closePrice >= plan.EntryPrice {
-			plan.Type = types.LongOpen
+			plan.Confirmation = types.ConfirmationNone
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
 			return true, nil
 		}
 
-	case types.ConfirmationWaitingSmallerThanEntry:
-		if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
-			eng.pendingConfirmation = nil
-			return false, nil
-		}
+	case types.ConfirmationWaitingBelowEntry:
 		if closePrice <= plan.EntryPrice {
-			plan.Type = types.ShortOpen
+			plan.Confirmation = types.ConfirmationNone
 			eng.activePlans = []types.EntryPlan{plan}
 			eng.pendingConfirmation = nil
 			return true, nil
 		}
+
+	default:
+		return false, apperrors.ErrInvalidConfirmationState
 	}
 
 	return false, nil
@@ -59,9 +69,9 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 		return err
 	}
 
-	if pending.Type != types.ConfirmationWaitingBiggerThanEntry &&
-		pending.Type != types.ConfirmationWaitingSmallerThanEntry {
-		return apperrors.ErrInvalidEntryPlanType
+	if pending.Confirmation != types.ConfirmationWaitingAboveEntry &&
+		pending.Confirmation != types.ConfirmationWaitingBelowEntry {
+		return apperrors.ErrInvalidConfirmationState
 	}
 	if err := eng.validateEntryPlan(pending); err != nil {
 		return err

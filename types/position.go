@@ -14,11 +14,15 @@ type Position struct {
 	OpenTimestamp int64
 	// CloseTimestamp is the position's close Unix timestamp in milliseconds.
 	CloseTimestamp int64
-	EntryPrice     float64
-	StopLoss       float64
-	TP             float64
-	Amount         float64
-	State          PositionState
+
+	Side PositionSide
+
+	EntryPrice float64
+	StopLoss   float64
+	TP         float64
+	Amount     float64
+
+	State PositionState
 }
 
 // Validate reports whether the position contains valid identity, pricing,
@@ -41,16 +45,25 @@ func (pos *Position) Validate() error {
 	}
 
 	switch pos.State {
-	case LongOpen, ShortOpen:
+	case PositionOpen:
+		if !pos.Side.Valid() {
+			return apperrors.ErrInvalidSide
+		}
 		if pos.CloseTimestamp != 0 {
 			return apperrors.ErrInvalidTimestamp
 		}
 
 	case ClosedByStop, ClosedByProfit:
+		if !pos.Side.Valid() {
+			return apperrors.ErrInvalidSide
+		}
 		if pos.CloseTimestamp == 0 ||
 			pos.CloseTimestamp < pos.OpenTimestamp {
 			return apperrors.ErrInvalidTimestamp
 		}
+
+	default:
+		return apperrors.ErrInvalidPositionState
 	}
 
 	if !validPositiveFloat(pos.EntryPrice) {
@@ -67,8 +80,8 @@ func (pos *Position) Validate() error {
 		return apperrors.ErrInvalidAmount
 	}
 
-	switch pos.State {
-	case LongOpen:
+	switch pos.Side {
+	case PositionLong:
 		if pos.StopLoss != 0 && pos.StopLoss >= pos.EntryPrice {
 			return apperrors.ErrInvalidTPSLBracket
 		}
@@ -76,7 +89,7 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 
-	case ShortOpen:
+	case PositionShort:
 		if pos.StopLoss != 0 && pos.StopLoss <= pos.EntryPrice {
 			return apperrors.ErrInvalidTPSLBracket
 		}
@@ -84,12 +97,8 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 
-	case ClosedByStop, ClosedByProfit:
-		// Closed states no longer contain the original long/short direction,
-		// so only the individual price fields can be validated here.
-
 	default:
-		return apperrors.ErrInvalidPositionState
+		return apperrors.ErrInvalidSide
 	}
 
 	return nil

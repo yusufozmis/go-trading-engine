@@ -7,7 +7,7 @@ import "github.com/yusufozmis/go-trading-engine/types"
 // call ConfirmOpenPosition only after that operation succeeds.
 type OpenPositionAction struct {
 	// Position is the engine's estimated position state for this decision. Its
-	// State identifies the long or short side and Amount contains the current
+	// Side identifies the trade direction and Amount contains the current
 	// engine sizing result.
 	Position types.Position
 
@@ -20,8 +20,6 @@ type OpenPositionAction struct {
 // Live callers should execute the corresponding exchange operation and call
 // ConfirmClosePosition only after it succeeds.
 type ClosePositionAction struct {
-	// Position contains the close reason and the realized TP or stop price.
+	// Position retains the trade side and contains its close reason and exit price.
 	Position types.Position
-	// Side identifies the long or short position that live execution must close.
-	Side types.PositionSide
 }
