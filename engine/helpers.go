@@ -139,6 +139,7 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.Timeframe != eng.timeframe ||
 		position.OpenTimestamp <= 0 ||
 		position.CloseTimestamp != 0 ||
+		position.ExitPrice != 0 ||
 		position.State != types.PositionOpen {
 		return false
 	}

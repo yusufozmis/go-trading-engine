@@ -18,9 +18,18 @@ type Position struct {
 	Side PositionSide
 
 	EntryPrice float64
-	StopLoss   float64
-	TP         float64
-	Amount     float64
+	// ExitPrice is zero while the position is open. For automated closes it is
+	// the triggered TP or stop price; otherwise it is the candle close price
+	// used as the simulated exit fill.
+	ExitPrice float64
+
+	// StopLoss is the configured stop trigger and is not overwritten by the
+	// eventual exit fill.
+	StopLoss float64
+	// TP is the configured take-profit trigger and is not overwritten by the
+	// eventual exit fill.
+	TP     float64
+	Amount float64
 
 	State PositionState
 }
@@ -52,6 +61,9 @@ func (pos *Position) Validate() error {
 		if pos.CloseTimestamp != 0 {
 			return apperrors.ErrInvalidTimestamp
 		}
+		if pos.ExitPrice != 0 {
+			return apperrors.ErrInvalidPrice
+		}
 
 	case ClosedByStop, ClosedByProfit:
 		if !pos.Side.Valid() {
@@ -60,6 +72,9 @@ func (pos *Position) Validate() error {
 		if pos.CloseTimestamp == 0 ||
 			pos.CloseTimestamp < pos.OpenTimestamp {
 			return apperrors.ErrInvalidTimestamp
+		}
+		if !validPositiveFloat(pos.ExitPrice) {
+			return apperrors.ErrInvalidPrice
 		}
 
 	default:

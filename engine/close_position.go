@@ -1,8 +1,6 @@
 package engine
 
 import (
-	"math"
-
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -45,27 +43,10 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.OpenTimestamp != closedPosition.OpenTimestamp ||
 		currentPosition.Side != closedPosition.Side ||
 		currentPosition.EntryPrice != closedPosition.EntryPrice ||
+		currentPosition.StopLoss != closedPosition.StopLoss ||
+		currentPosition.TP != closedPosition.TP ||
 		currentPosition.Amount != closedPosition.Amount {
 		return apperrors.ErrStalePositionAction
-	}
-
-	var closePrice float64
-	switch closedPosition.State {
-	case types.ClosedByProfit:
-		closePrice = closedPosition.TP
-		if closedPosition.StopLoss != currentPosition.StopLoss {
-			return apperrors.ErrInvalidPositionAction
-		}
-	case types.ClosedByStop:
-		closePrice = closedPosition.StopLoss
-		if closedPosition.TP != currentPosition.TP {
-			return apperrors.ErrInvalidPositionAction
-		}
-	default:
-		return apperrors.ErrInvalidPositionAction
-	}
-	if math.IsNaN(closePrice) || math.IsInf(closePrice, 0) || closePrice <= 0 {
-		return apperrors.ErrInvalidPositionAction
 	}
 
 	eng.lastPosition = &closedPosition
@@ -84,6 +65,7 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 	if isSL {
 		position.State = types.ClosedByStop
 		position.CloseTimestamp = candle.Timestamp
+		position.ExitPrice = position.StopLoss
 		return &ClosePositionAction{
 			Position: position,
 		}
@@ -91,6 +73,7 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 	if isTP {
 		position.State = types.ClosedByProfit
 		position.CloseTimestamp = candle.Timestamp
+		position.ExitPrice = position.TP
 		return &ClosePositionAction{
 			Position: position,
 		}
@@ -103,20 +86,21 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 	position := *eng.lastPosition
 	closePrice := candle.PriceData.ClosePrice
 
+	// Preserve the configured TP/SL levels; ExitPrice records the simulated fill.
 	switch position.Side {
 	case types.PositionLong:
 		if closePrice <= position.StopLoss {
 			position.State = types.ClosedByStop
-			position.StopLoss = closePrice
 			position.CloseTimestamp = candle.Timestamp
+			position.ExitPrice = closePrice
 			return &ClosePositionAction{
 				Position: position,
 			}
 		}
 		if closePrice >= position.TP {
 			position.State = types.ClosedByProfit
-			position.TP = closePrice
 			position.CloseTimestamp = candle.Timestamp
+			position.ExitPrice = closePrice
 			return &ClosePositionAction{
 				Position: position,
 			}
@@ -124,16 +108,16 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 	case types.PositionShort:
 		if closePrice >= position.StopLoss {
 			position.State = types.ClosedByStop
-			position.StopLoss = closePrice
 			position.CloseTimestamp = candle.Timestamp
+			position.ExitPrice = closePrice
 			return &ClosePositionAction{
 				Position: position,
 			}
 		}
 		if closePrice <= position.TP {
 			position.State = types.ClosedByProfit
-			position.TP = closePrice
 			position.CloseTimestamp = candle.Timestamp
+			position.ExitPrice = closePrice
 			return &ClosePositionAction{
 				Position: position,
 			}

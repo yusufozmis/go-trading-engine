@@ -22,21 +22,17 @@ func (eng *Engine) Performance() types.PerformanceResult {
 	var tradingFees float64
 
 	for _, position := range eng.closedPositions {
-		var exitPrice float64
-
 		switch position.State {
 		case types.ClosedByProfit:
 			tpCount++
-			exitPrice = position.TP
 
-			difference := math.Abs(position.TP - position.EntryPrice)
+			difference := math.Abs(position.ExitPrice - position.EntryPrice)
 			profit += difference * position.Amount
 
 		case types.ClosedByStop:
 			slCount++
-			exitPrice = position.StopLoss
 
-			difference := math.Abs(position.EntryPrice - position.StopLoss)
+			difference := math.Abs(position.EntryPrice - position.ExitPrice)
 			loss += difference * position.Amount
 
 		default:
@@ -44,7 +40,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		}
 
 		entryNotional := position.EntryPrice * position.Amount
-		exitNotional := exitPrice * position.Amount
+		exitNotional := position.ExitPrice * position.Amount
 
 		entryFee := entryNotional * eng.tradingFeeRate
 		exitFee := exitNotional * eng.tradingFeeRate
