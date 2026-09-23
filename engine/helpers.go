@@ -141,6 +141,7 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.CloseTimestamp != 0 ||
 		position.ExitPrice != 0 ||
 		position.Fee != 0 ||
+		position.NetProfit != 0 ||
 		position.State != types.PositionOpen {
 		return false
 	}

@@ -71,6 +71,8 @@ var (
 	ErrInvalidTradingFeeRate = errors.New("invalid trading fee rate")
 	// ErrInvalidFee indicates a negative or non-finite position fee.
 	ErrInvalidFee = errors.New("invalid position fee")
+	// ErrInvalidNetProfit indicates a non-finite position net profit.
+	ErrInvalidNetProfit = errors.New("invalid position net profit")
 )
 
 // Exchange Errors

@@ -35,6 +35,10 @@ type Position struct {
 	// It remains zero when no trading fee rate is configured.
 	Fee float64
 
+	// NetProfit is the signed realized PnL after fees. It remains zero while the
+	// position is open and may be positive, negative, or zero after closing.
+	NetProfit float64
+
 	State PositionState
 }
 
@@ -71,6 +75,9 @@ func (pos *Position) Validate() error {
 		if pos.Fee != 0 {
 			return apperrors.ErrInvalidFee
 		}
+		if pos.NetProfit != 0 {
+			return apperrors.ErrInvalidNetProfit
+		}
 
 	case ClosedByStop, ClosedByProfit:
 		if !pos.Side.Valid() {
@@ -103,6 +110,9 @@ func (pos *Position) Validate() error {
 	}
 	if math.IsNaN(pos.Fee) || math.IsInf(pos.Fee, 0) || pos.Fee < 0 {
 		return apperrors.ErrInvalidFee
+	}
+	if math.IsNaN(pos.NetProfit) || math.IsInf(pos.NetProfit, 0) {
+		return apperrors.ErrInvalidNetProfit
 	}
 
 	switch pos.Side {

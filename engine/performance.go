@@ -6,8 +6,8 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// Performance calculates gross profit, gross loss, trading fees, and net profit
-// from confirmed closed positions. Trading fees are summed from Position.Fee.
+// Performance calculates gross profit and loss from confirmed closed positions.
+// Trading fees and net profit are summed from each position's realized values.
 func (eng *Engine) Performance() types.PerformanceResult {
 	if eng == nil {
 		return types.PerformanceResult{}
@@ -19,6 +19,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 	var profit float64
 	var loss float64
 	var tradingFees float64
+	var netProfit float64
 
 	for _, position := range eng.closedPositions {
 		switch position.State {
@@ -39,6 +40,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		}
 
 		tradingFees += position.Fee
+		netProfit += position.NetProfit
 	}
 
 	return types.PerformanceResult{
@@ -49,6 +51,6 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		Profit:      profit,
 		Loss:        loss,
 		TradingFees: tradingFees,
-		NetProfit:   profit - loss - tradingFees,
+		NetProfit:   netProfit,
 	}
 }

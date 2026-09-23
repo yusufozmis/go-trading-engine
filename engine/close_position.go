@@ -58,6 +58,21 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		return apperrors.ErrInvalidFee
 	}
 
+	switch closedPosition.Side {
+	case types.PositionLong:
+		closedPosition.NetProfit = (closedPosition.ExitPrice - closedPosition.EntryPrice) *
+			closedPosition.Amount
+	case types.PositionShort:
+		closedPosition.NetProfit = (closedPosition.EntryPrice - closedPosition.ExitPrice) *
+			closedPosition.Amount
+	default:
+		return apperrors.ErrInvalidSide
+	}
+	closedPosition.NetProfit -= closedPosition.Fee
+	if math.IsNaN(closedPosition.NetProfit) || math.IsInf(closedPosition.NetProfit, 0) {
+		return apperrors.ErrInvalidNetProfit
+	}
+
 	eng.lastPosition = &closedPosition
 	eng.closedPositions = append(eng.closedPositions, closedPosition)
 	return nil
