@@ -30,6 +30,8 @@ const (
 	ClosedByStop
 	// ClosedByProfit identifies a position closed by its take-profit.
 	ClosedByProfit
+	// ClosedByLiquidation identifies a position closed at its liquidation level.
+	ClosedByLiquidation
 )
 
 const (

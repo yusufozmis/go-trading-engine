@@ -27,6 +27,7 @@ type Engine struct {
 	maxEntryDeviation *float64
 	tradingFeeRate    float64
 	slippageRate      float64
+	liquidationModel  types.LiquidationModel
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -67,6 +68,7 @@ func NewEngine(symbol, timeframe string,
 		isCloseAutomated:  cfg.IsCloseAutomated,
 		tradingFeeRate:    cfg.TradingFeeRate,
 		slippageRate:      cfg.SlippageRate,
+		liquidationModel:  cfg.LiquidationModel,
 	}, nil
 }
 

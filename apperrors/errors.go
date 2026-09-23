@@ -29,6 +29,10 @@ var (
 	ErrStalePositionAction = errors.New("stale position action")
 	// ErrNilPositionSizer indicates that the user provided a nil position sizer.
 	ErrNilPositionSizer = errors.New("nil position sizer")
+	// ErrNilLiquidationModel indicates that an option received no liquidation model.
+	ErrNilLiquidationModel = errors.New("nil liquidation model")
+	// ErrInvalidLiquidationPrice indicates an invalid estimated liquidation level.
+	ErrInvalidLiquidationPrice = errors.New("invalid liquidation price")
 )
 
 // Backtest Errors
@@ -73,6 +77,10 @@ var (
 	ErrInvalidSlippageRate = errors.New("invalid slippage rate")
 	// ErrInvalidSlippageCost indicates a negative or non-finite position slippage cost.
 	ErrInvalidSlippageCost = errors.New("invalid slippage cost")
+	// ErrInvalidMaintenanceMarginRate indicates a rate outside [0, 1).
+	ErrInvalidMaintenanceMarginRate = errors.New("invalid maintenance margin rate")
+	// ErrInvalidLiquidationFeeRate indicates a rate outside [0, 1).
+	ErrInvalidLiquidationFeeRate = errors.New("invalid liquidation fee rate")
 	// ErrInvalidFee indicates a negative or non-finite position fee.
 	ErrInvalidFee = errors.New("invalid position fee")
 	// ErrInvalidNetProfit indicates a non-finite position net profit.

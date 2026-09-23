@@ -16,6 +16,11 @@ func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionActio
 	if !eng.PositionExists() || candle.Timestamp <= eng.lastPosition.OpenTimestamp {
 		return nil, nil
 	}
+	// OHLC data cannot prove intrabar ordering. Prefer liquidation when its level
+	// and another close threshold are both touched in the same candle.
+	if action := eng.liquidationCloseAction(candle); action != nil {
+		return action, nil
+	}
 
 	if eng.isCloseAutomated {
 		return eng.automatedCloseAction(candle), nil
@@ -47,7 +52,9 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.EntryPrice != closedPosition.EntryPrice ||
 		currentPosition.StopLoss != closedPosition.StopLoss ||
 		currentPosition.TP != closedPosition.TP ||
-		currentPosition.Amount != closedPosition.Amount {
+		currentPosition.Amount != closedPosition.Amount ||
+		currentPosition.Leverage != closedPosition.Leverage ||
+		currentPosition.LiquidationPrice != closedPosition.LiquidationPrice {
 		return apperrors.ErrStalePositionAction
 	}
 
@@ -85,6 +92,29 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	eng.lastPosition = &closedPosition
 	eng.closedPositions = append(eng.closedPositions, closedPosition)
 	return nil
+}
+
+func (eng *Engine) liquidationCloseAction(candle types.Candle) *ClosePositionAction {
+	position := *eng.lastPosition
+	if position.LiquidationPrice == 0 {
+		return nil
+	}
+
+	liquidated := false
+	switch position.Side {
+	case types.PositionLong:
+		liquidated = candle.PriceData.LowPrice <= position.LiquidationPrice
+	case types.PositionShort:
+		liquidated = candle.PriceData.HighPrice >= position.LiquidationPrice
+	}
+	if !liquidated {
+		return nil
+	}
+
+	position.State = types.ClosedByLiquidation
+	position.CloseTimestamp = candle.Timestamp
+	position.ExitPrice = eng.exitFillPrice(position.LiquidationPrice, position.Side)
+	return &ClosePositionAction{Position: position}
 }
 
 func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {

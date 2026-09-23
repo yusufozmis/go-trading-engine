@@ -95,6 +95,9 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 			position.Amount,
 			position.Side,
 		)
+		if err := eng.applyLiquidationModel(&position); err != nil {
+			return nil, err
+		}
 
 		// The plan is intentionally left active until the caller confirms that
 		// execution succeeded. A failed live order can therefore be retried.
@@ -155,14 +158,17 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 		return false, err
 	}
 
-	if !eng.validPosition(position) {
-		return false, apperrors.ErrInvalidPositionAction
-	}
 	position.SlippageCost = eng.entrySlippageCost(
 		position.EntryPrice,
 		position.Amount,
 		position.Side,
 	)
+	if err := eng.applyLiquidationModel(&position); err != nil {
+		return false, err
+	}
+	if !eng.validPosition(position) {
+		return false, apperrors.ErrInvalidPositionAction
+	}
 
 	if eng.lastPosition == nil {
 		eng.lastPosition = &position

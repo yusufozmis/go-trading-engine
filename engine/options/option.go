@@ -5,6 +5,7 @@ import (
 	"math"
 
 	"github.com/yusufozmis/go-trading-engine/apperrors"
+	"github.com/yusufozmis/go-trading-engine/types"
 )
 
 // Option applies one validated engine configuration change.
@@ -16,6 +17,21 @@ type Config struct {
 	MaxEntryDeviation *float64
 	TradingFeeRate    float64
 	SlippageRate      float64
+	LiquidationModel  types.LiquidationModel
+}
+
+// WithLiquidationModel enables liquidation simulation using model. For
+// exchange-accurate decisions, candles passed to the engine should represent
+// mark prices rather than last-traded prices.
+func WithLiquidationModel(model types.LiquidationModel) Option {
+	return func(cfg *Config) error {
+		if model == nil {
+			return apperrors.ErrNilLiquidationModel
+		}
+
+		cfg.LiquidationModel = model
+		return nil
+	}
 }
 
 // WithMaxEntryDeviation limits how far execution may move from the planned

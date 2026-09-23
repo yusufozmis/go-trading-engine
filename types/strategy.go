@@ -38,3 +38,10 @@ type PlanUpdate struct {
 type PositionSizer interface {
 	CalculatePositionSize(position Position) (float64, error)
 }
+
+// LiquidationModel calculates a deterministic liquidation price for a sized
+// position and reports the leverage represented by that calculation.
+type LiquidationModel interface {
+	CalculateLiquidationPrice(position Position) (float64, error)
+	Leverage() float64
+}

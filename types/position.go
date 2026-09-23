@@ -30,6 +30,11 @@ type Position struct {
 	// eventual exit fill.
 	TP     float64
 	Amount float64
+	// Leverage is zero when liquidation simulation is disabled.
+	Leverage float64
+	// LiquidationPrice is the estimated isolated-position liquidation level. It
+	// is zero when liquidation simulation is disabled.
+	LiquidationPrice float64
 
 	// Fee is the total entry and exit fee paid for a confirmed closed position.
 	// It remains zero when no trading fee rate is configured.
@@ -83,9 +88,13 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidNetProfit
 		}
 
-	case ClosedByStop, ClosedByProfit:
+	case ClosedByStop, ClosedByProfit, ClosedByLiquidation:
 		if !pos.Side.Valid() {
 			return apperrors.ErrInvalidSide
+		}
+		if pos.State == ClosedByLiquidation &&
+			(pos.Leverage == 0 || pos.LiquidationPrice == 0) {
+			return apperrors.ErrInvalidLiquidationPrice
 		}
 		if pos.CloseTimestamp == 0 ||
 			pos.CloseTimestamp < pos.OpenTimestamp {
@@ -111,6 +120,9 @@ func (pos *Position) Validate() error {
 
 	if !validPositiveFloat(pos.Amount) {
 		return apperrors.ErrInvalidAmount
+	}
+	if err := validateLiquidationFields(*pos); err != nil {
+		return err
 	}
 	if math.IsNaN(pos.Fee) || math.IsInf(pos.Fee, 0) || pos.Fee < 0 {
 		return apperrors.ErrInvalidFee
@@ -147,6 +159,34 @@ func (pos *Position) Validate() error {
 	return nil
 }
 
+func validateLiquidationFields(pos Position) error {
+	if pos.Leverage == 0 && pos.LiquidationPrice == 0 {
+		return nil
+	}
+	if math.IsNaN(pos.Leverage) || math.IsInf(pos.Leverage, 0) ||
+		pos.Leverage <= 1 {
+		return apperrors.ErrInvalidLeverage
+	}
+	if !validPositiveFloat(pos.LiquidationPrice) {
+		return apperrors.ErrInvalidLiquidationPrice
+	}
+
+	switch pos.Side {
+	case PositionLong:
+		if pos.LiquidationPrice >= pos.EntryPrice {
+			return apperrors.ErrInvalidLiquidationPrice
+		}
+	case PositionShort:
+		if pos.LiquidationPrice <= pos.EntryPrice {
+			return apperrors.ErrInvalidLiquidationPrice
+		}
+	default:
+		return apperrors.ErrInvalidSide
+	}
+
+	return nil
+}
+
 func validPositiveFloat(value float64) bool {
 	return !math.IsNaN(value) &&
 		!math.IsInf(value, 0) &&
@@ -160,6 +200,8 @@ type PerformanceResult struct {
 
 	TPCount int
 	SLCount int
+	// LiquidationCount is the number of positions closed by liquidation.
+	LiquidationCount int
 
 	// Profit is the total positive gross PnL before trading fees.
 	Profit float64

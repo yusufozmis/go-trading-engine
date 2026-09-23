@@ -148,6 +148,15 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.State != types.PositionOpen {
 		return false
 	}
+	if eng.liquidationModel == nil {
+		if position.Leverage != 0 || position.LiquidationPrice != 0 {
+			return false
+		}
+	} else if math.IsNaN(position.Leverage) || math.IsInf(position.Leverage, 0) ||
+		position.Leverage <= 1 || math.IsNaN(position.LiquidationPrice) ||
+		math.IsInf(position.LiquidationPrice, 0) || position.LiquidationPrice <= 0 {
+		return false
+	}
 
 	values := [...]float64{
 		position.EntryPrice,
@@ -171,6 +180,49 @@ func (eng *Engine) validPosition(position types.Position) bool {
 	default:
 		return false
 	}
+}
+
+func (eng *Engine) applyLiquidationModel(position *types.Position) error {
+	if eng.liquidationModel == nil {
+		position.Leverage = 0
+		position.LiquidationPrice = 0
+		return nil
+	}
+
+	liquidationPrice, err := eng.liquidationModel.CalculateLiquidationPrice(*position)
+	if err != nil {
+		return err
+	}
+
+	position.Leverage = eng.liquidationModel.Leverage()
+	position.LiquidationPrice = liquidationPrice
+	return validateLiquidationPrice(*position)
+}
+
+func validateLiquidationPrice(position types.Position) error {
+	if math.IsNaN(position.Leverage) || math.IsInf(position.Leverage, 0) ||
+		position.Leverage <= 1 {
+		return apperrors.ErrInvalidLeverage
+	}
+	if math.IsNaN(position.LiquidationPrice) ||
+		math.IsInf(position.LiquidationPrice, 0) || position.LiquidationPrice <= 0 {
+		return apperrors.ErrInvalidLiquidationPrice
+	}
+
+	switch position.Side {
+	case types.PositionLong:
+		if position.LiquidationPrice >= position.EntryPrice {
+			return apperrors.ErrInvalidLiquidationPrice
+		}
+	case types.PositionShort:
+		if position.LiquidationPrice <= position.EntryPrice {
+			return apperrors.ErrInvalidLiquidationPrice
+		}
+	default:
+		return apperrors.ErrInvalidSide
+	}
+
+	return nil
 }
 
 func (eng *Engine) entryFillPrice(price float64, side types.PositionSide) float64 {

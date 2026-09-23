@@ -15,6 +15,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 
 	tpCount := 0
 	slCount := 0
+	liquidationCount := 0
 
 	var profit float64
 	var loss float64
@@ -28,6 +29,9 @@ func (eng *Engine) Performance() types.PerformanceResult {
 
 		case types.ClosedByStop:
 			slCount++
+
+		case types.ClosedByLiquidation:
+			liquidationCount++
 
 		default:
 			continue
@@ -47,14 +51,15 @@ func (eng *Engine) Performance() types.PerformanceResult {
 	}
 
 	return types.PerformanceResult{
-		Symbol:      eng.symbol,
-		Timeframe:   eng.timeframe,
-		TPCount:     tpCount,
-		SLCount:     slCount,
-		Profit:      profit,
-		Loss:        loss,
-		TradingFees: tradingFees,
-		NetProfit:   netProfit,
+		Symbol:           eng.symbol,
+		Timeframe:        eng.timeframe,
+		TPCount:          tpCount,
+		SLCount:          slCount,
+		LiquidationCount: liquidationCount,
+		Profit:           profit,
+		Loss:             loss,
+		TradingFees:      tradingFees,
+		NetProfit:        netProfit,
 	}
 }
 
