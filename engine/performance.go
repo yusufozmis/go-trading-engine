@@ -54,3 +54,14 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		NetProfit:   netProfit,
 	}
 }
+
+// FetchClosedPositions returns a snapshot of all confirmed closed positions.
+// Mutating the returned slice does not change the engine's internal state.
+func (eng *Engine) FetchClosedPositions() ([]types.Position, error) {
+	if err := eng.validate(); err != nil {
+		return nil, err
+	}
+
+	positions := append([]types.Position(nil), eng.closedPositions...)
+	return positions, nil
+}
