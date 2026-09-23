@@ -70,6 +70,7 @@ tester, err := backtester.NewBacktester(
 	sizer,
 	options.WithAutomatedClose(),
 	options.WithMaxEntryDeviation(0.02),
+	options.WithSlippageRate(0.0005),
 )
 if err != nil {
 	return err

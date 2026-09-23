@@ -64,13 +64,18 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		if err != nil {
 			return nil, err
 		}
+		entryPrice := eng.entryFillPrice(closePrice, plan.Side)
+		if (plan.Side == types.PositionLong && (newSL >= entryPrice || newTP <= entryPrice)) ||
+			(plan.Side == types.PositionShort && (newSL <= entryPrice || newTP >= entryPrice)) {
+			return nil, apperrors.ErrInvalidEntryPlanBracket
+		}
 
 		position := types.Position{
 			Symbol:        eng.symbol,
 			Timeframe:     eng.timeframe,
 			OpenTimestamp: candle.Timestamp,
 			Side:          plan.Side,
-			EntryPrice:    closePrice,
+			EntryPrice:    entryPrice,
 			TP:            newTP,
 			StopLoss:      newSL,
 			State:         types.PositionOpen,
@@ -85,6 +90,11 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		}
 
 		position.Amount = amount
+		position.SlippageCost = eng.entrySlippageCost(
+			position.EntryPrice,
+			position.Amount,
+			position.Side,
+		)
 
 		// The plan is intentionally left active until the caller confirms that
 		// execution succeeded. A failed live order can therefore be retried.
@@ -148,6 +158,11 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	if !eng.validPosition(position) {
 		return false, apperrors.ErrInvalidPositionAction
 	}
+	position.SlippageCost = eng.entrySlippageCost(
+		position.EntryPrice,
+		position.Amount,
+		position.Side,
+	)
 
 	if eng.lastPosition == nil {
 		eng.lastPosition = &position

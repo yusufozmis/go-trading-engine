@@ -141,6 +141,9 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.CloseTimestamp != 0 ||
 		position.ExitPrice != 0 ||
 		position.Fee != 0 ||
+		math.IsNaN(position.SlippageCost) ||
+		math.IsInf(position.SlippageCost, 0) ||
+		position.SlippageCost < 0 ||
 		position.NetProfit != 0 ||
 		position.State != types.PositionOpen {
 		return false
@@ -168,6 +171,54 @@ func (eng *Engine) validPosition(position types.Position) bool {
 	default:
 		return false
 	}
+}
+
+func (eng *Engine) entryFillPrice(price float64, side types.PositionSide) float64 {
+	if side == types.PositionLong {
+		return price * (1 + eng.slippageRate)
+	}
+	return price * (1 - eng.slippageRate)
+}
+
+func (eng *Engine) exitFillPrice(price float64, side types.PositionSide) float64 {
+	if side == types.PositionLong {
+		return price * (1 - eng.slippageRate)
+	}
+	return price * (1 + eng.slippageRate)
+}
+
+func (eng *Engine) entrySlippageCost(
+	fillPrice float64,
+	amount float64,
+	side types.PositionSide,
+) float64 {
+	if eng.slippageRate == 0 {
+		return 0
+	}
+
+	idealPrice := fillPrice / (1 + eng.slippageRate)
+	if side == types.PositionShort {
+		idealPrice = fillPrice / (1 - eng.slippageRate)
+	}
+
+	return math.Abs(fillPrice-idealPrice) * amount
+}
+
+func (eng *Engine) exitSlippageCost(
+	fillPrice float64,
+	amount float64,
+	side types.PositionSide,
+) float64 {
+	if eng.slippageRate == 0 {
+		return 0
+	}
+
+	idealPrice := fillPrice / (1 - eng.slippageRate)
+	if side == types.PositionShort {
+		idealPrice = fillPrice / (1 + eng.slippageRate)
+	}
+
+	return math.Abs(fillPrice-idealPrice) * amount
 }
 
 func (eng *Engine) activePlanIndex(target types.EntryPlan) int {

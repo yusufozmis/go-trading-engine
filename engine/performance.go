@@ -26,17 +26,20 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		case types.ClosedByProfit:
 			tpCount++
 
-			difference := math.Abs(position.ExitPrice - position.EntryPrice)
-			profit += difference * position.Amount
-
 		case types.ClosedByStop:
 			slCount++
 
-			difference := math.Abs(position.EntryPrice - position.ExitPrice)
-			loss += difference * position.Amount
-
 		default:
 			continue
+		}
+
+		// NetProfit already has fees deducted, so add them back when grouping
+		// fee-exclusive gross profit and loss.
+		grossPnL := position.NetProfit + position.Fee
+		if grossPnL >= 0 {
+			profit += grossPnL
+		} else {
+			loss += math.Abs(grossPnL)
 		}
 
 		tradingFees += position.Fee

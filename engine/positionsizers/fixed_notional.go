@@ -9,7 +9,8 @@ import (
 )
 
 // FixedNotionalSizer converts a fixed quote-currency value into a base-asset
-// amount using the position's actual entry price.
+// amount using the position's simulated entry fill. Entry slippage is therefore
+// already reflected in the result; fees and eventual exit slippage are not.
 type FixedNotionalSizer struct {
 	notional float64
 }
@@ -25,7 +26,8 @@ func NewFixedNotionalSizer(notional float64) (FixedNotionalSizer, error) {
 	return FixedNotionalSizer{notional: notional}, nil
 }
 
-// CalculatePositionSize returns the fixed notional divided by the actual entry price.
+// CalculatePositionSize returns the fixed notional divided by the simulated
+// entry fill stored in the position.
 func (s FixedNotionalSizer) CalculatePositionSize(position types.Position) (float64, error) {
 	if math.IsNaN(s.notional) || math.IsInf(s.notional, 0) || s.notional <= 0 {
 		return 0, apperrors.ErrInvalidAmount

@@ -57,6 +57,15 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	if math.IsNaN(closedPosition.Fee) || math.IsInf(closedPosition.Fee, 0) {
 		return apperrors.ErrInvalidFee
 	}
+	closedPosition.SlippageCost = currentPosition.SlippageCost + eng.exitSlippageCost(
+		closedPosition.ExitPrice,
+		closedPosition.Amount,
+		closedPosition.Side,
+	)
+	if math.IsNaN(closedPosition.SlippageCost) ||
+		math.IsInf(closedPosition.SlippageCost, 0) {
+		return apperrors.ErrInvalidSlippageCost
+	}
 
 	switch closedPosition.Side {
 	case types.PositionLong:
@@ -89,7 +98,7 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 	if isSL {
 		position.State = types.ClosedByStop
 		position.CloseTimestamp = candle.Timestamp
-		position.ExitPrice = position.StopLoss
+		position.ExitPrice = eng.exitFillPrice(position.StopLoss, position.Side)
 		return &ClosePositionAction{
 			Position: position,
 		}
@@ -97,7 +106,7 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 	if isTP {
 		position.State = types.ClosedByProfit
 		position.CloseTimestamp = candle.Timestamp
-		position.ExitPrice = position.TP
+		position.ExitPrice = eng.exitFillPrice(position.TP, position.Side)
 		return &ClosePositionAction{
 			Position: position,
 		}
@@ -116,7 +125,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 		if closePrice <= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.CloseTimestamp = candle.Timestamp
-			position.ExitPrice = closePrice
+			position.ExitPrice = eng.exitFillPrice(closePrice, position.Side)
 			return &ClosePositionAction{
 				Position: position,
 			}
@@ -124,7 +133,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 		if closePrice >= position.TP {
 			position.State = types.ClosedByProfit
 			position.CloseTimestamp = candle.Timestamp
-			position.ExitPrice = closePrice
+			position.ExitPrice = eng.exitFillPrice(closePrice, position.Side)
 			return &ClosePositionAction{
 				Position: position,
 			}
@@ -133,7 +142,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 		if closePrice >= position.StopLoss {
 			position.State = types.ClosedByStop
 			position.CloseTimestamp = candle.Timestamp
-			position.ExitPrice = closePrice
+			position.ExitPrice = eng.exitFillPrice(closePrice, position.Side)
 			return &ClosePositionAction{
 				Position: position,
 			}
@@ -141,7 +150,7 @@ func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
 		if closePrice <= position.TP {
 			position.State = types.ClosedByProfit
 			position.CloseTimestamp = candle.Timestamp
-			position.ExitPrice = closePrice
+			position.ExitPrice = eng.exitFillPrice(closePrice, position.Side)
 			return &ClosePositionAction{
 				Position: position,
 			}

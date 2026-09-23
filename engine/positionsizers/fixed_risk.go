@@ -7,8 +7,10 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// FixedRiskSizer sizes each position so reaching its stop-loss produces the
-// configured quote-currency loss, excluding fees and slippage.
+// FixedRiskSizer sizes each position so the distance from its simulated entry
+// fill to its stop-loss represents the configured quote-currency risk. Entry
+// slippage is therefore already reflected; fees and eventual exit slippage are
+// not included.
 type FixedRiskSizer struct {
 	risk float64
 }
@@ -23,7 +25,7 @@ func NewFixedRiskSizer(risk float64) (FixedRiskSizer, error) {
 }
 
 // CalculatePositionSize divides the configured risk by the absolute distance
-// between the position's actual entry and stop-loss prices.
+// between the position's simulated entry fill and stop-loss price.
 func (s FixedRiskSizer) CalculatePositionSize(position types.Position) (float64, error) {
 	if math.IsNaN(s.risk) || math.IsInf(s.risk, 0) || s.risk <= 0 {
 		return 0, apperrors.ErrInvalidAmount

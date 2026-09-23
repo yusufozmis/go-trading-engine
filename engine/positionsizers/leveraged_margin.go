@@ -8,7 +8,9 @@ import (
 )
 
 // LeveragedMarginSizer sizes a position from a fixed margin, leverage, and the
-// percentage distance between the actual entry price and stop-loss price.
+// percentage distance between its simulated entry fill and stop-loss price.
+// Entry slippage is therefore already reflected; fees and eventual exit
+// slippage are not included.
 type LeveragedMarginSizer struct {
 	margin   float64
 	leverage float64
@@ -30,7 +32,7 @@ func NewLeveragedMarginSizer(margin, leverage float64) (LeveragedMarginSizer, er
 }
 
 // CalculatePositionSize applies the original backtest sizing formula using the
-// position's actual entry and stop-loss prices.
+// position's simulated entry fill and stop-loss price.
 func (s LeveragedMarginSizer) CalculatePositionSize(position types.Position) (float64, error) {
 	if math.IsNaN(s.margin) || math.IsInf(s.margin, 0) || s.margin <= 0 {
 		return 0, apperrors.ErrInvalidAmount

@@ -19,8 +19,8 @@ type Position struct {
 
 	EntryPrice float64
 	// ExitPrice is zero while the position is open. For automated closes it is
-	// the triggered TP or stop price; otherwise it is the candle close price
-	// used as the simulated exit fill.
+	// derived from the triggered TP or stop price; otherwise it is derived from
+	// the candle close. Configured slippage is included in the simulated fill.
 	ExitPrice float64
 
 	// StopLoss is the configured stop trigger and is not overwritten by the
@@ -34,6 +34,10 @@ type Position struct {
 	// Fee is the total entry and exit fee paid for a confirmed closed position.
 	// It remains zero when no trading fee rate is configured.
 	Fee float64
+	// SlippageCost is the total adverse entry and exit price difference expressed
+	// in quote currency. It is informational because slippage is already included
+	// in EntryPrice, ExitPrice, and NetProfit.
+	SlippageCost float64
 
 	// NetProfit is the signed realized PnL after fees. It remains zero while the
 	// position is open and may be positive, negative, or zero after closing.
@@ -111,6 +115,10 @@ func (pos *Position) Validate() error {
 	if math.IsNaN(pos.Fee) || math.IsInf(pos.Fee, 0) || pos.Fee < 0 {
 		return apperrors.ErrInvalidFee
 	}
+	if math.IsNaN(pos.SlippageCost) || math.IsInf(pos.SlippageCost, 0) ||
+		pos.SlippageCost < 0 {
+		return apperrors.ErrInvalidSlippageCost
+	}
 	if math.IsNaN(pos.NetProfit) || math.IsInf(pos.NetProfit, 0) {
 		return apperrors.ErrInvalidNetProfit
 	}
@@ -153,9 +161,13 @@ type PerformanceResult struct {
 	TPCount int
 	SLCount int
 
+	// Profit is the total positive gross PnL before trading fees.
 	Profit float64
-	Loss   float64
+	// Loss is the absolute total negative gross PnL before trading fees.
+	Loss float64
 
+	// TradingFees is the total entry and exit fees across closed positions.
 	TradingFees float64
-	NetProfit   float64
+	// NetProfit is the signed realized PnL after trading fees.
+	NetProfit float64
 }

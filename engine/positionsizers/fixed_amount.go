@@ -7,7 +7,8 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// FixedAmountSizer returns the same base-asset amount for every position.
+// FixedAmountSizer returns the same base-asset amount for every position,
+// independently of entry fill, stop-loss, fees, and slippage.
 type FixedAmountSizer struct {
 	amount float64
 }
@@ -21,7 +22,8 @@ func NewFixedAmountSizer(amount float64) (FixedAmountSizer, error) {
 	return FixedAmountSizer{amount: amount}, nil
 }
 
-// CalculatePositionSize returns the configured base-asset amount.
+// CalculatePositionSize returns the configured base-asset amount without using
+// any position prices.
 func (s FixedAmountSizer) CalculatePositionSize(_ types.Position) (float64, error) {
 	if math.IsNaN(s.amount) || math.IsInf(s.amount, 0) || s.amount <= 0 {
 		return 0, apperrors.ErrInvalidAmount

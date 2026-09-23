@@ -15,6 +15,7 @@ type Config struct {
 	IsCloseAutomated  bool
 	MaxEntryDeviation *float64
 	TradingFeeRate    float64
+	SlippageRate      float64
 }
 
 // WithMaxEntryDeviation limits how far execution may move from the planned
@@ -52,6 +53,24 @@ func WithTradingFeeRate(feeRate float64) Option {
 			return apperrors.ErrInvalidTradingFeeRate
 		}
 		cfg.TradingFeeRate = feeRate
+		return nil
+	}
+}
+
+// WithSlippageRate applies an adverse percentage adjustment to every entry and
+// exit fill. A value of 0.0005 represents 0.05 percent slippage. When omitted,
+// fills are not adjusted. The total entry and exit impact is also recorded in
+// Position.SlippageCost for reporting; it is not deducted from NetProfit again
+// because the adjusted fill prices already include it. If supplied more than
+// once, the last rate replaces earlier rates.
+func WithSlippageRate(slippageRate float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(slippageRate) || math.IsInf(slippageRate, 0) ||
+			slippageRate <= 0 || slippageRate >= 1 {
+			return apperrors.ErrInvalidSlippageRate
+		}
+
+		cfg.SlippageRate = slippageRate
 		return nil
 	}
 }
