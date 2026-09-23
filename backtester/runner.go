@@ -73,10 +73,6 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 		}
 	}
 
-	positions, err := eng.FetchClosedPositions()
-	if err != nil {
-		return types.PerformanceResult{}, nil, err
-	}
-
-	return eng.Performance(), positions, nil
+	performance, positions := eng.Performance()
+	return performance, positions, nil
 }

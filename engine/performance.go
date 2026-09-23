@@ -8,30 +8,31 @@ import (
 
 // Performance calculates gross profit and loss from confirmed closed positions.
 // Trading fees and net profit are summed from each position's realized values.
-func (eng *Engine) Performance() types.PerformanceResult {
+func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
-		return types.PerformanceResult{}
+		return types.PerformanceResult{}, nil
 	}
 
 	tpCount := 0
 	slCount := 0
 	liquidationCount := 0
 
-	var profit float64
-	var loss float64
-	var tradingFees float64
-	var netProfit float64
+	var profit, loss, tradingFees, netProfit float64
+	var positions []types.Position
 
 	for _, position := range eng.closedPositions {
 		switch position.State {
 		case types.ClosedByProfit:
 			tpCount++
+			positions = append(positions, position)
 
 		case types.ClosedByStop:
 			slCount++
+			positions = append(positions, position)
 
 		case types.ClosedByLiquidation:
 			liquidationCount++
+			positions = append(positions, position)
 
 		default:
 			continue
@@ -60,16 +61,5 @@ func (eng *Engine) Performance() types.PerformanceResult {
 		Loss:             loss,
 		TradingFees:      tradingFees,
 		NetProfit:        netProfit,
-	}
-}
-
-// FetchClosedPositions returns a snapshot of all confirmed closed positions.
-// Mutating the returned slice does not change the engine's internal state.
-func (eng *Engine) FetchClosedPositions() ([]types.Position, error) {
-	if err := eng.validate(); err != nil {
-		return nil, err
-	}
-
-	positions := append([]types.Position(nil), eng.closedPositions...)
-	return positions, nil
+	}, positions
 }
