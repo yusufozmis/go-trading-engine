@@ -7,8 +7,7 @@ import (
 )
 
 // Performance calculates gross profit, gross loss, trading fees, and net profit
-// from confirmed closed positions. The configured trading fee rate is applied
-// independently to each position's entry and exit notional.
+// from confirmed closed positions. Trading fees are summed from Position.Fee.
 func (eng *Engine) Performance() types.PerformanceResult {
 	if eng == nil {
 		return types.PerformanceResult{}
@@ -39,13 +38,7 @@ func (eng *Engine) Performance() types.PerformanceResult {
 			continue
 		}
 
-		entryNotional := position.EntryPrice * position.Amount
-		exitNotional := position.ExitPrice * position.Amount
-
-		entryFee := entryNotional * eng.tradingFeeRate
-		exitFee := exitNotional * eng.tradingFeeRate
-
-		tradingFees += entryFee + exitFee
+		tradingFees += position.Fee
 	}
 
 	return types.PerformanceResult{

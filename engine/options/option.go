@@ -40,11 +40,12 @@ func WithAutomatedClose() Option {
 }
 
 // WithTradingFeeRate applies the same feeRate independently to the entry and
-// exit fill of every closed position. Fees use quote notional (price times
-// amount), as required by linear futures such as USDT-margined perpetuals.
-// The rate is a decimal fraction, so 0.0005 means 0.05% per fill. When omitted,
-// trading fees default to zero. If supplied more than once, the last rate
-// replaces earlier rates.
+// exit fill of every confirmed closed position. The resulting total is stored
+// in Position.Fee and summed by Performance. Fees use quote notional (price
+// times amount), as required by linear futures such as USDT-margined
+// perpetuals. The rate is a decimal fraction, so 0.0005 means 0.05% per fill.
+// When omitted, position fees default to zero. If supplied more than once, the
+// last rate replaces earlier rates.
 func WithTradingFeeRate(feeRate float64) Option {
 	return func(cfg *Config) error {
 		if math.IsNaN(feeRate) || math.IsInf(feeRate, 0) || feeRate <= 0 {

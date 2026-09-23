@@ -1,6 +1,8 @@
 package engine
 
 import (
+	"math"
+
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -47,6 +49,13 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.TP != closedPosition.TP ||
 		currentPosition.Amount != closedPosition.Amount {
 		return apperrors.ErrStalePositionAction
+	}
+
+	entryFee := closedPosition.EntryPrice * closedPosition.Amount * eng.tradingFeeRate
+	exitFee := closedPosition.ExitPrice * closedPosition.Amount * eng.tradingFeeRate
+	closedPosition.Fee = entryFee + exitFee
+	if math.IsNaN(closedPosition.Fee) || math.IsInf(closedPosition.Fee, 0) {
+		return apperrors.ErrInvalidFee
 	}
 
 	eng.lastPosition = &closedPosition

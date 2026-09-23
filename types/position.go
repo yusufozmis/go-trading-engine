@@ -31,11 +31,15 @@ type Position struct {
 	TP     float64
 	Amount float64
 
+	// Fee is the total entry and exit fee paid for a confirmed closed position.
+	// It remains zero when no trading fee rate is configured.
+	Fee float64
+
 	State PositionState
 }
 
 // Validate reports whether the position contains valid identity, pricing,
-// amount, and state values.
+// amount, fee, and state values.
 func (pos *Position) Validate() error {
 	if pos == nil {
 		return apperrors.ErrNilPosition
@@ -63,6 +67,9 @@ func (pos *Position) Validate() error {
 		}
 		if pos.ExitPrice != 0 {
 			return apperrors.ErrInvalidPrice
+		}
+		if pos.Fee != 0 {
+			return apperrors.ErrInvalidFee
 		}
 
 	case ClosedByStop, ClosedByProfit:
@@ -93,6 +100,9 @@ func (pos *Position) Validate() error {
 
 	if !validPositiveFloat(pos.Amount) {
 		return apperrors.ErrInvalidAmount
+	}
+	if math.IsNaN(pos.Fee) || math.IsInf(pos.Fee, 0) || pos.Fee < 0 {
+		return apperrors.ErrInvalidFee
 	}
 
 	switch pos.Side {

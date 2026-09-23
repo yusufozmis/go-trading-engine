@@ -69,6 +69,8 @@ var (
 	ErrInvalidMaxEntryDeviation = errors.New("invalid max entry deviation")
 	// ErrInvalidTradingFeeRate indicates a non-finite or non-positive trading fee rate.
 	ErrInvalidTradingFeeRate = errors.New("invalid trading fee rate")
+	// ErrInvalidFee indicates a negative or non-finite position fee.
+	ErrInvalidFee = errors.New("invalid position fee")
 )
 
 // Exchange Errors
