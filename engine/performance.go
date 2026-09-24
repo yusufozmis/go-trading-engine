@@ -16,6 +16,7 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	tpCount := 0
 	slCount := 0
 	liquidationCount := 0
+	durationCloseCount := 0
 
 	var profit, loss, tradingFees, netProfit float64
 	var positions []types.Position
@@ -32,6 +33,10 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 
 		case types.ClosedByLiquidation:
 			liquidationCount++
+			positions = append(positions, position)
+
+		case types.ClosedByDuration:
+			durationCloseCount++
 			positions = append(positions, position)
 
 		default:
@@ -52,14 +57,15 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	}
 
 	return types.PerformanceResult{
-		Symbol:           eng.symbol,
-		Timeframe:        eng.timeframe,
-		TPCount:          tpCount,
-		SLCount:          slCount,
-		LiquidationCount: liquidationCount,
-		Profit:           profit,
-		Loss:             loss,
-		TradingFees:      tradingFees,
-		NetProfit:        netProfit,
+		Symbol:             eng.symbol,
+		Timeframe:          eng.timeframe,
+		TPCount:            tpCount,
+		SLCount:            slCount,
+		LiquidationCount:   liquidationCount,
+		DurationCloseCount: durationCloseCount,
+		Profit:             profit,
+		Loss:               loss,
+		TradingFees:        tradingFees,
+		NetProfit:          netProfit,
 	}, positions
 }

@@ -23,10 +23,14 @@ func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionActio
 	}
 
 	if eng.isCloseAutomated {
-		return eng.automatedCloseAction(candle), nil
+		if action := eng.automatedCloseAction(candle); action != nil {
+			return action, nil
+		}
+	} else if action := eng.candleCloseAction(candle); action != nil {
+		return action, nil
 	}
 
-	return eng.candleCloseAction(candle), nil
+	return eng.maximumDurationCloseAction(candle), nil
 }
 
 // ConfirmClosePosition records a previously decided action as successfully
@@ -114,6 +118,25 @@ func (eng *Engine) liquidationCloseAction(candle types.Candle) *ClosePositionAct
 	position.State = types.ClosedByLiquidation
 	position.CloseTimestamp = candle.Timestamp
 	position.ExitPrice = eng.exitFillPrice(position.LiquidationPrice, position.Side)
+	return &ClosePositionAction{Position: position}
+}
+
+func (eng *Engine) maximumDurationCloseAction(candle types.Candle) *ClosePositionAction {
+	if eng.maximumPositionDuration == 0 {
+		return nil
+	}
+
+	position := *eng.lastPosition
+	maximumMilliseconds := eng.maximumPositionDuration.Milliseconds()
+	if candle.Timestamp-position.OpenTimestamp < maximumMilliseconds {
+		return nil
+	}
+
+	// Duration exits use the first available candle close after the configured
+	// lifetime is reached because OHLC input has no finer execution timestamp.
+	position.State = types.ClosedByDuration
+	position.CloseTimestamp = candle.Timestamp
+	position.ExitPrice = eng.exitFillPrice(candle.PriceData.ClosePrice, position.Side)
 	return &ClosePositionAction{Position: position}
 }
 

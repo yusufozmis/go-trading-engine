@@ -3,6 +3,7 @@ package options
 
 import (
 	"math"
+	"time"
 
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/types"
@@ -13,11 +14,12 @@ type Option func(*Config) error
 
 // Config stores the values applied by engine options.
 type Config struct {
-	IsCloseAutomated  bool
-	MaxEntryDeviation *float64
-	TradingFeeRate    float64
-	SlippageRate      float64
-	LiquidationModel  types.LiquidationModel
+	IsCloseAutomated        bool
+	MaxEntryDeviation       *float64
+	TradingFeeRate          float64
+	SlippageRate            float64
+	LiquidationModel        types.LiquidationModel
+	MaximumPositionDuration time.Duration
 }
 
 // WithLiquidationModel enables liquidation simulation using model. For
@@ -87,6 +89,20 @@ func WithSlippageRate(slippageRate float64) Option {
 		}
 
 		cfg.SlippageRate = slippageRate
+		return nil
+	}
+}
+
+// WithMaximumPositionDuration closes a position on the first subsequent candle
+// whose timestamp reaches the configured maximum lifetime. It does not start a
+// wall-clock timer, so evaluation occurs only when DecideClosePosition is called.
+func WithMaximumPositionDuration(duration time.Duration) Option {
+	return func(cfg *Config) error {
+		if duration < time.Millisecond {
+			return apperrors.ErrInvalidMaximumPositionDuration
+		}
+
+		cfg.MaximumPositionDuration = duration
 		return nil
 	}
 }

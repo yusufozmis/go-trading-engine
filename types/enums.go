@@ -32,6 +32,8 @@ const (
 	ClosedByProfit
 	// ClosedByLiquidation identifies a position closed at its liquidation level.
 	ClosedByLiquidation
+	// ClosedByDuration identifies a position closed after reaching its maximum lifetime.
+	ClosedByDuration
 )
 
 const (

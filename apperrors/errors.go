@@ -33,6 +33,8 @@ var (
 	ErrNilLiquidationModel = errors.New("nil liquidation model")
 	// ErrInvalidLiquidationPrice indicates an invalid estimated liquidation level.
 	ErrInvalidLiquidationPrice = errors.New("invalid liquidation price")
+	// ErrInvalidMaximumPositionDuration indicates a duration below timestamp precision.
+	ErrInvalidMaximumPositionDuration = errors.New("invalid maximum position duration")
 )
 
 // Backtest Errors

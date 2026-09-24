@@ -88,7 +88,7 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidNetProfit
 		}
 
-	case ClosedByStop, ClosedByProfit, ClosedByLiquidation:
+	case ClosedByStop, ClosedByProfit, ClosedByLiquidation, ClosedByDuration:
 		if !pos.Side.Valid() {
 			return apperrors.ErrInvalidSide
 		}
@@ -202,6 +202,8 @@ type PerformanceResult struct {
 	SLCount int
 	// LiquidationCount is the number of positions closed by liquidation.
 	LiquidationCount int
+	// DurationCloseCount is the number of positions closed at their maximum lifetime.
+	DurationCloseCount int
 
 	// Profit is the total positive gross PnL before trading fees.
 	Profit float64

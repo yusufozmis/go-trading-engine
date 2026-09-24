@@ -2,6 +2,8 @@
 package engine
 
 import (
+	"time"
+
 	"github.com/yusufozmis/go-trading-engine/apperrors"
 	"github.com/yusufozmis/go-trading-engine/engine/options"
 	"github.com/yusufozmis/go-trading-engine/types"
@@ -22,12 +24,13 @@ type Engine struct {
 
 	pendingConfirmation *types.EntryPlan
 
-	positionSizer     types.PositionSizer
-	isCloseAutomated  bool
-	maxEntryDeviation *float64
-	tradingFeeRate    float64
-	slippageRate      float64
-	liquidationModel  types.LiquidationModel
+	positionSizer           types.PositionSizer
+	isCloseAutomated        bool
+	maxEntryDeviation       *float64
+	tradingFeeRate          float64
+	slippageRate            float64
+	liquidationModel        types.LiquidationModel
+	maximumPositionDuration time.Duration
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -60,15 +63,16 @@ func NewEngine(symbol, timeframe string,
 	}
 
 	return &Engine{
-		symbol:            symbol,
-		timeframe:         timeframe,
-		lockKeyMap:        make(map[string]bool),
-		positionSizer:     positionSizer,
-		maxEntryDeviation: cfg.MaxEntryDeviation,
-		isCloseAutomated:  cfg.IsCloseAutomated,
-		tradingFeeRate:    cfg.TradingFeeRate,
-		slippageRate:      cfg.SlippageRate,
-		liquidationModel:  cfg.LiquidationModel,
+		symbol:                  symbol,
+		timeframe:               timeframe,
+		lockKeyMap:              make(map[string]bool),
+		positionSizer:           positionSizer,
+		maxEntryDeviation:       cfg.MaxEntryDeviation,
+		isCloseAutomated:        cfg.IsCloseAutomated,
+		tradingFeeRate:          cfg.TradingFeeRate,
+		slippageRate:            cfg.SlippageRate,
+		liquidationModel:        cfg.LiquidationModel,
+		maximumPositionDuration: cfg.MaximumPositionDuration,
 	}, nil
 }
 
