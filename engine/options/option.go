@@ -20,6 +20,7 @@ type Config struct {
 	SlippageRate            float64
 	LiquidationModel        types.LiquidationModel
 	MaximumPositionDuration time.Duration
+	BreakEvenStopRate       float64
 }
 
 // WithLiquidationModel enables liquidation simulation using model. For
@@ -103,6 +104,23 @@ func WithMaximumPositionDuration(duration time.Duration) Option {
 		}
 
 		cfg.MaximumPositionDuration = duration
+		return nil
+	}
+}
+
+// WithBreakEvenStop moves an open position's stop-loss to its entry price after
+// price covers the configured fraction of the entry-to-TP distance. A value of
+// 0.50 arms break-even halfway to TP. The updated stop becomes effective from
+// the next candle because OHLC data cannot reveal intrabar event ordering.
+func WithBreakEvenStop(breakEvenStopRate float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(breakEvenStopRate) ||
+			math.IsInf(breakEvenStopRate, 0) ||
+			breakEvenStopRate <= 0 || breakEvenStopRate >= 1 {
+			return apperrors.ErrInvalidBreakEvenStopRate
+		}
+
+		cfg.BreakEvenStopRate = breakEvenStopRate
 		return nil
 	}
 }

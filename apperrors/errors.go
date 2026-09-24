@@ -87,6 +87,9 @@ var (
 	ErrInvalidFee = errors.New("invalid position fee")
 	// ErrInvalidNetProfit indicates a non-finite position net profit.
 	ErrInvalidNetProfit = errors.New("invalid position net profit")
+
+	// ErrInvalidBreakEvenStopRate indicates a non-finite rate outside (0, 1).
+	ErrInvalidBreakEvenStopRate = errors.New("invalid break-even stop rate")
 )
 
 // Exchange Errors

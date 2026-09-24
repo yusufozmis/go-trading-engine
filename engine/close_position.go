@@ -8,7 +8,8 @@ import (
 )
 
 // DecideClosePosition evaluates whether the current candle closes the tracked
-// position without mutating engine state.
+// position. When break-even is configured, a candle that reaches its trigger
+// can update the tracked stop for subsequent candles without producing a close.
 func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionAction, error) {
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
@@ -30,7 +31,35 @@ func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionActio
 		return action, nil
 	}
 
+	eng.applyBreakEvenStop(candle)
+
 	return eng.maximumDurationCloseAction(candle), nil
+}
+
+func (eng *Engine) applyBreakEvenStop(candle types.Candle) {
+	if eng.breakEvenStopRate == 0 ||
+		eng.lastPosition.StopLoss == eng.lastPosition.EntryPrice {
+		return
+	}
+
+	position := eng.lastPosition
+	entry := position.EntryPrice
+
+	triggered := false
+	switch position.Side {
+	case types.PositionLong:
+		triggerPrice := entry + ((position.TP - entry) * eng.breakEvenStopRate)
+		triggered = candle.PriceData.HighPrice >= triggerPrice
+	case types.PositionShort:
+		triggerPrice := entry - ((entry - position.TP) * eng.breakEvenStopRate)
+		triggered = candle.PriceData.LowPrice <= triggerPrice
+	}
+
+	// Close conditions were evaluated before this mutation. Therefore, even if
+	// this candle also crossed entry, the break-even stop starts on the next candle.
+	if triggered {
+		eng.lastPosition.StopLoss = eng.lastPosition.EntryPrice
+	}
 }
 
 // ConfirmClosePosition records a previously decided action as successfully

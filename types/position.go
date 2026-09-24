@@ -23,8 +23,8 @@ type Position struct {
 	// the candle close. Configured slippage is included in the simulated fill.
 	ExitPrice float64
 
-	// StopLoss is the configured stop trigger and is not overwritten by the
-	// eventual exit fill.
+	// StopLoss is the current stop trigger. Break-even handling may move it to
+	// EntryPrice, but an eventual exit fill does not overwrite it.
 	StopLoss float64
 	// TP is the configured take-profit trigger and is not overwritten by the
 	// eventual exit fill.
@@ -137,7 +137,7 @@ func (pos *Position) Validate() error {
 
 	switch pos.Side {
 	case PositionLong:
-		if pos.StopLoss != 0 && pos.StopLoss >= pos.EntryPrice {
+		if pos.StopLoss != 0 && pos.StopLoss > pos.EntryPrice {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP <= pos.EntryPrice {
@@ -145,7 +145,7 @@ func (pos *Position) Validate() error {
 		}
 
 	case PositionShort:
-		if pos.StopLoss != 0 && pos.StopLoss <= pos.EntryPrice {
+		if pos.StopLoss != 0 && pos.StopLoss < pos.EntryPrice {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP >= pos.EntryPrice {

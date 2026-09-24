@@ -24,13 +24,15 @@ type Engine struct {
 
 	pendingConfirmation *types.EntryPlan
 
-	positionSizer           types.PositionSizer
+	positionSizer types.PositionSizer
+
 	isCloseAutomated        bool
 	maxEntryDeviation       *float64
 	tradingFeeRate          float64
 	slippageRate            float64
 	liquidationModel        types.LiquidationModel
 	maximumPositionDuration time.Duration
+	breakEvenStopRate       float64
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -73,6 +75,7 @@ func NewEngine(symbol, timeframe string,
 		slippageRate:            cfg.SlippageRate,
 		liquidationModel:        cfg.LiquidationModel,
 		maximumPositionDuration: cfg.MaximumPositionDuration,
+		breakEvenStopRate:       cfg.BreakEvenStopRate,
 	}, nil
 }
 
