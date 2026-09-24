@@ -17,10 +17,9 @@ func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionActio
 	if !eng.PositionExists() || candle.Timestamp <= eng.lastPosition.OpenTimestamp {
 		return nil, nil
 	}
-	// OHLC data cannot prove intrabar ordering. Prefer liquidation when its level
-	// and another close threshold are both touched in the same candle.
-	if action := eng.liquidationCloseAction(candle); action != nil {
-		return action, nil
+	liquidationAction := eng.liquidationCloseAction(candle)
+	if liquidationAction != nil && eng.liquidationHasPriority(candle) {
+		return liquidationAction, nil
 	}
 
 	if eng.isCloseAutomated {
@@ -30,10 +29,117 @@ func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionActio
 	} else if action := eng.candleCloseAction(candle); action != nil {
 		return action, nil
 	}
+	if liquidationAction != nil {
+		return liquidationAction, nil
+	}
 
 	eng.applyBreakEvenStop(candle)
 
 	return eng.maximumDurationCloseAction(candle), nil
+}
+
+func (eng *Engine) liquidationHasPriority(candle types.Candle) bool {
+	position := eng.lastPosition
+
+	// Opening beyond the liquidation level represents a gap that bypassed any
+	// protective stop available inside the candle's range.
+	switch position.Side {
+	case types.PositionLong:
+		if candle.PriceData.OpenPrice <= position.LiquidationPrice {
+			return true
+		}
+	case types.PositionShort:
+		if candle.PriceData.OpenPrice >= position.LiquidationPrice {
+			return true
+		}
+	}
+	// Without an attached stop, the engine acts only on the candle close. If the
+	// candle touched liquidation first, a later close beyond SL cannot save it.
+	if !eng.isCloseAutomated {
+		return true
+	}
+	// An attached stop has already triggered when the candle opens beyond it.
+	// This known event precedes any later TP or liquidation touch in the candle.
+	if eng.stopReachedAtOpen(candle) {
+		return false
+	}
+	// An attached TP has already triggered when the candle opens beyond it, so
+	// later movement to the liquidation level cannot replace that known outcome.
+	if eng.takeProfitReachedAtOpen(candle) {
+		return false
+	}
+
+	// When TP and liquidation are both touched, OHLC data cannot establish their
+	// intrabar order. Liquidation is the conservative outcome.
+	if eng.takeProfitTouched(candle) {
+		return true
+	}
+
+	stopProtects := false
+	switch position.Side {
+	case types.PositionLong:
+		stopProtects = position.StopLoss > position.LiquidationPrice
+	case types.PositionShort:
+		stopProtects = position.StopLoss < position.LiquidationPrice
+	}
+
+	return !stopProtects || !eng.stopTouched(candle)
+}
+
+func (eng *Engine) stopTouched(candle types.Candle) bool {
+	position := eng.lastPosition
+	if eng.isCloseAutomated {
+		switch position.Side {
+		case types.PositionLong:
+			return candle.PriceData.LowPrice <= position.StopLoss
+		case types.PositionShort:
+			return candle.PriceData.HighPrice >= position.StopLoss
+		default:
+			return false
+		}
+	}
+
+	switch position.Side {
+	case types.PositionLong:
+		return candle.PriceData.ClosePrice <= position.StopLoss
+	case types.PositionShort:
+		return candle.PriceData.ClosePrice >= position.StopLoss
+	default:
+		return false
+	}
+}
+
+func (eng *Engine) stopReachedAtOpen(candle types.Candle) bool {
+	switch eng.lastPosition.Side {
+	case types.PositionLong:
+		return candle.PriceData.OpenPrice <= eng.lastPosition.StopLoss
+	case types.PositionShort:
+		return candle.PriceData.OpenPrice >= eng.lastPosition.StopLoss
+	default:
+		return false
+	}
+}
+
+func (eng *Engine) takeProfitTouched(candle types.Candle) bool {
+	switch eng.lastPosition.Side {
+	case types.PositionLong:
+		return candle.PriceData.HighPrice >= eng.lastPosition.TP
+	case types.PositionShort:
+		return candle.PriceData.LowPrice <= eng.lastPosition.TP
+	default:
+		return false
+	}
+}
+
+func (eng *Engine) takeProfitReachedAtOpen(candle types.Candle) bool {
+	switch eng.lastPosition.Side {
+	case types.PositionLong:
+		return candle.PriceData.OpenPrice >= eng.lastPosition.TP
+	case types.PositionShort:
+		return candle.PriceData.OpenPrice <= eng.lastPosition.TP
+	default:
+		return false
+	}
 }
 
 func (eng *Engine) applyBreakEvenStop(candle types.Candle) {
@@ -172,8 +278,20 @@ func (eng *Engine) maximumDurationCloseAction(candle types.Candle) *ClosePositio
 func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {
 	position := *eng.lastPosition
 
-	isTP := position.TP <= candle.PriceData.HighPrice && position.TP >= candle.PriceData.LowPrice
-	isSL := position.StopLoss <= candle.PriceData.HighPrice && position.StopLoss >= candle.PriceData.LowPrice
+	isTP := eng.takeProfitTouched(candle)
+	isSL := eng.stopTouched(candle)
+	if eng.stopReachedAtOpen(candle) {
+		position.State = types.ClosedByStop
+		position.CloseTimestamp = candle.Timestamp
+		position.ExitPrice = eng.exitFillPrice(candle.PriceData.OpenPrice, position.Side)
+		return &ClosePositionAction{Position: position}
+	}
+	if eng.takeProfitReachedAtOpen(candle) {
+		position.State = types.ClosedByProfit
+		position.CloseTimestamp = candle.Timestamp
+		position.ExitPrice = eng.exitFillPrice(position.TP, position.Side)
+		return &ClosePositionAction{Position: position}
+	}
 
 	// When both thresholds occur within one candle, preserve the existing
 	// conservative backtest rule and assume that the stop was reached first.
