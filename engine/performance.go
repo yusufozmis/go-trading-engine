@@ -2,6 +2,7 @@ package engine
 
 import (
 	"math"
+	"slices"
 
 	"github.com/yusufozmis/go-trading-engine/types"
 )
@@ -12,6 +13,9 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
 		return types.PerformanceResult{}, nil
 	}
+	eng.closedPositionsMu.RLock()
+	closedPositions := slices.Clone(eng.closedPositions)
+	eng.closedPositionsMu.RUnlock()
 
 	tpCount := 0
 	slCount := 0
@@ -21,7 +25,7 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	var profit, loss, tradingFees, netProfit float64
 	var positions []types.Position
 
-	for _, position := range eng.closedPositions {
+	for _, position := range closedPositions {
 		switch position.State {
 		case types.ClosedByProfit:
 			tpCount++

@@ -229,7 +229,9 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	}
 
 	eng.lastPosition = &closedPosition
+	eng.closedPositionsMu.Lock()
 	eng.closedPositions = append(eng.closedPositions, closedPosition)
+	eng.closedPositionsMu.Unlock()
 	return nil
 }
 

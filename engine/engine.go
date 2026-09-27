@@ -2,6 +2,7 @@
 package engine
 
 import (
+	"sync"
 	"time"
 
 	"github.com/yusufozmis/go-trading-engine/apperrors"
@@ -10,14 +11,16 @@ import (
 )
 
 // Engine evaluates strategy plans and tracks confirmed position state.
-// Its methods must not be called concurrently.
+// Its methods must not be called concurrently, except Performance may be
+// called concurrently with other methods.
 type Engine struct {
 	symbol    string
 	timeframe string
 
 	lastPosition *types.Position
 
-	closedPositions []types.Position
+	closedPositionsMu sync.RWMutex
+	closedPositions   []types.Position
 
 	lockKeyMap  map[string]bool
 	activePlans []types.EntryPlan
