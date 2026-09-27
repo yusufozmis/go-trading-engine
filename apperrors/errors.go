@@ -71,6 +71,10 @@ var (
 	ErrPositionStreamAlreadyExists = errors.New("exchange: position stream already exists")
 	// ErrPositionStreamNotRunning indicates that no position stream is running.
 	ErrPositionStreamNotRunning = errors.New("exchange: position stream is not running")
+	// ErrOrderStreamAlreadyExists indicates that an order stream is already running.
+	ErrOrderStreamAlreadyExists = errors.New("exchange: order stream already exists")
+	// ErrOrderStreamNotRunning indicates that no order stream is running.
+	ErrOrderStreamNotRunning = errors.New("exchange: order stream is not running")
 )
 
 // Options Errors
@@ -123,6 +127,8 @@ var (
 	ErrInvalidLeverage = errors.New("invalid leverage")
 	// ErrInvalidMarginMode indicates an unsupported futures margin mode.
 	ErrInvalidMarginMode = errors.New("invalid margin mode")
+	// ErrInvalidMarketType indicates an unsupported exchange market type.
+	ErrInvalidMarketType = errors.New("invalid market type")
 	// ErrInsufficientFunds indicates that an exchange rejected an order because
 	// the account did not have enough available balance or margin.
 	ErrInsufficientFunds = errors.New("insufficient funds")

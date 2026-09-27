@@ -178,6 +178,10 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	client.positionExchange.SetSecret(exchangeCfg.SecretKey)
 	client.positionExchange.SetPassword(exchangeCfg.Password)
 
+	client.orderExchange.SetApiKey(exchangeCfg.APIKey)
+	client.orderExchange.SetSecret(exchangeCfg.SecretKey)
+	client.orderExchange.SetPassword(exchangeCfg.Password)
+
 	client.preparedFuturesSymbols = nil
 	client.configured = true
 

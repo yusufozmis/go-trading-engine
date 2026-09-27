@@ -22,11 +22,15 @@ type Client struct {
 	// positionExchange owns the authenticated position WebSocket connection so
 	// stopping it cannot close order submission or the candle stream.
 	positionExchange ccxt.IExchange
-	futuresAdapter   adapters.FuturesAdapter
-	ohlcvPageSize    int64
+	// orderExchange owns private order and conditional-order subscriptions.
+	orderExchange      ccxt.IExchange
+	futuresAdapter     adapters.FuturesAdapter
+	orderStreamAdapter adapters.OrderStreamAdapter
+	ohlcvPageSize      int64
 
 	stream         *candleStream
 	positionStream *positionStream
+	orderStream    *orderStream
 
 	// futuresMu serializes futures configuration and order submission. Holding one
 	// lock prevents orders from observing a half-applied remote configuration.
@@ -55,6 +59,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	pro := ccxtpro.NewBinance(nil)
 	streamPro := ccxtpro.NewBinance(nil)
 	positionPro := ccxtpro.NewBinance(nil)
+	orderPro := ccxtpro.NewBinance(nil)
 
 	// Binance demo trading is distinct from its legacy sandbox/testnet.
 	if cfg.PaperTrading {
@@ -62,6 +67,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 		// Position updates are private account data and must use the same demo
 		// environment as the orders they observe.
 		positionPro.EnableDemoTrading(true)
+		orderPro.EnableDemoTrading(true)
 	}
 
 	core := ccxt.NewBinanceFromCore(pro.Core.BinanceCore)
@@ -74,14 +80,17 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	// it again would make a duplicate markets request during construction.
 	streamPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
 	positionPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
+	orderPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:        pro,
-		streamExchange:   streamPro,
-		positionExchange: positionPro,
-		futuresAdapter:   adapters.NewBinanceFuturesAdapter(core),
-		ohlcvPageSize:    binanceOHLCVPageSize,
-		markets:          markets,
+		iExchange:          pro,
+		streamExchange:     streamPro,
+		positionExchange:   positionPro,
+		orderExchange:      orderPro,
+		futuresAdapter:     adapters.NewBinanceFuturesAdapter(core),
+		orderStreamAdapter: adapters.NewBinanceOrderStreamAdapter(),
+		ohlcvPageSize:      binanceOHLCVPageSize,
+		markets:            markets,
 	}, nil
 }
 
@@ -97,6 +106,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	pro := ccxtpro.NewOkx(nil)
 	streamPro := ccxtpro.NewOkx(nil)
 	positionPro := ccxtpro.NewOkx(nil)
+	orderPro := ccxtpro.NewOkx(nil)
 
 	// CCXT maps OKX sandbox mode to the provider's demo-trading environment.
 	if cfg.PaperTrading {
@@ -104,6 +114,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 		// Position updates are private account data and must use the same demo
 		// environment as the orders they observe.
 		positionPro.SetSandboxMode(true)
+		orderPro.SetSandboxMode(true)
 	}
 
 	core := ccxt.NewOkxFromCore(pro.Core.OkxCore)
@@ -116,14 +127,17 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	// it again would make a duplicate markets request during construction.
 	streamPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
 	positionPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
+	orderPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:        pro,
-		streamExchange:   streamPro,
-		positionExchange: positionPro,
-		futuresAdapter:   adapters.NewOKXFuturesAdapter(core),
-		ohlcvPageSize:    okxOHLCVPageSize,
-		markets:          markets,
+		iExchange:          pro,
+		streamExchange:     streamPro,
+		positionExchange:   positionPro,
+		orderExchange:      orderPro,
+		futuresAdapter:     adapters.NewOKXFuturesAdapter(core),
+		orderStreamAdapter: adapters.NewOKXOrderStreamAdapter(),
+		ohlcvPageSize:      okxOHLCVPageSize,
+		markets:            markets,
 	}, nil
 }
 

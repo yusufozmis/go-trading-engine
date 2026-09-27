@@ -19,6 +19,9 @@ type PositionSide string
 // SpotSide identifies a spot buy or sell order.
 type SpotSide string
 
+// MarketType identifies the exchange market whose private orders are watched.
+type MarketType uint
+
 const (
 	// UNSPECIFIED is the zero value for an unspecified position state.
 	UNSPECIFIED PositionState = iota
@@ -78,6 +81,13 @@ const (
 	SpotSell SpotSide = "sell"
 )
 
+const (
+	// MarketSpot identifies spot-market orders.
+	MarketSpot MarketType = iota + 1
+	// MarketFutures identifies perpetual futures orders.
+	MarketFutures
+)
+
 // String returns the exchange margin-mode value.
 func (m MarginMode) String() string {
 	return string(m)
@@ -127,6 +137,16 @@ func (s SpotSide) String() string {
 func (s SpotSide) Valid() bool {
 	switch s {
 	case SpotBuy, SpotSell:
+		return true
+	default:
+		return false
+	}
+}
+
+// Valid reports whether m is a supported exchange market type.
+func (m MarketType) Valid() bool {
+	switch m {
+	case MarketSpot, MarketFutures:
 		return true
 	default:
 		return false

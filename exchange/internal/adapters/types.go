@@ -65,3 +65,16 @@ type FuturesAdapter interface {
 	// AttachTP translates an attached take-profit for the futures entry.
 	AttachTP(req FuturesOrderRequest) (map[string]any, error)
 }
+
+// OrderWatcherConfig contains provider-specific parameters for one private
+// order subscription.
+type OrderWatcherConfig struct {
+	MarketType string
+	Trigger    bool
+}
+
+// OrderStreamAdapter translates a public market type into the private order
+// subscriptions required by a provider.
+type OrderStreamAdapter interface {
+	WatcherConfigs(marketType types.MarketType) ([]OrderWatcherConfig, error)
+}
