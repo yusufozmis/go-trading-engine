@@ -172,6 +172,12 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	client.iExchange.SetSecret(exchangeCfg.SecretKey)
 	client.iExchange.SetPassword(exchangeCfg.Password)
 
+	// The dedicated position stream is authenticated separately from the main
+	// exchange instance, so it needs the same immutable credentials.
+	client.positionExchange.SetApiKey(exchangeCfg.APIKey)
+	client.positionExchange.SetSecret(exchangeCfg.SecretKey)
+	client.positionExchange.SetPassword(exchangeCfg.Password)
+
 	client.preparedFuturesSymbols = nil
 	client.configured = true
 

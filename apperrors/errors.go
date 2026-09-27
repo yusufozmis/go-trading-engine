@@ -67,6 +67,10 @@ var (
 	ErrStreamAlreadyExists = errors.New("there is already a stream running")
 	// ErrStreamNotRunning indicates that the client has no running candle stream.
 	ErrStreamNotRunning = errors.New("exchange: candle stream is not running")
+	// ErrPositionStreamAlreadyExists indicates that a position stream is already running.
+	ErrPositionStreamAlreadyExists = errors.New("exchange: position stream already exists")
+	// ErrPositionStreamNotRunning indicates that no position stream is running.
+	ErrPositionStreamNotRunning = errors.New("exchange: position stream is not running")
 )
 
 // Options Errors
