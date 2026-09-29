@@ -82,6 +82,36 @@ func NewEngine(symbol, timeframe string,
 	}, nil
 }
 
+func NewEngineWithPreloadedPosition(
+	position types.Position,
+	positionSizer types.PositionSizer,
+	opts ...options.Option,
+) (*Engine, error) {
+
+	eng, err := NewEngine(
+		position.Symbol,
+		position.Timeframe,
+		positionSizer,
+		opts...,
+	)
+	if err != nil {
+		return nil, err
+	}
+
+	if position.State != types.PositionOpen {
+		return nil, apperrors.ErrInvalidPositionState
+	}
+
+	if err := position.Validate(); err != nil {
+		return nil, err
+	}
+
+	positionCopy := position
+	eng.lastPosition = &positionCopy
+
+	return eng, nil
+}
+
 func (eng *Engine) validate() error {
 	if eng == nil {
 		return apperrors.ErrNilEngine
