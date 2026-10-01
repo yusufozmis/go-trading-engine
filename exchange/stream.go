@@ -301,21 +301,25 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	key := newSubKey(symbol, timeframe)
 
 	s.stream.mu.Lock()
-	_, ok := s.stream.activeSymbols[key]
-	if ok {
-		delete(s.stream.activeSymbols, key)
-	}
-	s.stream.mu.Unlock()
+	defer s.stream.mu.Unlock()
 
-	if !ok {
+	if _, ok := s.stream.activeSymbols[key]; !ok {
 		return nil
 	}
 
+	// Keep the subscription active until CCXT confirms that its watcher was
+	// removed. If UnWatchOHLCV fails, the caller can retry without losing the
+	// library's record of the still-running subscription.
 	_, err := s.streamExchange.UnWatchOHLCV(
 		symbol,
 		ccxt.WithUnWatchOHLCVTimeframe(timeframe),
 	)
-	return normalizeError(err)
+	if err != nil {
+		return normalizeError(err)
+	}
+
+	delete(s.stream.activeSymbols, key)
+	return nil
 }
 
 // CloseCandleStream shuts down the running candle stream and detaches it from the client.
