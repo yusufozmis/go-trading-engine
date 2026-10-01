@@ -8,6 +8,10 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
+func positionSides() [2]types.PositionSide {
+	return [2]types.PositionSide{types.PositionLong, types.PositionShort}
+}
+
 // MoveTPSLFromPlan re-anchors TP/SL to the candle close while preserving
 // the plan's original reward distance and risk distance.
 func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64, newSL float64, err error) {
@@ -283,9 +287,12 @@ func (eng *Engine) activePlanIndex(target types.EntryPlan) int {
 	return -1
 }
 
-func entryPlanLockKey(plan types.EntryPlan) string {
+func (eng *Engine) entryPlanLockKey(plan types.EntryPlan) string {
 
 	key := strconv.FormatFloat(plan.LockPrice, 'g', -1, 64)
+	if eng.hedgeMode {
+		return plan.Symbol + "|" + plan.Timeframe + "|" + plan.Side.String() + "|" + key
+	}
 
 	return plan.Symbol + "|" + plan.Timeframe + "|" + key
 }

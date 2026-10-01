@@ -29,9 +29,14 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 
 		strategy.AddBar(candle)
 
+		pendingSides := eng.PendingSides()
+		positionSides := eng.PositionSides()
 		plans, err := strategy.Calculate(types.StrategyContext{
-			HasPendingPosition: eng.PendingExists(),
-			HasOpenPosition:    eng.PositionExists(),
+			HedgeMode:            eng.HedgeModeEnabled(),
+			HasPendingPosition:   eng.PendingExists(),
+			HasOpenPosition:      eng.PositionExists(),
+			PendingPositionSides: pendingSides,
+			OpenPositionSides:    positionSides,
 		})
 		if err != nil {
 			return types.PerformanceResult{}, nil, err
@@ -43,30 +48,30 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 		}
 
 		if eng.PendingExists() {
-			if _, err := eng.CheckConfirmation(candle); err != nil {
+			if err := eng.CheckConfirmations(candle); err != nil {
 				return types.PerformanceResult{}, nil, err
 			}
 		}
 
-		openAction, err := eng.DecideOpenPosition(candle)
+		openActions, err := eng.DecideOpenPositions(candle)
 		if err != nil {
 			return types.PerformanceResult{}, nil, err
 		}
-		if openAction != nil {
+		for _, action := range openActions {
 			// Backtests assume immediate execution, so a decided action can be
 			// confirmed without waiting for an external exchange operation.
-			if err := eng.ConfirmOpenPosition(*openAction); err != nil {
+			if err := eng.ConfirmOpenPosition(action); err != nil {
 				return types.PerformanceResult{}, nil, err
 			}
 		}
 
 		if eng.PositionExists() {
-			closeAction, err := eng.DecideClosePosition(candle)
+			closeActions, err := eng.DecideClosePositions(candle)
 			if err != nil {
 				return types.PerformanceResult{}, nil, err
 			}
-			if closeAction != nil {
-				if err := eng.ConfirmClosePosition(*closeAction); err != nil {
+			for _, action := range closeActions {
+				if err := eng.ConfirmClosePosition(action); err != nil {
 					return types.PerformanceResult{}, nil, err
 				}
 			}

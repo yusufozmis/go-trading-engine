@@ -5,61 +5,80 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// CheckConfirmation applies candle to the pending confirmation plan and reports
-// whether that plan became an active entry plan.
-func (eng *Engine) CheckConfirmation(candle types.Candle) (bool, error) {
+// CheckConfirmations applies candle to each pending side. Confirmed plans become
+// active independently, allowing both sides to progress in hedge mode.
+func (eng *Engine) CheckConfirmations(candle types.Candle) error {
 	if err := eng.validateCandle(candle); err != nil {
-		return false, err
-	}
-	if eng.pendingConfirmation == nil {
-		return false, nil
+		return err
 	}
 
-	plan := *eng.pendingConfirmation
-	closePrice := candle.PriceData.ClosePrice
-
-	switch plan.Side {
-	case types.PositionLong:
-		if closePrice <= plan.StopLoss || closePrice >= plan.TakeProfit {
-			eng.pendingConfirmation = nil
-			return false, nil
+	for _, side := range positionSides() {
+		pending := eng.pendingConfirmations[side]
+		if pending == nil {
+			continue
 		}
-	case types.PositionShort:
-		if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
-			eng.pendingConfirmation = nil
-			return false, nil
-		}
-	default:
-		return false, apperrors.ErrInvalidSide
-	}
 
-	switch plan.Confirmation {
-	case types.ConfirmationWaitingAboveEntry:
-		if closePrice >= plan.EntryPrice {
+		plan := *pending
+		closePrice := candle.PriceData.ClosePrice
+		switch plan.Side {
+		case types.PositionLong:
+			if closePrice <= plan.StopLoss || closePrice >= plan.TakeProfit {
+				delete(eng.pendingConfirmations, side)
+				continue
+			}
+		case types.PositionShort:
+			if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
+				delete(eng.pendingConfirmations, side)
+				continue
+			}
+		default:
+			return apperrors.ErrInvalidSide
+		}
+
+		confirmed := false
+		switch plan.Confirmation {
+		case types.ConfirmationWaitingAboveEntry:
+			confirmed = closePrice >= plan.EntryPrice
+		case types.ConfirmationWaitingBelowEntry:
+			confirmed = closePrice <= plan.EntryPrice
+		default:
+			return apperrors.ErrInvalidConfirmationState
+		}
+
+		if confirmed {
 			plan.Confirmation = types.ConfirmationNone
-			eng.activePlans = []types.EntryPlan{plan}
-			eng.pendingConfirmation = nil
-			return true, nil
+			eng.activePlans = append(eng.activePlans, plan)
+			delete(eng.pendingConfirmations, side)
 		}
-
-	case types.ConfirmationWaitingBelowEntry:
-		if closePrice <= plan.EntryPrice {
-			plan.Confirmation = types.ConfirmationNone
-			eng.activePlans = []types.EntryPlan{plan}
-			eng.pendingConfirmation = nil
-			return true, nil
-		}
-
-	default:
-		return false, apperrors.ErrInvalidConfirmationState
 	}
 
-	return false, nil
+	return nil
 }
 
-// PendingExists reports whether the engine is waiting for entry confirmation.
+// PendingExists reports whether either side is waiting for confirmation.
 func (eng *Engine) PendingExists() bool {
-	return eng != nil && eng.pendingConfirmation != nil
+	return eng != nil &&
+		(eng.pendingExists(types.PositionLong) ||
+			eng.pendingExists(types.PositionShort))
+}
+
+// PendingSides returns the sides currently waiting for entry confirmation.
+func (eng *Engine) PendingSides() []types.PositionSide {
+	if eng == nil {
+		return nil
+	}
+
+	sides := make([]types.PositionSide, 0, 2)
+	for _, side := range positionSides() {
+		if eng.pendingExists(side) {
+			sides = append(sides, side)
+		}
+	}
+	return sides
+}
+
+func (eng *Engine) pendingExists(side types.PositionSide) bool {
+	return eng != nil && side.Valid() && eng.pendingConfirmations[side] != nil
 }
 
 // SetPending validates and records one confirmation plan.
@@ -77,12 +96,14 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 		return err
 	}
 
-	if eng.PositionExists() || eng.PendingExists() {
+	if eng.positionExists(pending.Side) || eng.pendingExists(pending.Side) ||
+		(!eng.hedgeMode && (eng.PositionExists() || eng.PendingExists())) {
 		return apperrors.ErrPositionOrPendingExists
 	}
 
 	eng.activePlans = nil
-	eng.pendingConfirmation = &pending
+	pendingCopy := pending
+	eng.pendingConfirmations[pending.Side] = &pendingCopy
 
 	return nil
 }

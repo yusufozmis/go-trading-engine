@@ -17,7 +17,7 @@ type Engine struct {
 	symbol    string
 	timeframe string
 
-	lastPosition *types.Position
+	positions map[types.PositionSide]*types.Position
 
 	closedPositionsMu sync.RWMutex
 	closedPositions   []types.Position
@@ -25,10 +25,11 @@ type Engine struct {
 	lockKeyMap  map[string]bool
 	activePlans []types.EntryPlan
 
-	pendingConfirmation *types.EntryPlan
+	pendingConfirmations map[types.PositionSide]*types.EntryPlan
 
 	positionSizer types.PositionSizer
 
+	hedgeMode               bool
 	isCloseAutomated        bool
 	maxEntryDeviation       *float64
 	tradingFeeRate          float64
@@ -70,8 +71,11 @@ func NewEngine(symbol, timeframe string,
 	return &Engine{
 		symbol:                  symbol,
 		timeframe:               timeframe,
+		positions:               make(map[types.PositionSide]*types.Position, 2),
 		lockKeyMap:              make(map[string]bool),
+		pendingConfirmations:    make(map[types.PositionSide]*types.EntryPlan, 2),
 		positionSizer:           positionSizer,
+		hedgeMode:               cfg.HedgeMode,
 		maxEntryDeviation:       cfg.MaxEntryDeviation,
 		isCloseAutomated:        cfg.IsCloseAutomated,
 		tradingFeeRate:          cfg.TradingFeeRate,
@@ -82,15 +86,22 @@ func NewEngine(symbol, timeframe string,
 	}, nil
 }
 
-func NewEngineWithPreloadedPosition(
-	position types.Position,
+// NewEngineWithPreloadedPositions creates an engine that takes ownership of
+// existing open positions. Without WithHedgeMode, at most one position may be
+// supplied; hedge mode accepts one long and one short position.
+func NewEngineWithPreloadedPositions(
+	positions []types.Position,
 	positionSizer types.PositionSizer,
 	opts ...options.Option,
 ) (*Engine, error) {
+	if len(positions) == 0 {
+		return nil, apperrors.ErrPositionNotFound
+	}
+	first := positions[0]
 
 	eng, err := NewEngine(
-		position.Symbol,
-		position.Timeframe,
+		first.Symbol,
+		first.Timeframe,
 		positionSizer,
 		opts...,
 	)
@@ -98,16 +109,24 @@ func NewEngineWithPreloadedPosition(
 		return nil, err
 	}
 
-	if position.State != types.PositionOpen {
-		return nil, apperrors.ErrInvalidPositionState
-	}
+	for _, position := range positions {
+		if position.State != types.PositionOpen {
+			return nil, apperrors.ErrInvalidPositionState
+		}
+		if err := position.Validate(); err != nil {
+			return nil, err
+		}
+		if position.Symbol != eng.symbol || position.Timeframe != eng.timeframe {
+			return nil, apperrors.ErrInvalidPositionAction
+		}
+		if eng.positionExists(position.Side) ||
+			(!eng.hedgeMode && eng.PositionExists()) {
+			return nil, apperrors.ErrPositionOrPendingExists
+		}
 
-	if err := position.Validate(); err != nil {
-		return nil, err
+		positionCopy := position
+		eng.positions[position.Side] = &positionCopy
 	}
-
-	positionCopy := position
-	eng.lastPosition = &positionCopy
 
 	return eng, nil
 }
@@ -123,4 +142,10 @@ func (eng *Engine) validate() error {
 		return apperrors.ErrNilTimeframe
 	}
 	return nil
+}
+
+// HedgeModeEnabled reports whether the engine permits simultaneous long and
+// short positions.
+func (eng *Engine) HedgeModeEnabled() bool {
+	return eng != nil && eng.hedgeMode
 }

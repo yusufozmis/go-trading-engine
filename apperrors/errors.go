@@ -13,8 +13,9 @@ var (
 	ErrInvalidConfirmationState = errors.New("invalid confirmation state")
 	// ErrInvalidPlanMode indicates an unsupported plan-update mode.
 	ErrInvalidPlanMode = errors.New("invalid plan mode")
-	// ErrExpectedSinglePlan indicates that confirmation received the wrong plan count.
-	ErrExpectedSinglePlan = errors.New("expected single plan")
+	// ErrInvalidConfirmationPlanCount indicates that confirmation received a
+	// plan count unsupported by the engine's position mode.
+	ErrInvalidConfirmationPlanCount = errors.New("invalid confirmation plan count")
 	// ErrPositionOrPendingExists indicates that the engine is already occupied.
 	ErrPositionOrPendingExists = errors.New("position or a pending position exists")
 	// ErrEntryPlanMarketMismatch indicates that a plan targets another market.

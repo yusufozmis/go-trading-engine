@@ -7,15 +7,16 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// DecideOpenPosition evaluates the active plans without recording a successful
-// fill. A non-nil action remains unconfirmed until ConfirmOpenPosition is called.
-func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction, error) {
+// DecideOpenPositions evaluates active plans without recording successful
+// fills. Hedge mode may produce one action for each currently free side;
+// otherwise at most one action is returned.
+func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionAction, error) {
 
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
 	}
 
-	if eng.PositionExists() {
+	if !eng.hedgeMode && eng.PositionExists() {
 		return nil, nil
 	}
 
@@ -25,10 +26,16 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 		return nil, nil
 	}
 
+	actions := make([]OpenPositionAction, 0, 2)
+	selectedSides := make(map[types.PositionSide]bool, 2)
 	for i := 0; i < len(eng.activePlans); {
 		plan := eng.activePlans[i]
+		if eng.positionExists(plan.Side) || selectedSides[plan.Side] {
+			i++
+			continue
+		}
 
-		lockKey := entryPlanLockKey(plan)
+		lockKey := eng.entryPlanLockKey(plan)
 		if eng.lockKeyMap[lockKey] {
 			i++
 			continue
@@ -101,13 +108,19 @@ func (eng *Engine) DecideOpenPosition(candle types.Candle) (*OpenPositionAction,
 
 		// The plan is intentionally left active until the caller confirms that
 		// execution succeeded. A failed live order can therefore be retried.
-		return &OpenPositionAction{
+		actions = append(actions, OpenPositionAction{
 			Position: position,
 			plan:     plan,
-		}, nil
+		})
+		selectedSides[plan.Side] = true
+		i++
+
+		if !eng.hedgeMode {
+			break
+		}
 	}
 
-	return nil, nil
+	return actions, nil
 }
 
 // ConfirmOpenPosition records a previously decided action as successfully
@@ -116,7 +129,8 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 	if err := eng.validate(); err != nil {
 		return err
 	}
-	if eng.PositionExists() {
+	if eng.positionExists(action.Position.Side) ||
+		(!eng.hedgeMode && eng.PositionExists()) {
 		return apperrors.ErrPositionOrPendingExists
 	}
 
@@ -132,7 +146,7 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 		return apperrors.ErrStalePositionAction
 	}
 
-	lockKey := entryPlanLockKey(action.plan)
+	lockKey := eng.entryPlanLockKey(action.plan)
 	if eng.lockKeyMap[lockKey] {
 		return apperrors.ErrStalePositionAction
 	}
@@ -170,36 +184,45 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 		return false, apperrors.ErrInvalidPositionAction
 	}
 
-	if eng.lastPosition == nil {
-		eng.lastPosition = &position
-		return true, nil
-	}
-
-	if eng.lastPosition.State == types.PositionOpen {
+	if eng.positionExists(position.Side) ||
+		(!eng.hedgeMode && eng.PositionExists()) {
 		return false, apperrors.ErrPositionOrPendingExists
 	}
 
-	eng.lastPosition = &position
+	eng.positions[position.Side] = &position
 
 	return true, nil
 }
 
-// PositionExists reports whether the engine currently tracks an open position.
+// PositionExists reports whether either side currently has an open position.
 func (eng *Engine) PositionExists() bool {
+	return eng != nil &&
+		(eng.positionExists(types.PositionLong) ||
+			eng.positionExists(types.PositionShort))
+}
 
+// PositionSides returns the sides that currently have an open position.
+func (eng *Engine) PositionSides() []types.PositionSide {
 	if eng == nil {
+		return nil
+	}
+
+	sides := make([]types.PositionSide, 0, 2)
+	for _, side := range positionSides() {
+		if eng.positionExists(side) {
+			sides = append(sides, side)
+		}
+	}
+	return sides
+}
+
+func (eng *Engine) positionExists(side types.PositionSide) bool {
+	if eng == nil || !side.Valid() {
 		return false
 	}
 
-	if eng.lastPosition == nil {
-		return false
-	}
-
-	if eng.lastPosition.State == types.PositionOpen {
-		return true
-	}
-
-	return false
+	position := eng.positions[side]
+	return position != nil && position.State == types.PositionOpen
 }
 
 func (eng *Engine) hasPriceMovedTooFar(entry, currentPrice float64) bool {

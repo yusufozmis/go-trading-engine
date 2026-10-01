@@ -18,7 +18,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 	case types.ReplacePlans:
 		if len(update.Plans) == 0 {
 			eng.activePlans = nil
-			eng.pendingConfirmation = nil
+			clear(eng.pendingConfirmations)
 			return nil
 		}
 
@@ -34,30 +34,39 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		plansCopy := make([]types.EntryPlan, len(update.Plans))
 		copy(plansCopy, update.Plans)
 		eng.activePlans = plansCopy
-		eng.pendingConfirmation = nil
+		clear(eng.pendingConfirmations)
 		return nil
 
 	case types.ClearPlans:
 		eng.activePlans = nil
-		eng.pendingConfirmation = nil
+		clear(eng.pendingConfirmations)
 		return nil
 
 	case types.ConfirmationWaiting:
+		if len(update.Plans) == 0 || len(update.Plans) > 2 ||
+			(!eng.hedgeMode && len(update.Plans) != 1) {
+			return apperrors.ErrInvalidConfirmationPlanCount
+		}
 
-		if len(update.Plans) != 1 {
-			return apperrors.ErrExpectedSinglePlan
-		}
-		pending := update.Plans[0]
-		if pending.Confirmation != types.ConfirmationWaitingAboveEntry &&
-			pending.Confirmation != types.ConfirmationWaitingBelowEntry {
-			return apperrors.ErrInvalidConfirmationState
-		}
-		if err := eng.validateEntryPlan(pending); err != nil {
-			return err
+		pendingBySide := make(map[types.PositionSide]*types.EntryPlan, len(update.Plans))
+		for _, pending := range update.Plans {
+			if pending.Confirmation != types.ConfirmationWaitingAboveEntry &&
+				pending.Confirmation != types.ConfirmationWaitingBelowEntry {
+				return apperrors.ErrInvalidConfirmationState
+			}
+			if err := eng.validateEntryPlan(pending); err != nil {
+				return err
+			}
+			if pendingBySide[pending.Side] != nil {
+				return apperrors.ErrPositionOrPendingExists
+			}
+
+			pendingCopy := pending
+			pendingBySide[pending.Side] = &pendingCopy
 		}
 
 		eng.activePlans = nil
-		eng.pendingConfirmation = &pending
+		eng.pendingConfirmations = pendingBySide
 		return nil
 
 	default:

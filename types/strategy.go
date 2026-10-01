@@ -8,8 +8,13 @@ type Strategy interface {
 
 // StrategyContext describes the engine state visible during calculation.
 type StrategyContext struct {
+	// HedgeMode reports whether the engine permits one open position per side.
+	HedgeMode          bool
 	HasPendingPosition bool
 	HasOpenPosition    bool
+
+	PendingPositionSides []PositionSide
+	OpenPositionSides    []PositionSide
 }
 
 // EntryPlan defines an entry trigger and its stop-loss and take-profit bracket.

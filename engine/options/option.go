@@ -14,6 +14,7 @@ type Option func(*Config) error
 
 // Config stores the values applied by engine options.
 type Config struct {
+	HedgeMode               bool
 	IsCloseAutomated        bool
 	MaxEntryDeviation       *float64
 	TradingFeeRate          float64
@@ -21,6 +22,16 @@ type Config struct {
 	LiquidationModel        types.LiquidationModel
 	MaximumPositionDuration time.Duration
 	BreakEvenStopRate       float64
+}
+
+// WithHedgeMode allows one long and one short position to remain open at the
+// same time. Without this option, the engine preserves its single-position
+// behavior and rejects a second position regardless of side.
+func WithHedgeMode() Option {
+	return func(cfg *Config) error {
+		cfg.HedgeMode = true
+		return nil
+	}
 }
 
 // WithLiquidationModel enables liquidation simulation using model. For
@@ -96,7 +107,7 @@ func WithSlippageRate(slippageRate float64) Option {
 
 // WithMaximumPositionDuration closes a position on the first subsequent candle
 // whose timestamp reaches the configured maximum lifetime. It does not start a
-// wall-clock timer, so evaluation occurs only when DecideClosePosition is called.
+// wall-clock timer, so evaluation occurs only when DecideClosePositions is called.
 func WithMaximumPositionDuration(duration time.Duration) Option {
 	return func(cfg *Config) error {
 		if duration < time.Millisecond {

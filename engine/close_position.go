@@ -7,40 +7,56 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// DecideClosePosition evaluates whether the current candle closes the tracked
-// position. When break-even is configured, a candle that reaches its trigger
-// can update the tracked stop for subsequent candles without producing a close.
-func (eng *Engine) DecideClosePosition(candle types.Candle) (*ClosePositionAction, error) {
+// DecideClosePositions evaluates every tracked side against the current candle.
+// Hedge mode may return two independent close actions. Break-even updates are
+// applied directly to each still-open side for use by subsequent candles.
+func (eng *Engine) DecideClosePositions(candle types.Candle) ([]ClosePositionAction, error) {
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
 	}
-	if !eng.PositionExists() || candle.Timestamp <= eng.lastPosition.OpenTimestamp {
-		return nil, nil
+
+	actions := make([]ClosePositionAction, 0, 2)
+	for _, side := range positionSides() {
+		position := eng.positions[side]
+		if position == nil || position.State != types.PositionOpen ||
+			candle.Timestamp <= position.OpenTimestamp {
+			continue
+		}
+
+		if action := eng.decideClosePosition(position, candle); action != nil {
+			actions = append(actions, *action)
+		}
 	}
-	liquidationAction := eng.liquidationCloseAction(candle)
-	if liquidationAction != nil && eng.liquidationHasPriority(candle) {
-		return liquidationAction, nil
+
+	return actions, nil
+}
+
+func (eng *Engine) decideClosePosition(
+	position *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
+	liquidationAction := eng.liquidationCloseAction(position, candle)
+	if liquidationAction != nil && eng.liquidationHasPriority(position, candle) {
+		return liquidationAction
 	}
 
 	if eng.isCloseAutomated {
-		if action := eng.automatedCloseAction(candle); action != nil {
-			return action, nil
+		if action := eng.automatedCloseAction(position, candle); action != nil {
+			return action
 		}
-	} else if action := eng.candleCloseAction(candle); action != nil {
-		return action, nil
+	} else if action := eng.candleCloseAction(position, candle); action != nil {
+		return action
 	}
 	if liquidationAction != nil {
-		return liquidationAction, nil
+		return liquidationAction
 	}
 
-	eng.applyBreakEvenStop(candle)
+	eng.applyBreakEvenStop(position, candle)
 
-	return eng.maximumDurationCloseAction(candle), nil
+	return eng.maximumDurationCloseAction(position, candle)
 }
 
-func (eng *Engine) liquidationHasPriority(candle types.Candle) bool {
-	position := eng.lastPosition
-
+func (eng *Engine) liquidationHasPriority(position *types.Position, candle types.Candle) bool {
 	// Opening beyond the liquidation level represents a gap that bypassed any
 	// protective stop available inside the candle's range.
 	switch position.Side {
@@ -60,18 +76,18 @@ func (eng *Engine) liquidationHasPriority(candle types.Candle) bool {
 	}
 	// An attached stop has already triggered when the candle opens beyond it.
 	// This known event precedes any later TP or liquidation touch in the candle.
-	if eng.stopReachedAtOpen(candle) {
+	if eng.stopReachedAtOpen(position, candle) {
 		return false
 	}
 	// An attached TP has already triggered when the candle opens beyond it, so
 	// later movement to the liquidation level cannot replace that known outcome.
-	if eng.takeProfitReachedAtOpen(candle) {
+	if eng.takeProfitReachedAtOpen(position, candle) {
 		return false
 	}
 
 	// When TP and liquidation are both touched, OHLC data cannot establish their
 	// intrabar order. Liquidation is the conservative outcome.
-	if eng.takeProfitTouched(candle) {
+	if eng.takeProfitTouched(position, candle) {
 		return true
 	}
 
@@ -83,11 +99,10 @@ func (eng *Engine) liquidationHasPriority(candle types.Candle) bool {
 		stopProtects = position.StopLoss < position.LiquidationPrice
 	}
 
-	return !stopProtects || !eng.stopTouched(candle)
+	return !stopProtects || !eng.stopTouched(position, candle)
 }
 
-func (eng *Engine) stopTouched(candle types.Candle) bool {
-	position := eng.lastPosition
+func (eng *Engine) stopTouched(position *types.Position, candle types.Candle) bool {
 	if eng.isCloseAutomated {
 		switch position.Side {
 		case types.PositionLong:
@@ -109,46 +124,45 @@ func (eng *Engine) stopTouched(candle types.Candle) bool {
 	}
 }
 
-func (eng *Engine) stopReachedAtOpen(candle types.Candle) bool {
-	switch eng.lastPosition.Side {
+func (eng *Engine) stopReachedAtOpen(position *types.Position, candle types.Candle) bool {
+	switch position.Side {
 	case types.PositionLong:
-		return candle.PriceData.OpenPrice <= eng.lastPosition.StopLoss
+		return candle.PriceData.OpenPrice <= position.StopLoss
 	case types.PositionShort:
-		return candle.PriceData.OpenPrice >= eng.lastPosition.StopLoss
+		return candle.PriceData.OpenPrice >= position.StopLoss
 	default:
 		return false
 	}
 }
 
-func (eng *Engine) takeProfitTouched(candle types.Candle) bool {
-	switch eng.lastPosition.Side {
+func (eng *Engine) takeProfitTouched(position *types.Position, candle types.Candle) bool {
+	switch position.Side {
 	case types.PositionLong:
-		return candle.PriceData.HighPrice >= eng.lastPosition.TP
+		return candle.PriceData.HighPrice >= position.TP
 	case types.PositionShort:
-		return candle.PriceData.LowPrice <= eng.lastPosition.TP
+		return candle.PriceData.LowPrice <= position.TP
 	default:
 		return false
 	}
 }
 
-func (eng *Engine) takeProfitReachedAtOpen(candle types.Candle) bool {
-	switch eng.lastPosition.Side {
+func (eng *Engine) takeProfitReachedAtOpen(position *types.Position, candle types.Candle) bool {
+	switch position.Side {
 	case types.PositionLong:
-		return candle.PriceData.OpenPrice >= eng.lastPosition.TP
+		return candle.PriceData.OpenPrice >= position.TP
 	case types.PositionShort:
-		return candle.PriceData.OpenPrice <= eng.lastPosition.TP
+		return candle.PriceData.OpenPrice <= position.TP
 	default:
 		return false
 	}
 }
 
-func (eng *Engine) applyBreakEvenStop(candle types.Candle) {
+func (eng *Engine) applyBreakEvenStop(position *types.Position, candle types.Candle) {
 	if eng.breakEvenStopRate == 0 ||
-		eng.lastPosition.StopLoss == eng.lastPosition.EntryPrice {
+		position.StopLoss == position.EntryPrice {
 		return
 	}
 
-	position := eng.lastPosition
 	entry := position.EntryPrice
 
 	triggered := false
@@ -164,7 +178,7 @@ func (eng *Engine) applyBreakEvenStop(candle types.Candle) {
 	// Close conditions were evaluated before this mutation. Therefore, even if
 	// this candle also crossed entry, the break-even stop starts on the next candle.
 	if triggered {
-		eng.lastPosition.StopLoss = eng.lastPosition.EntryPrice
+		position.StopLoss = position.EntryPrice
 	}
 }
 
@@ -174,12 +188,11 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	if err := eng.validate(); err != nil {
 		return err
 	}
-	if !eng.PositionExists() {
+	closedPosition := action.Position
+	currentPosition := eng.positions[closedPosition.Side]
+	if currentPosition == nil || currentPosition.State != types.PositionOpen {
 		return apperrors.ErrStalePositionAction
 	}
-
-	currentPosition := eng.lastPosition
-	closedPosition := action.Position
 	if err := closedPosition.Validate(); err != nil {
 		return apperrors.ErrInvalidPositionAction
 	}
@@ -228,15 +241,18 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		return apperrors.ErrInvalidNetProfit
 	}
 
-	eng.lastPosition = &closedPosition
+	delete(eng.positions, closedPosition.Side)
 	eng.closedPositionsMu.Lock()
 	eng.closedPositions = append(eng.closedPositions, closedPosition)
 	eng.closedPositionsMu.Unlock()
 	return nil
 }
 
-func (eng *Engine) liquidationCloseAction(candle types.Candle) *ClosePositionAction {
-	position := *eng.lastPosition
+func (eng *Engine) liquidationCloseAction(
+	current *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
+	position := *current
 	if position.LiquidationPrice == 0 {
 		return nil
 	}
@@ -258,12 +274,15 @@ func (eng *Engine) liquidationCloseAction(candle types.Candle) *ClosePositionAct
 	return &ClosePositionAction{Position: position}
 }
 
-func (eng *Engine) maximumDurationCloseAction(candle types.Candle) *ClosePositionAction {
+func (eng *Engine) maximumDurationCloseAction(
+	current *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
 	if eng.maximumPositionDuration == 0 {
 		return nil
 	}
 
-	position := *eng.lastPosition
+	position := *current
 	maximumMilliseconds := eng.maximumPositionDuration.Milliseconds()
 	if candle.Timestamp-position.OpenTimestamp < maximumMilliseconds {
 		return nil
@@ -277,18 +296,21 @@ func (eng *Engine) maximumDurationCloseAction(candle types.Candle) *ClosePositio
 	return &ClosePositionAction{Position: position}
 }
 
-func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionAction {
-	position := *eng.lastPosition
+func (eng *Engine) automatedCloseAction(
+	current *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
+	position := *current
 
-	isTP := eng.takeProfitTouched(candle)
-	isSL := eng.stopTouched(candle)
-	if eng.stopReachedAtOpen(candle) {
+	isTP := eng.takeProfitTouched(current, candle)
+	isSL := eng.stopTouched(current, candle)
+	if eng.stopReachedAtOpen(current, candle) {
 		position.State = types.ClosedByStop
 		position.CloseTimestamp = candle.Timestamp
 		position.ExitPrice = eng.exitFillPrice(candle.PriceData.OpenPrice, position.Side)
 		return &ClosePositionAction{Position: position}
 	}
-	if eng.takeProfitReachedAtOpen(candle) {
+	if eng.takeProfitReachedAtOpen(current, candle) {
 		position.State = types.ClosedByProfit
 		position.CloseTimestamp = candle.Timestamp
 		position.ExitPrice = eng.exitFillPrice(position.TP, position.Side)
@@ -317,8 +339,11 @@ func (eng *Engine) automatedCloseAction(candle types.Candle) *ClosePositionActio
 	return nil
 }
 
-func (eng *Engine) candleCloseAction(candle types.Candle) *ClosePositionAction {
-	position := *eng.lastPosition
+func (eng *Engine) candleCloseAction(
+	current *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
+	position := *current
 	closePrice := candle.PriceData.ClosePrice
 
 	// Preserve the configured TP/SL levels; ExitPrice records the simulated fill.
