@@ -62,7 +62,7 @@ func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionActio
 			return nil, apperrors.ErrInvalidSide
 		}
 
-		if !canOpen {
+		if !eng.hasRequiredCandleConfirmation(candle, plan, canOpen) {
 			i++
 			continue
 		}
@@ -283,4 +283,34 @@ func (eng *Engine) hasRequiredBodyConfirmation(
 	}
 
 	return crossedBody > 0 && crossedBody/bodySize >= eng.confirmationPercentage
+}
+
+// hasRequiredCandleConfirmation counts consecutive, unique candles whose close
+// has crossed the entry in the plan direction. A candle that closes back across
+// the entry resets that plan's progress.
+func (eng *Engine) hasRequiredCandleConfirmation(
+	candle types.Candle,
+	plan types.EntryPlan,
+	crossedEntry bool,
+) bool {
+	if eng.confirmationCandleCount == 0 {
+		return crossedEntry
+	}
+	if !crossedEntry {
+		delete(eng.confirmationProgress, plan)
+		return false
+	}
+
+	progress := eng.confirmationProgress[plan]
+	// Re-evaluating the same candle must not count it more than once. Older
+	// candles also cannot advance confirmation progress.
+	if candle.Timestamp > progress.lastTimestamp {
+		if progress.count < eng.confirmationCandleCount {
+			progress.count++
+		}
+		progress.lastTimestamp = candle.Timestamp
+		eng.confirmationProgress[plan] = progress
+	}
+
+	return progress.count >= eng.confirmationCandleCount
 }

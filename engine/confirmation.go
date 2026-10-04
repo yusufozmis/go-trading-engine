@@ -107,6 +107,7 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 	}
 
 	eng.activePlans = nil
+	clear(eng.confirmationProgress)
 	pendingCopy := pending
 	eng.pendingConfirmations[pending.Side] = &pendingCopy
 

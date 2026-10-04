@@ -18,6 +18,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 	case types.ReplacePlans:
 		if len(update.Plans) == 0 {
 			eng.activePlans = nil
+			clear(eng.confirmationProgress)
 			clear(eng.pendingConfirmations)
 			return nil
 		}
@@ -37,12 +38,21 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			}
 		}
 
+		// Preserve progress only for plans that remain exactly unchanged.
+		nextProgress := make(map[types.EntryPlan]candleConfirmationProgress, len(plans))
+		for _, plan := range plans {
+			if progress, ok := eng.confirmationProgress[plan]; ok {
+				nextProgress[plan] = progress
+			}
+		}
 		eng.activePlans = plans
+		eng.confirmationProgress = nextProgress
 		clear(eng.pendingConfirmations)
 		return nil
 
 	case types.ClearPlans:
 		eng.activePlans = nil
+		clear(eng.confirmationProgress)
 		clear(eng.pendingConfirmations)
 		return nil
 
@@ -75,6 +85,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		}
 
 		eng.activePlans = nil
+		clear(eng.confirmationProgress)
 		eng.pendingConfirmations = pendingBySide
 		return nil
 
@@ -88,5 +99,7 @@ func (eng *Engine) removeActivePlanAt(idx int) {
 		return
 	}
 
+	removedPlan := eng.activePlans[idx]
 	eng.activePlans = append(eng.activePlans[:idx], eng.activePlans[idx+1:]...)
+	delete(eng.confirmationProgress, removedPlan)
 }

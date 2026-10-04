@@ -24,6 +24,7 @@ type Config struct {
 	BreakEvenStopRate       float64
 	AllowedPositionSide     types.PositionSide
 	ConfirmationPercentage  float64
+	ConfirmationCandleCount int
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -169,6 +170,24 @@ func WithConfirmationPercentageFilter(confirmationPercentage float64) Option {
 		}
 
 		cfg.ConfirmationPercentage = confirmationPercentage
+		return nil
+	}
+}
+
+// WithConfirmationCandleCountFilter requires confirmationCandleCount
+// consecutive candle closes beyond the entry before a position can open. Long
+// plans count closes at or above entry and short plans count closes at or below
+// entry. A close back across entry resets that plan's count. Re-evaluating the
+// same candle does not increment the count twice. Without this option, one
+// qualifying close is sufficient. If supplied more than once, the last count
+// replaces earlier values.
+func WithConfirmationCandleCountFilter(confirmationCandleCount int) Option {
+	return func(cfg *Config) error {
+		if confirmationCandleCount <= 0 {
+			return apperrors.ErrInvalidConfirmationCandleCount
+		}
+
+		cfg.ConfirmationCandleCount = confirmationCandleCount
 		return nil
 	}
 }

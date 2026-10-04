@@ -105,6 +105,9 @@ var (
 	// ErrInvalidConfirmationPercentage indicates a non-finite confirmation
 	// percentage outside the open interval (0, 1).
 	ErrInvalidConfirmationPercentage = errors.New("invalid confirmation percentage")
+	// ErrInvalidConfirmationCandleCount indicates a non-positive confirmation
+	// candle count.
+	ErrInvalidConfirmationCandleCount = errors.New("invalid confirmation candle count")
 )
 
 // Exchange Errors

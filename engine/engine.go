@@ -22,8 +22,9 @@ type Engine struct {
 	closedPositionsMu sync.RWMutex
 	closedPositions   []types.Position
 
-	lockKeyMap  map[string]bool
-	activePlans []types.EntryPlan
+	lockKeyMap           map[string]bool
+	activePlans          []types.EntryPlan
+	confirmationProgress map[types.EntryPlan]candleConfirmationProgress
 
 	pendingConfirmations map[types.PositionSide]*types.EntryPlan
 
@@ -39,6 +40,12 @@ type Engine struct {
 	breakEvenStopRate       float64
 	allowedSide             types.PositionSide
 	confirmationPercentage  float64
+	confirmationCandleCount int
+}
+
+type candleConfirmationProgress struct {
+	count         int
+	lastTimestamp int64
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -75,6 +82,7 @@ func NewEngine(symbol, timeframe string,
 		timeframe:               timeframe,
 		positions:               make(map[types.PositionSide]*types.Position, 2),
 		lockKeyMap:              make(map[string]bool),
+		confirmationProgress:    make(map[types.EntryPlan]candleConfirmationProgress),
 		pendingConfirmations:    make(map[types.PositionSide]*types.EntryPlan, 2),
 		positionSizer:           positionSizer,
 		hedgeMode:               cfg.HedgeMode,
@@ -87,6 +95,7 @@ func NewEngine(symbol, timeframe string,
 		breakEvenStopRate:       cfg.BreakEvenStopRate,
 		allowedSide:             cfg.AllowedPositionSide,
 		confirmationPercentage:  cfg.ConfirmationPercentage,
+		confirmationCandleCount: cfg.ConfirmationCandleCount,
 	}, nil
 }
 
