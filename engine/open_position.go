@@ -66,6 +66,10 @@ func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionActio
 			i++
 			continue
 		}
+		if !eng.hasRequiredBodyConfirmation(candle, plan) {
+			i++
+			continue
+		}
 
 		if eng.maxEntryDeviation != nil &&
 			eng.hasPriceMovedTooFar(plan.EntryPrice, candle.PriceData.ClosePrice) {
@@ -249,4 +253,34 @@ func (eng *Engine) positionExists(side types.PositionSide) bool {
 func (eng *Engine) hasPriceMovedTooFar(entry, currentPrice float64) bool {
 	deviation := math.Abs(currentPrice-entry) / entry
 	return deviation >= *eng.maxEntryDeviation
+}
+
+// hasRequiredBodyConfirmation reports whether enough of the candle body has
+// crossed the entry in the position direction. Wicks are intentionally ignored.
+func (eng *Engine) hasRequiredBodyConfirmation(
+	candle types.Candle,
+	plan types.EntryPlan,
+) bool {
+	if eng.confirmationPercentage == 0 {
+		return true
+	}
+
+	bodyLow := math.Min(candle.PriceData.OpenPrice, candle.PriceData.ClosePrice)
+	bodyHigh := math.Max(candle.PriceData.OpenPrice, candle.PriceData.ClosePrice)
+	bodySize := bodyHigh - bodyLow
+	if bodySize == 0 {
+		return false
+	}
+
+	var crossedBody float64
+	switch plan.Side {
+	case types.PositionLong:
+		crossedBody = bodyHigh - math.Max(bodyLow, plan.EntryPrice)
+	case types.PositionShort:
+		crossedBody = math.Min(bodyHigh, plan.EntryPrice) - bodyLow
+	default:
+		return false
+	}
+
+	return crossedBody > 0 && crossedBody/bodySize >= eng.confirmationPercentage
 }

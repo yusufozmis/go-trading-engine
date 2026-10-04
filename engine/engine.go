@@ -38,6 +38,7 @@ type Engine struct {
 	maximumPositionDuration time.Duration
 	breakEvenStopRate       float64
 	allowedSide             types.PositionSide
+	confirmationPercentage  float64
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -85,6 +86,7 @@ func NewEngine(symbol, timeframe string,
 		maximumPositionDuration: cfg.MaximumPositionDuration,
 		breakEvenStopRate:       cfg.BreakEvenStopRate,
 		allowedSide:             cfg.AllowedPositionSide,
+		confirmationPercentage:  cfg.ConfirmationPercentage,
 	}, nil
 }
 

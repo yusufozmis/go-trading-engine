@@ -102,6 +102,9 @@ var (
 	// ErrInvalidPositionSide indicates that a position-side filter received an
 	// unsupported side.
 	ErrInvalidPositionSide = errors.New("invalid position side")
+	// ErrInvalidConfirmationPercentage indicates a non-finite confirmation
+	// percentage outside the open interval (0, 1).
+	ErrInvalidConfirmationPercentage = errors.New("invalid confirmation percentage")
 )
 
 // Exchange Errors

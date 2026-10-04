@@ -23,6 +23,7 @@ type Config struct {
 	MaximumPositionDuration time.Duration
 	BreakEvenStopRate       float64
 	AllowedPositionSide     types.PositionSide
+	ConfirmationPercentage  float64
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -149,6 +150,25 @@ func WithPositionSideFilter(allowedSide types.PositionSide) Option {
 		}
 
 		cfg.AllowedPositionSide = allowedSide
+		return nil
+	}
+}
+
+// WithConfirmationPercentageFilter requires the configured fraction of a
+// candle body to cross the entry price before a position can open. Long plans
+// measure the body above entry and short plans measure the body below entry;
+// candle wicks do not count. A value of 0.50 requires half of the body to cross.
+// Without this option, the existing close-price trigger is used by itself. If
+// supplied more than once, the last percentage replaces earlier values.
+func WithConfirmationPercentageFilter(confirmationPercentage float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(confirmationPercentage) ||
+			math.IsInf(confirmationPercentage, 0) ||
+			confirmationPercentage <= 0 || confirmationPercentage >= 1 {
+			return apperrors.ErrInvalidConfirmationPercentage
+		}
+
+		cfg.ConfirmationPercentage = confirmationPercentage
 		return nil
 	}
 }
