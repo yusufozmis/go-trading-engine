@@ -22,6 +22,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			return nil
 		}
 
+		plans := make([]types.EntryPlan, 0, len(update.Plans))
 		for _, plan := range update.Plans {
 			if plan.Confirmation != types.ConfirmationNone {
 				return apperrors.ErrInvalidConfirmationState
@@ -29,11 +30,14 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			if err := eng.validateEntryPlan(plan); err != nil {
 				return err
 			}
+			// Validate every supplied plan, then keep only sides permitted by the
+			// engine policy so a filtered plan cannot occupy active state.
+			if eng.isPositionSideAllowed(plan.Side) {
+				plans = append(plans, plan)
+			}
 		}
 
-		plansCopy := make([]types.EntryPlan, len(update.Plans))
-		copy(plansCopy, update.Plans)
-		eng.activePlans = plansCopy
+		eng.activePlans = plans
 		clear(eng.pendingConfirmations)
 		return nil
 
@@ -56,6 +60,11 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			}
 			if err := eng.validateEntryPlan(pending); err != nil {
 				return err
+			}
+			// Filter before recording pending state; otherwise a forbidden side
+			// could block the allowed side in non-hedge mode.
+			if !eng.isPositionSideAllowed(pending.Side) {
+				continue
 			}
 			if pendingBySide[pending.Side] != nil {
 				return apperrors.ErrPositionOrPendingExists

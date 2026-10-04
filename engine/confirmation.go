@@ -95,6 +95,11 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 	if err := eng.validateEntryPlan(pending); err != nil {
 		return err
 	}
+	// A filtered confirmation is intentionally ignored instead of occupying
+	// pending state and blocking a permitted side.
+	if !eng.isPositionSideAllowed(pending.Side) {
+		return nil
+	}
 
 	if eng.positionExists(pending.Side) || eng.pendingExists(pending.Side) ||
 		(!eng.hedgeMode && (eng.PositionExists() || eng.PendingExists())) {

@@ -99,6 +99,9 @@ var (
 
 	// ErrInvalidBreakEvenStopRate indicates a non-finite rate outside (0, 1).
 	ErrInvalidBreakEvenStopRate = errors.New("invalid break-even stop rate")
+	// ErrInvalidPositionSide indicates that a position-side filter received an
+	// unsupported side.
+	ErrInvalidPositionSide = errors.New("invalid position side")
 )
 
 // Exchange Errors

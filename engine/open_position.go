@@ -30,6 +30,12 @@ func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionActio
 	selectedSides := make(map[types.PositionSide]bool, 2)
 	for i := 0; i < len(eng.activePlans); {
 		plan := eng.activePlans[i]
+		// A filtered side remains a valid strategy plan, but it cannot produce an
+		// open action. Continue so another allowed plan can still open this candle.
+		if !eng.isPositionSideAllowed(plan.Side) {
+			i++
+			continue
+		}
 		if eng.positionExists(plan.Side) || selectedSides[plan.Side] {
 			i++
 			continue
@@ -129,6 +135,11 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 	if err := eng.validate(); err != nil {
 		return err
 	}
+	// Enforce the filter again at the public confirmation boundary so a caller
+	// cannot bypass it with an action created outside DecideOpenPositions.
+	if !eng.isPositionSideAllowed(action.Position.Side) {
+		return apperrors.ErrInvalidPositionAction
+	}
 	if eng.positionExists(action.Position.Side) ||
 		(!eng.hedgeMode && eng.PositionExists()) {
 		return apperrors.ErrPositionOrPendingExists
@@ -164,12 +175,22 @@ func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
 	return nil
 }
 
+func (eng *Engine) isPositionSideAllowed(side types.PositionSide) bool {
+	return side.Valid() &&
+		(eng.allowedSide == "" || eng.allowedSide == side)
+}
+
 // SetPosition records position when the engine does not already have an open
 // position. It reports whether the position was accepted and why it was rejected.
 func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 
 	if err := eng.validate(); err != nil {
 		return false, err
+	}
+	// SetPosition is also a position-opening boundary and must obey the same
+	// side policy as actions produced by DecideOpenPositions.
+	if !eng.isPositionSideAllowed(position.Side) {
+		return false, apperrors.ErrInvalidPositionAction
 	}
 
 	position.SlippageCost = eng.entrySlippageCost(

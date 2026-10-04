@@ -22,6 +22,7 @@ type Config struct {
 	LiquidationModel        types.LiquidationModel
 	MaximumPositionDuration time.Duration
 	BreakEvenStopRate       float64
+	AllowedPositionSide     types.PositionSide
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -132,6 +133,22 @@ func WithBreakEvenStop(breakEvenStopRate float64) Option {
 		}
 
 		cfg.BreakEvenStopRate = breakEvenStopRate
+		return nil
+	}
+}
+
+// WithPositionSideFilter permits new positions only for allowedSide. Without
+// this option, both long and short positions are allowed. The filter applies to
+// positions opened after engine construction; preloaded positions remain
+// manageable even when their side differs. If supplied more than once, the last
+// side replaces earlier values.
+func WithPositionSideFilter(allowedSide types.PositionSide) Option {
+	return func(cfg *Config) error {
+		if !allowedSide.Valid() {
+			return apperrors.ErrInvalidPositionSide
+		}
+
+		cfg.AllowedPositionSide = allowedSide
 		return nil
 	}
 }

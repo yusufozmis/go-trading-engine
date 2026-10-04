@@ -37,6 +37,7 @@ type Engine struct {
 	liquidationModel        types.LiquidationModel
 	maximumPositionDuration time.Duration
 	breakEvenStopRate       float64
+	allowedSide             types.PositionSide
 }
 
 // NewEngine creates an engine for one symbol and timeframe. Callers may provide
@@ -83,6 +84,7 @@ func NewEngine(symbol, timeframe string,
 		liquidationModel:        cfg.LiquidationModel,
 		maximumPositionDuration: cfg.MaximumPositionDuration,
 		breakEvenStopRate:       cfg.BreakEvenStopRate,
+		allowedSide:             cfg.AllowedPositionSide,
 	}, nil
 }
 
