@@ -17,18 +17,26 @@ func (eng *Engine) CheckConfirmations(candle types.Candle) error {
 		if pending == nil {
 			continue
 		}
+		timedOut, err := eng.confirmationTimedOut(side, candle.Timestamp)
+		if err != nil {
+			return err
+		}
+		if timedOut {
+			eng.removePendingConfirmation(side)
+			continue
+		}
 
 		plan := *pending
 		closePrice := candle.PriceData.ClosePrice
 		switch plan.Side {
 		case types.PositionLong:
 			if closePrice <= plan.StopLoss || closePrice >= plan.TakeProfit {
-				delete(eng.pendingConfirmations, side)
+				eng.removePendingConfirmation(side)
 				continue
 			}
 		case types.PositionShort:
 			if closePrice >= plan.StopLoss || closePrice <= plan.TakeProfit {
-				delete(eng.pendingConfirmations, side)
+				eng.removePendingConfirmation(side)
 				continue
 			}
 		default:
@@ -48,7 +56,7 @@ func (eng *Engine) CheckConfirmations(candle types.Candle) error {
 		if confirmed {
 			plan.Confirmation = types.ConfirmationNone
 			eng.activePlans = append(eng.activePlans, plan)
-			delete(eng.pendingConfirmations, side)
+			eng.removePendingConfirmation(side)
 		}
 	}
 
@@ -110,6 +118,32 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 	clear(eng.confirmationProgress)
 	pendingCopy := pending
 	eng.pendingConfirmations[pending.Side] = &pendingCopy
+	delete(eng.pendingStartedAt, pending.Side)
 
 	return nil
+}
+
+func (eng *Engine) confirmationTimedOut(
+	side types.PositionSide,
+	timestamp int64,
+) (bool, error) {
+	if eng.confirmationTimeout == 0 {
+		return false, nil
+	}
+
+	startedAt, exists := eng.pendingStartedAt[side]
+	if !exists {
+		eng.pendingStartedAt[side] = timestamp
+		return false, nil
+	}
+	if timestamp < startedAt {
+		return false, apperrors.ErrInvalidTimestamp
+	}
+
+	return timestamp-startedAt >= eng.confirmationTimeout.Milliseconds(), nil
+}
+
+func (eng *Engine) removePendingConfirmation(side types.PositionSide) {
+	delete(eng.pendingConfirmations, side)
+	delete(eng.pendingStartedAt, side)
 }

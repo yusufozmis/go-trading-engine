@@ -108,6 +108,9 @@ var (
 	// ErrInvalidConfirmationCandleCount indicates a non-positive confirmation
 	// candle count.
 	ErrInvalidConfirmationCandleCount = errors.New("invalid confirmation candle count")
+	// ErrInvalidConfirmationTimeout indicates a timeout below candle timestamp
+	// precision.
+	ErrInvalidConfirmationTimeout = errors.New("invalid confirmation timeout")
 )
 
 // Exchange Errors

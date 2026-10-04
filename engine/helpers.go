@@ -57,6 +57,10 @@ func (eng *Engine) validateCandle(candle types.Candle) error {
 }
 
 func validateCandleData(candle types.Candle) error {
+	if candle.Timestamp <= 0 {
+		return apperrors.ErrInvalidTimestamp
+	}
+
 	prices := []float64{
 		candle.PriceData.OpenPrice,
 		candle.PriceData.HighPrice,

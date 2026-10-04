@@ -20,6 +20,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			eng.activePlans = nil
 			clear(eng.confirmationProgress)
 			clear(eng.pendingConfirmations)
+			clear(eng.pendingStartedAt)
 			return nil
 		}
 
@@ -48,12 +49,14 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 		eng.activePlans = plans
 		eng.confirmationProgress = nextProgress
 		clear(eng.pendingConfirmations)
+		clear(eng.pendingStartedAt)
 		return nil
 
 	case types.ClearPlans:
 		eng.activePlans = nil
 		clear(eng.confirmationProgress)
 		clear(eng.pendingConfirmations)
+		clear(eng.pendingStartedAt)
 		return nil
 
 	case types.ConfirmationWaiting:
@@ -84,9 +87,22 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			pendingBySide[pending.Side] = &pendingCopy
 		}
 
+		// Preserve the timeout origin when a strategy repeats the exact same
+		// pending plan on later candles. A changed plan starts a fresh timeout.
+		nextStartedAt := make(map[types.PositionSide]int64, len(pendingBySide))
+		for side, pending := range pendingBySide {
+			current := eng.pendingConfirmations[side]
+			if current != nil && *current == *pending {
+				if startedAt, ok := eng.pendingStartedAt[side]; ok {
+					nextStartedAt[side] = startedAt
+				}
+			}
+		}
+
 		eng.activePlans = nil
 		clear(eng.confirmationProgress)
 		eng.pendingConfirmations = pendingBySide
+		eng.pendingStartedAt = nextStartedAt
 		return nil
 
 	default:

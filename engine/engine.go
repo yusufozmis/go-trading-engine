@@ -27,6 +27,7 @@ type Engine struct {
 	confirmationProgress map[types.EntryPlan]candleConfirmationProgress
 
 	pendingConfirmations map[types.PositionSide]*types.EntryPlan
+	pendingStartedAt     map[types.PositionSide]int64
 
 	positionSizer types.PositionSizer
 
@@ -41,6 +42,7 @@ type Engine struct {
 	allowedSide             types.PositionSide
 	confirmationPercentage  float64
 	confirmationCandleCount int
+	confirmationTimeout     time.Duration
 }
 
 type candleConfirmationProgress struct {
@@ -84,6 +86,7 @@ func NewEngine(symbol, timeframe string,
 		lockKeyMap:              make(map[string]bool),
 		confirmationProgress:    make(map[types.EntryPlan]candleConfirmationProgress),
 		pendingConfirmations:    make(map[types.PositionSide]*types.EntryPlan, 2),
+		pendingStartedAt:        make(map[types.PositionSide]int64, 2),
 		positionSizer:           positionSizer,
 		hedgeMode:               cfg.HedgeMode,
 		maxEntryDeviation:       cfg.MaxEntryDeviation,
@@ -96,6 +99,7 @@ func NewEngine(symbol, timeframe string,
 		allowedSide:             cfg.AllowedPositionSide,
 		confirmationPercentage:  cfg.ConfirmationPercentage,
 		confirmationCandleCount: cfg.ConfirmationCandleCount,
+		confirmationTimeout:     cfg.ConfirmationTimeout,
 	}, nil
 }
 

@@ -25,6 +25,7 @@ type Config struct {
 	AllowedPositionSide     types.PositionSide
 	ConfirmationPercentage  float64
 	ConfirmationCandleCount int
+	ConfirmationTimeout     time.Duration
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -188,6 +189,22 @@ func WithConfirmationCandleCountFilter(confirmationCandleCount int) Option {
 		}
 
 		cfg.ConfirmationCandleCount = confirmationCandleCount
+		return nil
+	}
+}
+
+// WithConfirmationTimeout cancels a pending confirmation plan when it has not
+// validated within timeout. The duration starts at the first candle evaluated
+// for that pending plan and advances using candle timestamps, keeping backtests
+// deterministic. Expiration is checked only when CheckConfirmations receives a
+// candle. If supplied more than once, the last timeout replaces earlier values.
+func WithConfirmationTimeout(timeout time.Duration) Option {
+	return func(cfg *Config) error {
+		if timeout < time.Millisecond {
+			return apperrors.ErrInvalidConfirmationTimeout
+		}
+
+		cfg.ConfirmationTimeout = timeout
 		return nil
 	}
 }
