@@ -148,12 +148,20 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.OpenTimestamp <= 0 ||
 		position.CloseTimestamp != 0 ||
 		position.ExitPrice != 0 ||
-		position.Fee != 0 ||
+		math.IsNaN(position.Fee) ||
+		math.IsInf(position.Fee, 0) ||
+		position.Fee < 0 ||
 		math.IsNaN(position.SlippageCost) ||
 		math.IsInf(position.SlippageCost, 0) ||
 		position.SlippageCost < 0 ||
-		position.NetProfit != 0 ||
+		math.IsNaN(position.NetProfit) ||
+		math.IsInf(position.NetProfit, 0) ||
 		position.State != types.PositionOpen {
+		return false
+	}
+	if (position.PartialTakeProfitExecuted &&
+		position.PartialTPTimestamp <= position.OpenTimestamp) ||
+		(!position.PartialTakeProfitExecuted && position.PartialTPTimestamp != 0) {
 		return false
 	}
 	if eng.liquidationModel == nil {

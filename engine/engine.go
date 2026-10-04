@@ -19,8 +19,11 @@ type Engine struct {
 
 	positions map[types.PositionSide]*types.Position
 
-	closedPositionsMu sync.RWMutex
-	closedPositions   []types.Position
+	// realizedMu protects complete closes and snapshots of still-open positions
+	// with realized partial profit while Performance runs concurrently.
+	realizedMu                 sync.RWMutex
+	closedPositions            []types.Position
+	partiallyRealizedPositions map[types.PositionSide]types.Position
 
 	lockKeyMap           map[string]bool
 	activePlans          []types.EntryPlan
@@ -31,18 +34,20 @@ type Engine struct {
 
 	positionSizer types.PositionSizer
 
-	hedgeMode               bool
-	isCloseAutomated        bool
-	maxEntryDeviation       *float64
-	tradingFeeRate          float64
-	slippageRate            float64
-	liquidationModel        types.LiquidationModel
-	maximumPositionDuration time.Duration
-	breakEvenStopRate       float64
-	allowedSide             types.PositionSide
-	confirmationPercentage  float64
-	confirmationCandleCount int
-	confirmationTimeout     time.Duration
+	hedgeMode                   bool
+	isCloseAutomated            bool
+	maxEntryDeviation           *float64
+	tradingFeeRate              float64
+	slippageRate                float64
+	liquidationModel            types.LiquidationModel
+	maximumPositionDuration     time.Duration
+	breakEvenStopRate           float64
+	allowedSide                 types.PositionSide
+	confirmationPercentage      float64
+	confirmationCandleCount     int
+	confirmationTimeout         time.Duration
+	partialTakeProfitPercentage float64
+	partialReductionPercentage  float64
 }
 
 type candleConfirmationProgress struct {
@@ -80,26 +85,29 @@ func NewEngine(symbol, timeframe string,
 	}
 
 	return &Engine{
-		symbol:                  symbol,
-		timeframe:               timeframe,
-		positions:               make(map[types.PositionSide]*types.Position, 2),
-		lockKeyMap:              make(map[string]bool),
-		confirmationProgress:    make(map[types.EntryPlan]candleConfirmationProgress),
-		pendingConfirmations:    make(map[types.PositionSide]*types.EntryPlan, 2),
-		pendingStartedAt:        make(map[types.PositionSide]int64, 2),
-		positionSizer:           positionSizer,
-		hedgeMode:               cfg.HedgeMode,
-		maxEntryDeviation:       cfg.MaxEntryDeviation,
-		isCloseAutomated:        cfg.IsCloseAutomated,
-		tradingFeeRate:          cfg.TradingFeeRate,
-		slippageRate:            cfg.SlippageRate,
-		liquidationModel:        cfg.LiquidationModel,
-		maximumPositionDuration: cfg.MaximumPositionDuration,
-		breakEvenStopRate:       cfg.BreakEvenStopRate,
-		allowedSide:             cfg.AllowedPositionSide,
-		confirmationPercentage:  cfg.ConfirmationPercentage,
-		confirmationCandleCount: cfg.ConfirmationCandleCount,
-		confirmationTimeout:     cfg.ConfirmationTimeout,
+		symbol:                      symbol,
+		timeframe:                   timeframe,
+		positions:                   make(map[types.PositionSide]*types.Position, 2),
+		partiallyRealizedPositions:  make(map[types.PositionSide]types.Position, 2),
+		lockKeyMap:                  make(map[string]bool),
+		confirmationProgress:        make(map[types.EntryPlan]candleConfirmationProgress),
+		pendingConfirmations:        make(map[types.PositionSide]*types.EntryPlan, 2),
+		pendingStartedAt:            make(map[types.PositionSide]int64, 2),
+		positionSizer:               positionSizer,
+		hedgeMode:                   cfg.HedgeMode,
+		maxEntryDeviation:           cfg.MaxEntryDeviation,
+		isCloseAutomated:            cfg.IsCloseAutomated,
+		tradingFeeRate:              cfg.TradingFeeRate,
+		slippageRate:                cfg.SlippageRate,
+		liquidationModel:            cfg.LiquidationModel,
+		maximumPositionDuration:     cfg.MaximumPositionDuration,
+		breakEvenStopRate:           cfg.BreakEvenStopRate,
+		allowedSide:                 cfg.AllowedPositionSide,
+		confirmationPercentage:      cfg.ConfirmationPercentage,
+		confirmationCandleCount:     cfg.ConfirmationCandleCount,
+		confirmationTimeout:         cfg.ConfirmationTimeout,
+		partialTakeProfitPercentage: cfg.PartialTakeProfitPercentage,
+		partialReductionPercentage:  cfg.PartialReductionPercentage,
 	}, nil
 }
 
@@ -143,6 +151,9 @@ func NewEngineWithPreloadedPositions(
 
 		positionCopy := position
 		eng.positions[position.Side] = &positionCopy
+		if position.PartialTakeProfitExecuted {
+			eng.partiallyRealizedPositions[position.Side] = positionCopy
+		}
 	}
 
 	return eng, nil

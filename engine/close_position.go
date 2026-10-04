@@ -206,13 +206,20 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.TP != closedPosition.TP ||
 		currentPosition.Amount != closedPosition.Amount ||
 		currentPosition.Leverage != closedPosition.Leverage ||
-		currentPosition.LiquidationPrice != closedPosition.LiquidationPrice {
+		currentPosition.LiquidationPrice != closedPosition.LiquidationPrice ||
+		currentPosition.PartialTakeProfitExecuted !=
+			closedPosition.PartialTakeProfitExecuted ||
+		currentPosition.PartialTPTimestamp != closedPosition.PartialTPTimestamp ||
+		currentPosition.Fee != closedPosition.Fee ||
+		currentPosition.SlippageCost != closedPosition.SlippageCost ||
+		currentPosition.NetProfit != closedPosition.NetProfit {
 		return apperrors.ErrStalePositionAction
 	}
 
 	entryFee := closedPosition.EntryPrice * closedPosition.Amount * eng.tradingFeeRate
 	exitFee := closedPosition.ExitPrice * closedPosition.Amount * eng.tradingFeeRate
-	closedPosition.Fee = entryFee + exitFee
+	closeFee := entryFee + exitFee
+	closedPosition.Fee = currentPosition.Fee + closeFee
 	if math.IsNaN(closedPosition.Fee) || math.IsInf(closedPosition.Fee, 0) {
 		return apperrors.ErrInvalidFee
 	}
@@ -228,23 +235,26 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 
 	switch closedPosition.Side {
 	case types.PositionLong:
-		closedPosition.NetProfit = (closedPosition.ExitPrice - closedPosition.EntryPrice) *
-			closedPosition.Amount
+		closedPosition.NetProfit = currentPosition.NetProfit +
+			(closedPosition.ExitPrice-closedPosition.EntryPrice)*closedPosition.Amount
 	case types.PositionShort:
-		closedPosition.NetProfit = (closedPosition.EntryPrice - closedPosition.ExitPrice) *
-			closedPosition.Amount
+		closedPosition.NetProfit = currentPosition.NetProfit +
+			(closedPosition.EntryPrice-closedPosition.ExitPrice)*closedPosition.Amount
 	default:
 		return apperrors.ErrInvalidSide
 	}
-	closedPosition.NetProfit -= closedPosition.Fee
+	// NetProfit already contains any confirmed partial realization, so deduct
+	// only this final slice's fee rather than the cumulative Fee value.
+	closedPosition.NetProfit -= closeFee
 	if math.IsNaN(closedPosition.NetProfit) || math.IsInf(closedPosition.NetProfit, 0) {
 		return apperrors.ErrInvalidNetProfit
 	}
 
 	delete(eng.positions, closedPosition.Side)
-	eng.closedPositionsMu.Lock()
+	eng.realizedMu.Lock()
+	delete(eng.partiallyRealizedPositions, closedPosition.Side)
 	eng.closedPositions = append(eng.closedPositions, closedPosition)
-	eng.closedPositionsMu.Unlock()
+	eng.realizedMu.Unlock()
 	return nil
 }
 

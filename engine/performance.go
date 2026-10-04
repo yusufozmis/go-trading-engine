@@ -1,75 +1,83 @@
 package engine
 
 import (
+	"maps"
 	"math"
 	"slices"
 
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// Performance calculates gross profit and loss from confirmed closed positions.
-// Trading fees and net profit are summed from each position's realized values.
+// Performance calculates gross profit and loss from confirmed closes and
+// realized partial profits. The returned positions contain only complete closes.
 func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
 		return types.PerformanceResult{}, nil
 	}
-	eng.closedPositionsMu.RLock()
+
+	eng.realizedMu.RLock()
 	closedPositions := slices.Clone(eng.closedPositions)
-	eng.closedPositionsMu.RUnlock()
+	partiallyRealizedPositions := maps.Clone(eng.partiallyRealizedPositions)
+	eng.realizedMu.RUnlock()
 
-	tpCount := 0
-	slCount := 0
-	liquidationCount := 0
-	durationCloseCount := 0
+	result := types.PerformanceResult{
+		Symbol:                 eng.symbol,
+		Timeframe:              eng.timeframe,
+		PartialTakeProfitCount: len(partiallyRealizedPositions),
+	}
+	positions := make([]types.Position, 0, len(closedPositions))
 
-	var profit, loss, tradingFees, netProfit float64
-	var positions []types.Position
-
+	// Only complete closes are returned to the caller and included in close-reason
+	// counts. Open positions with partial profit remain absent from this result.
 	for _, position := range closedPositions {
 		switch position.State {
 		case types.ClosedByProfit:
-			tpCount++
-			positions = append(positions, position)
+			result.TPCount++
 
 		case types.ClosedByStop:
-			slCount++
-			positions = append(positions, position)
+			result.SLCount++
 
 		case types.ClosedByLiquidation:
-			liquidationCount++
-			positions = append(positions, position)
+			result.LiquidationCount++
 
 		case types.ClosedByDuration:
-			durationCloseCount++
-			positions = append(positions, position)
+			result.DurationCloseCount++
 
 		default:
 			continue
+		}
+
+		positions = append(positions, position)
+		if position.PartialTakeProfitExecuted {
+			result.PartialTakeProfitCount++
 		}
 
 		// NetProfit already has fees deducted, so add them back when grouping
 		// fee-exclusive gross profit and loss.
 		grossPnL := position.NetProfit + position.Fee
 		if grossPnL >= 0 {
-			profit += grossPnL
+			result.Profit += grossPnL
 		} else {
-			loss += math.Abs(grossPnL)
+			result.Loss += math.Abs(grossPnL)
 		}
 
-		tradingFees += position.Fee
-		netProfit += position.NetProfit
+		result.TradingFees += position.Fee
+		result.NetProfit += position.NetProfit
 	}
 
-	return types.PerformanceResult{
-		Symbol:             eng.symbol,
-		Timeframe:          eng.timeframe,
-		TPCount:            tpCount,
-		SLCount:            slCount,
-		LiquidationCount:   liquidationCount,
-		DurationCloseCount: durationCloseCount,
-		Profit:             profit,
-		Loss:               loss,
-		TradingFees:        tradingFees,
-		NetProfit:          netProfit,
-	}, positions
+	// These snapshots contribute only the realized partial accounting of
+	// positions that remain open, so they do not affect close-reason counts.
+	for _, position := range partiallyRealizedPositions {
+		grossPnL := position.NetProfit + position.Fee
+		if grossPnL >= 0 {
+			result.Profit += grossPnL
+		} else {
+			result.Loss += math.Abs(grossPnL)
+		}
+
+		result.TradingFees += position.Fee
+		result.NetProfit += position.NetProfit
+	}
+
+	return result, positions
 }

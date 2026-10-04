@@ -76,6 +76,20 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 				}
 			}
 		}
+
+		if eng.PositionExists() {
+			partialActions, err := eng.DecidePartialTakeProfits(candle)
+			if err != nil {
+				return types.PerformanceResult{}, nil, err
+			}
+			for _, action := range partialActions {
+				// Backtests assume the reduce order fills immediately. Live callers
+				// should confirm only after the exchange reduction succeeds.
+				if err := eng.ConfirmPartialTakeProfit(action); err != nil {
+					return types.PerformanceResult{}, nil, err
+				}
+			}
+		}
 	}
 
 	performance, positions := eng.Performance()

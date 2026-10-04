@@ -215,6 +215,11 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	}
 
 	eng.positions[position.Side] = &position
+	if position.PartialTakeProfitExecuted {
+		eng.realizedMu.Lock()
+		eng.partiallyRealizedPositions[position.Side] = position
+		eng.realizedMu.Unlock()
+	}
 
 	return true, nil
 }

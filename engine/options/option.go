@@ -14,18 +14,20 @@ type Option func(*Config) error
 
 // Config stores the values applied by engine options.
 type Config struct {
-	HedgeMode               bool
-	IsCloseAutomated        bool
-	MaxEntryDeviation       *float64
-	TradingFeeRate          float64
-	SlippageRate            float64
-	LiquidationModel        types.LiquidationModel
-	MaximumPositionDuration time.Duration
-	BreakEvenStopRate       float64
-	AllowedPositionSide     types.PositionSide
-	ConfirmationPercentage  float64
-	ConfirmationCandleCount int
-	ConfirmationTimeout     time.Duration
+	HedgeMode                   bool
+	IsCloseAutomated            bool
+	MaxEntryDeviation           *float64
+	TradingFeeRate              float64
+	SlippageRate                float64
+	LiquidationModel            types.LiquidationModel
+	MaximumPositionDuration     time.Duration
+	BreakEvenStopRate           float64
+	AllowedPositionSide         types.PositionSide
+	ConfirmationPercentage      float64
+	ConfirmationCandleCount     int
+	ConfirmationTimeout         time.Duration
+	PartialTakeProfitPercentage float64
+	PartialReductionPercentage  float64
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -205,6 +207,31 @@ func WithConfirmationTimeout(timeout time.Duration) Option {
 		}
 
 		cfg.ConfirmationTimeout = timeout
+		return nil
+	}
+}
+
+// WithPartialTakeProfit configures one partial reduction per position. The
+// triggerPercentage is measured across the entry-to-TP distance, while
+// reductionPercentage is the fraction of the then-open amount to realize. For
+// example, (0.50, 0.50) realizes half the position halfway to TP. Without this
+// option no partial reduction occurs. If supplied more than once, the last
+// values replace earlier values.
+func WithPartialTakeProfit(triggerPercentage, reductionPercentage float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(triggerPercentage) ||
+			math.IsInf(triggerPercentage, 0) ||
+			triggerPercentage <= 0 || triggerPercentage >= 1 {
+			return apperrors.ErrInvalidPartialTakeProfitPercentage
+		}
+		if math.IsNaN(reductionPercentage) ||
+			math.IsInf(reductionPercentage, 0) ||
+			reductionPercentage <= 0 || reductionPercentage >= 1 {
+			return apperrors.ErrInvalidPartialReductionPercentage
+		}
+
+		cfg.PartialTakeProfitPercentage = triggerPercentage
+		cfg.PartialReductionPercentage = reductionPercentage
 		return nil
 	}
 }

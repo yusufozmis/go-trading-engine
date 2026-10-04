@@ -111,6 +111,12 @@ var (
 	// ErrInvalidConfirmationTimeout indicates a timeout below candle timestamp
 	// precision.
 	ErrInvalidConfirmationTimeout = errors.New("invalid confirmation timeout")
+	// ErrInvalidPartialTakeProfitPercentage indicates a trigger percentage
+	// outside the open interval (0, 1).
+	ErrInvalidPartialTakeProfitPercentage = errors.New("invalid partial take-profit percentage")
+	// ErrInvalidPartialReductionPercentage indicates a reduction percentage
+	// outside the open interval (0, 1).
+	ErrInvalidPartialReductionPercentage = errors.New("invalid partial reduction percentage")
 )
 
 // Exchange Errors

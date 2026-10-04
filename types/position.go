@@ -30,22 +30,28 @@ type Position struct {
 	// eventual exit fill.
 	TP     float64
 	Amount float64
+	// PartialTakeProfitExecuted reports whether this open position has already
+	// consumed the engine's one allowed partial take-profit reduction.
+	PartialTakeProfitExecuted bool
+	// PartialTPTimestamp is the confirmed partial reduction's Unix timestamp in
+	// milliseconds. It remains zero until partial take-profit is executed.
+	PartialTPTimestamp int64
 	// Leverage is zero when liquidation simulation is disabled.
 	Leverage float64
 	// LiquidationPrice is the estimated isolated-position liquidation level. It
 	// is zero when liquidation simulation is disabled.
 	LiquidationPrice float64
 
-	// Fee is the total entry and exit fee paid for a confirmed closed position.
-	// It remains zero when no trading fee rate is configured.
+	// Fee is the cumulative fee allocated to realized reductions and the final
+	// close. It may be non-zero while a partially reduced position remains open.
 	Fee float64
 	// SlippageCost is the total adverse entry and exit price difference expressed
 	// in quote currency. It is informational because slippage is already included
 	// in EntryPrice, ExitPrice, and NetProfit.
 	SlippageCost float64
 
-	// NetProfit is the signed realized PnL after fees. It remains zero while the
-	// position is open and may be positive, negative, or zero after closing.
+	// NetProfit is cumulative signed realized PnL after fees. It may be non-zero
+	// while a partially reduced position remains open.
 	NetProfit float64
 
 	State PositionState
@@ -69,6 +75,13 @@ func (pos *Position) Validate() error {
 	if pos.OpenTimestamp <= 0 {
 		return apperrors.ErrInvalidTimestamp
 	}
+	if pos.PartialTakeProfitExecuted {
+		if pos.PartialTPTimestamp <= pos.OpenTimestamp {
+			return apperrors.ErrInvalidTimestamp
+		}
+	} else if pos.PartialTPTimestamp != 0 {
+		return apperrors.ErrInvalidTimestamp
+	}
 
 	switch pos.State {
 	case PositionOpen:
@@ -81,13 +94,6 @@ func (pos *Position) Validate() error {
 		if pos.ExitPrice != 0 {
 			return apperrors.ErrInvalidPrice
 		}
-		if pos.Fee != 0 {
-			return apperrors.ErrInvalidFee
-		}
-		if pos.NetProfit != 0 {
-			return apperrors.ErrInvalidNetProfit
-		}
-
 	case ClosedByStop, ClosedByProfit, ClosedByLiquidation, ClosedByDuration:
 		if !pos.Side.Valid() {
 			return apperrors.ErrInvalidSide
@@ -204,13 +210,16 @@ type PerformanceResult struct {
 	LiquidationCount int
 	// DurationCloseCount is the number of positions closed at their maximum lifetime.
 	DurationCloseCount int
+	// PartialTakeProfitCount is the number of confirmed partial reductions.
+	PartialTakeProfitCount int
 
 	// Profit is the total positive gross PnL before trading fees.
 	Profit float64
 	// Loss is the absolute total negative gross PnL before trading fees.
 	Loss float64
 
-	// TradingFees is the total entry and exit fees across closed positions.
+	// TradingFees is the total entry and exit fees across complete closes and
+	// partial reductions.
 	TradingFees float64
 	// NetProfit is the signed realized PnL after trading fees.
 	NetProfit float64
