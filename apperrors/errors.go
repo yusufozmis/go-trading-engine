@@ -99,6 +99,10 @@ var (
 
 	// ErrInvalidBreakEvenStopRate indicates a non-finite rate outside (0, 1).
 	ErrInvalidBreakEvenStopRate = errors.New("invalid break-even stop rate")
+	// ErrInvalidProfitLockTriggerRate indicates a non-finite trigger rate outside (0, 1).
+	ErrInvalidProfitLockTriggerRate = errors.New("invalid profit-lock trigger rate")
+	// ErrInvalidProfitLockRate indicates a lock rate outside (0, trigger rate).
+	ErrInvalidProfitLockRate = errors.New("invalid profit-lock rate")
 	// ErrInvalidPositionSide indicates that a position-side filter received an
 	// unsupported side.
 	ErrInvalidPositionSide = errors.New("invalid position side")

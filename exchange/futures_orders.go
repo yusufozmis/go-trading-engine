@@ -101,6 +101,14 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 	if position.StopLoss == 0 && position.TP == 0 {
 		return apperrors.ErrInvalidPrice
 	}
+	// Position.Validate accepts stops moved into profit on existing positions.
+	// A new attached stop must still begin on the loss side of the entry.
+	if (position.Side == types.PositionLong &&
+		position.StopLoss != 0 && position.StopLoss >= position.EntryPrice) ||
+		(position.Side == types.PositionShort &&
+			position.StopLoss != 0 && position.StopLoss <= position.EntryPrice) {
+		return apperrors.ErrInvalidTPSLBracket
+	}
 
 	contractAmount, err := client.baseAmountToContracts(position.Symbol, position.Amount)
 	if err != nil {

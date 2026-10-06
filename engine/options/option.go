@@ -28,6 +28,8 @@ type Config struct {
 	ConfirmationTimeout         time.Duration
 	PartialTakeProfitPercentage float64
 	PartialReductionPercentage  float64
+	ProfitLockTriggerRate       float64
+	ProfitLockRate              float64
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -232,6 +234,28 @@ func WithPartialTakeProfit(triggerPercentage, reductionPercentage float64) Optio
 
 		cfg.PartialTakeProfitPercentage = triggerPercentage
 		cfg.PartialReductionPercentage = reductionPercentage
+		return nil
+	}
+}
+
+// WithProfitLockStop moves the stop into profit after price reaches a configured
+// fraction of the entry-to-TP distance. For example, (0.50, 0.25) moves the stop
+// to 25 percent of that distance after price reaches 50 percent. The new stop is
+// effective from the next candle because OHLC data cannot establish whether the
+// trigger or the updated stop was reached first within the triggering candle.
+func WithProfitLockStop(triggerRate, lockRate float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(triggerRate) || math.IsInf(triggerRate, 0) ||
+			triggerRate <= 0 || triggerRate >= 1 {
+			return apperrors.ErrInvalidProfitLockTriggerRate
+		}
+		if math.IsNaN(lockRate) || math.IsInf(lockRate, 0) ||
+			lockRate <= 0 || lockRate >= triggerRate {
+			return apperrors.ErrInvalidProfitLockRate
+		}
+
+		cfg.ProfitLockTriggerRate = triggerRate
+		cfg.ProfitLockRate = lockRate
 		return nil
 	}
 }

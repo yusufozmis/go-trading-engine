@@ -143,7 +143,9 @@ func (pos *Position) Validate() error {
 
 	switch pos.Side {
 	case PositionLong:
-		if pos.StopLoss != 0 && pos.StopLoss > pos.EntryPrice {
+		// A live position may move its stop above entry to lock profit, but the
+		// stop must remain below its take-profit target.
+		if pos.StopLoss != 0 && pos.TP != 0 && pos.StopLoss >= pos.TP {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP <= pos.EntryPrice {
@@ -151,7 +153,9 @@ func (pos *Position) Validate() error {
 		}
 
 	case PositionShort:
-		if pos.StopLoss != 0 && pos.StopLoss < pos.EntryPrice {
+		// A live position may move its stop below entry to lock profit, but the
+		// stop must remain above its take-profit target.
+		if pos.StopLoss != 0 && pos.TP != 0 && pos.StopLoss <= pos.TP {
 			return apperrors.ErrInvalidTPSLBracket
 		}
 		if pos.TP != 0 && pos.TP >= pos.EntryPrice {

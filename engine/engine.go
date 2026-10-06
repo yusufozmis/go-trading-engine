@@ -48,6 +48,8 @@ type Engine struct {
 	confirmationTimeout         time.Duration
 	partialTakeProfitPercentage float64
 	partialReductionPercentage  float64
+	profitLockTriggerRate       float64
+	profitLockRate              float64
 }
 
 type candleConfirmationProgress struct {
@@ -108,6 +110,8 @@ func NewEngine(symbol, timeframe string,
 		confirmationTimeout:         cfg.ConfirmationTimeout,
 		partialTakeProfitPercentage: cfg.PartialTakeProfitPercentage,
 		partialReductionPercentage:  cfg.PartialReductionPercentage,
+		profitLockTriggerRate:       cfg.ProfitLockTriggerRate,
+		profitLockRate:              cfg.ProfitLockRate,
 	}, nil
 }
 

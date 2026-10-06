@@ -52,6 +52,7 @@ func (eng *Engine) decideClosePosition(
 	}
 
 	eng.applyBreakEvenStop(position, candle)
+	eng.applyProfitLockStop(position, candle)
 
 	return eng.maximumDurationCloseAction(position, candle)
 }
@@ -158,19 +159,26 @@ func (eng *Engine) takeProfitReachedAtOpen(position *types.Position, candle type
 }
 
 func (eng *Engine) applyBreakEvenStop(position *types.Position, candle types.Candle) {
-	if eng.breakEvenStopRate == 0 ||
-		position.StopLoss == position.EntryPrice {
+	if eng.breakEvenStopRate == 0 {
 		return
 	}
 
 	entry := position.EntryPrice
 
 	triggered := false
+	// Break-even must not move a stop backwards after another rule has already
+	// locked profit beyond the entry price.
 	switch position.Side {
 	case types.PositionLong:
+		if position.StopLoss >= entry {
+			return
+		}
 		triggerPrice := entry + ((position.TP - entry) * eng.breakEvenStopRate)
 		triggered = candle.PriceData.HighPrice >= triggerPrice
 	case types.PositionShort:
+		if position.StopLoss <= entry {
+			return
+		}
 		triggerPrice := entry - ((entry - position.TP) * eng.breakEvenStopRate)
 		triggered = candle.PriceData.LowPrice <= triggerPrice
 	}
@@ -179,6 +187,41 @@ func (eng *Engine) applyBreakEvenStop(position *types.Position, candle types.Can
 	// this candle also crossed entry, the break-even stop starts on the next candle.
 	if triggered {
 		position.StopLoss = position.EntryPrice
+	}
+}
+
+func (eng *Engine) applyProfitLockStop(position *types.Position, candle types.Candle) {
+	if eng.profitLockTriggerRate == 0 || !position.Side.Valid() {
+		return
+	}
+
+	entry := position.EntryPrice
+	profitDistance := math.Abs(position.TP - entry)
+
+	var triggered bool
+	var lockedStop float64
+	switch position.Side {
+	case types.PositionLong:
+		triggerPrice := entry + (profitDistance * eng.profitLockTriggerRate)
+		triggered = candle.PriceData.HighPrice >= triggerPrice
+		lockedStop = entry + (profitDistance * eng.profitLockRate)
+		if lockedStop <= position.StopLoss {
+			return
+		}
+
+	case types.PositionShort:
+		triggerPrice := entry - (profitDistance * eng.profitLockTriggerRate)
+		triggered = candle.PriceData.LowPrice <= triggerPrice
+		lockedStop = entry - (profitDistance * eng.profitLockRate)
+		if lockedStop >= position.StopLoss {
+			return
+		}
+	}
+
+	// Close conditions were evaluated before this mutation, so the locked stop
+	// becomes active on the next candle rather than the triggering candle.
+	if triggered {
+		position.StopLoss = lockedStop
 	}
 }
 
