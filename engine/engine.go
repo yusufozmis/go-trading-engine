@@ -181,3 +181,22 @@ func (eng *Engine) validate() error {
 func (eng *Engine) HedgeModeEnabled() bool {
 	return eng != nil && eng.hedgeMode
 }
+
+// GetOpenPositions returns value copies of the engine's currently open
+// positions in deterministic long-then-short order. Mutating a returned
+// position does not change the engine's internal state.
+func (eng *Engine) GetOpenPositions() ([]types.Position, error) {
+	if err := eng.validate(); err != nil {
+		return nil, err
+	}
+
+	positions := make([]types.Position, 0, 2)
+	for _, side := range positionSides() {
+		position := eng.positions[side]
+		if position != nil && position.State == types.PositionOpen {
+			positions = append(positions, *position)
+		}
+	}
+
+	return positions, nil
+}
