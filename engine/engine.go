@@ -32,7 +32,8 @@ type Engine struct {
 	pendingConfirmations map[types.PositionSide]*types.EntryPlan
 	pendingStartedAt     map[types.PositionSide]int64
 
-	positionSizer types.PositionSizer
+	positionSizerMu sync.Mutex
+	positionSizer   types.PositionSizer
 
 	hedgeMode                   bool
 	isCloseAutomated            bool
@@ -199,4 +200,20 @@ func (eng *Engine) GetOpenPositions() ([]types.Position, error) {
 	}
 
 	return positions, nil
+}
+
+// UpdatePositionSizer updates the engine's position sizer.
+func (eng *Engine) UpdatePositionSizer(newPositionSizer types.PositionSizer) error {
+	if err := eng.validate(); err != nil {
+		return err
+	}
+	if newPositionSizer == nil {
+		return apperrors.ErrNilPositionSizer
+	}
+
+	eng.positionSizerMu.Lock()
+	defer eng.positionSizerMu.Unlock()
+
+	eng.positionSizer = newPositionSizer
+	return nil
 }
