@@ -31,6 +31,8 @@ type Client struct {
 	stream         *candleStream
 	positionStream *positionStream
 	orderStream    *orderStream
+	positionMu     sync.Mutex
+	orderMu        sync.Mutex
 
 	// futuresMu serializes futures configuration and order submission. Holding one
 	// lock prevents orders from observing a half-applied remote configuration.

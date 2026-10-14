@@ -1,8 +1,8 @@
 package exchange
 
 import (
-	"errors"
 	"fmt"
+	"log"
 	"sync"
 	"time"
 
@@ -46,18 +46,30 @@ type OrderUpdate struct {
 }
 
 type orderStream struct {
+	// The supervisor owns this public channel. Regular and trigger watchers
+	// forward results internally so neither can close another watcher's output.
 	updates chan OrderUpdate
-	done    chan struct{}
+	// done stops the public stream and prevents further reconnect attempts.
+	done chan struct{}
 
 	mu                  sync.Mutex
 	closed              bool
 	marketType          types.MarketType
 	watchAllSymbols     bool
 	symbolSubscriptions map[string]bool
-	closeErr            error
 
+	// Only the supervisor is counted; a blocked CCXT watcher must not make the
+	// public CloseOrderStream call wait indefinitely.
 	wg        sync.WaitGroup
 	closeOnce sync.Once
+}
+
+// orderWatchEvent carries a result to the supervisor. Trigger identifies which
+// provider subscription failed when a terminal error is sent to the caller.
+type orderWatchEvent struct {
+	update  *OrderUpdate
+	err     error
+	trigger bool
 }
 
 func (stream *orderStream) isClosed() bool {
@@ -80,6 +92,7 @@ func (stream *orderStream) watches(symbol string) bool {
 }
 
 func (stream *orderStream) emit(update OrderUpdate) bool {
+	// Shutdown releases publication even when the caller has stopped reading.
 	select {
 	case <-stream.done:
 		return false
@@ -89,6 +102,7 @@ func (stream *orderStream) emit(update OrderUpdate) bool {
 }
 
 func (stream *orderStream) waitForRetry(delay time.Duration) bool {
+	// Closing the public stream interrupts backoff immediately.
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
@@ -100,9 +114,20 @@ func (stream *orderStream) waitForRetry(delay time.Duration) bool {
 	}
 }
 
+func (stream *orderStream) stop() {
+	stream.closeOnce.Do(func() {
+		stream.mu.Lock()
+		stream.closed = true
+		stream.mu.Unlock()
+		close(stream.done)
+	})
+}
+
 // RunOrderStream starts private WebSocket watchers for the selected market.
 // Futures updates include conditional TP/SL orders when the provider publishes
 // them separately. Passing no symbols watches every order in the selected market.
+// Transient failures are retried and reconnect automatically on the same output
+// channel. Authentication and other permanent failures terminate the stream.
 func (client *Client) RunOrderStream(
 	marketType types.MarketType,
 	symbols ...string,
@@ -113,13 +138,6 @@ func (client *Client) RunOrderStream(
 	if !marketType.Valid() {
 		return nil, apperrors.ErrInvalidMarketType
 	}
-	if client.orderExchange == nil {
-		return nil, apperrors.ErrUninitializedClient
-	}
-	if client.orderStream != nil {
-		return nil, apperrors.ErrOrderStreamAlreadyExists
-	}
-
 	symbolSubscriptions := make(map[string]bool, len(symbols))
 	for _, symbol := range symbols {
 		if symbol == "" {
@@ -141,24 +159,37 @@ func (client *Client) RunOrderStream(
 		return nil, err
 	}
 
+	// Protect the Client's active-stream field during creation and removal.
+	client.orderMu.Lock()
+	defer client.orderMu.Unlock()
+
+	if client.orderExchange == nil {
+		return nil, apperrors.ErrUninitializedClient
+	}
+	if client.orderStream != nil {
+		return nil, apperrors.ErrOrderStreamAlreadyExists
+	}
+
 	bufferSize := max(len(symbols)*len(watcherConfigs)*2, 2)
-	client.orderStream = &orderStream{
+	stream := &orderStream{
 		updates:             make(chan OrderUpdate, bufferSize),
 		done:                make(chan struct{}),
 		marketType:          marketType,
 		watchAllSymbols:     len(symbols) == 0,
 		symbolSubscriptions: symbolSubscriptions,
 	}
+	client.orderStream = stream
+	// Reconnect reuses this prepared instance, including credentials and demo
+	// settings. It does not create or configure another exchange object.
+	orderExchange := client.orderExchange
 
-	client.orderStream.wg.Add(len(watcherConfigs))
-	for _, watcherConfig := range watcherConfigs {
-		go func() {
-			defer client.orderStream.wg.Done()
-			client.watchOrders(watcherConfig)
-		}()
-	}
+	stream.wg.Add(1)
+	go func() {
+		defer stream.wg.Done()
+		client.superviseOrderStream(stream, orderExchange, watcherConfigs)
+	}()
 
-	return client.orderStream.updates, nil
+	return stream.updates, nil
 }
 
 // SubscribeOrder allows updates for symbol through the running order stream.
@@ -206,7 +237,9 @@ func (client *Client) validateOrderStreamSymbol(symbol string) (*orderStream, er
 		return nil, apperrors.ErrNilSymbol
 	}
 
+	client.orderMu.Lock()
 	stream := client.orderStream
+	client.orderMu.Unlock()
 	if stream == nil {
 		return nil, apperrors.ErrOrderStreamNotRunning
 	}
@@ -221,45 +254,136 @@ func (client *Client) validateOrderStreamSymbol(symbol string) (*orderStream, er
 
 // CloseOrderStream stops private order watchers without closing position,
 // candle, or order-submission connections.
+// WebSocket cleanup runs in the background; this method waits only for the
+// supervisor to stop publishing and close the output channel.
 func (client *Client) CloseOrderStream() error {
 	if err := client.Validate(); err != nil {
 		return err
 	}
-	if client.orderStream == nil {
+	client.orderMu.Lock()
+	stream := client.orderStream
+	client.orderMu.Unlock()
+	if stream == nil {
 		return apperrors.ErrOrderStreamNotRunning
 	}
 
-	stream := client.orderStream
-	stream.closeOnce.Do(func() {
-		stream.mu.Lock()
-		stream.closed = true
-		stream.mu.Unlock()
-		close(stream.done)
-
-		var closeErrors []error
-		// The dedicated instance may own both normal and conditional-order
-		// subscriptions, so one Close interrupts every blocked watcher together.
-		for _, err := range client.orderExchange.Close() {
-			closeErrors = append(closeErrors, normalizeError(err))
-		}
-
-		stream.wg.Wait()
-		close(stream.updates)
-		client.orderStream = nil
-
-		if len(closeErrors) > 0 {
-			stream.closeErr = errors.Join(closeErrors...)
-		}
-	})
-
-	return stream.closeErr
+	// The supervisor closes the public channel; CCXT socket cleanup continues
+	// separately, so a stuck Close call does not block this wait.
+	stream.stop()
+	stream.wg.Wait()
+	return nil
 }
 
-func (client *Client) watchOrders(watcherConfig adapters.OrderWatcherConfig) {
-	stream := client.orderStream
+// superviseOrderStream owns the public update channel and restarts all provider
+// order watchers together when a retryable WebSocket failure survives backoff.
+func (client *Client) superviseOrderStream(
+	stream *orderStream,
+	orderExchange ccxt.IExchange,
+	watcherConfigs []adapters.OrderWatcherConfig,
+) {
+	// Watchers never publish directly to updates. This remains safe even if an
+	// old CCXT call returns after the supervisor has closed the public channel.
+	defer close(stream.updates)
+	defer func() {
+		client.orderMu.Lock()
+		if client.orderStream == stream {
+			client.orderStream = nil
+		}
+		client.orderMu.Unlock()
+	}()
+
+	waitingForRestartUpdate := false
+	for {
+		// A generation contains all regular/conditional subscriptions. They share
+		// one dedicated exchange, so a reconnect retires the entire group.
+		events := make(chan orderWatchEvent, max(len(watcherConfigs)*2, 2))
+		// Cancellation stops local forwarding and future watch calls. A watch
+		// already blocked inside CCXT still depends on socket cleanup to return.
+		generationDone := make(chan struct{})
+		for _, watcherConfig := range watcherConfigs {
+			go client.watchOrders(
+				stream,
+				orderExchange,
+				watcherConfig,
+				generationDone,
+				events,
+			)
+		}
+
+		// Process this watcher group until shutdown or a reconnect is needed.
+		watching := true
+		for watching {
+			select {
+			case <-stream.done:
+				// Public shutdown cancels every subscription in the watcher group.
+				close(generationDone)
+				closeExchangeAsync(orderExchange)
+				return
+
+			case event := <-events:
+				if event.err == nil {
+					if event.update != nil && waitingForRestartUpdate {
+						log.Printf("order stream: received first update after watcher restart (trigger=%t)", event.update.Trigger)
+						waitingForRestartUpdate = false
+					}
+					if event.update != nil && !stream.emit(*event.update) {
+						close(generationDone)
+						closeExchangeAsync(orderExchange)
+						return
+					}
+					continue
+				}
+
+				// Stop sibling watchers before restarting their shared connection.
+				// Their old events channel is never reused by the next generation.
+				close(generationDone)
+				if !isRetryableWatchError(event.err) {
+					log.Printf("order stream: terminal error (trigger=%t): %v", event.trigger, normalizeError(event.err))
+					closeExchangeAsync(orderExchange)
+					stream.emit(OrderUpdate{
+						Trigger: event.trigger,
+						Err:     normalizeError(event.err),
+					})
+					return
+				}
+
+				// CCXT Close resets only this instance's WebSocket clients. Its
+				// credentials and loaded markets remain available for reconnection.
+				log.Printf("order stream: retries exhausted, restarting watchers after %s (trigger=%t): %v", watchRetryBaseWait, event.trigger, event.err)
+				closeExchangeAsync(orderExchange)
+				// The delay limits reconnect frequency. It does not synchronize
+				// with asynchronous Close; cleanup may overlap the next watcher group.
+				if !stream.waitForRetry(watchRetryBaseWait) {
+					return
+				}
+				// End this group. The outer loop starts its subscriptions again.
+				waitingForRestartUpdate = true
+				watching = false
+			}
+		}
+	}
+}
+
+// watchOrders runs one provider subscription for the current stream generation.
+// OKX, for example, uses separate watchers for regular and trigger orders.
+func (client *Client) watchOrders(
+	stream *orderStream,
+	orderExchange ccxt.IExchange,
+	watcherConfig adapters.OrderWatcherConfig,
+	generationDone <-chan struct{},
+	events chan<- orderWatchEvent,
+) {
 	retryCount := 0
 
 	for {
+		select {
+		case <-stream.done:
+			return
+		case <-generationDone:
+			return
+		default:
+		}
+
 		params := map[string]any{
 			"type": watcherConfig.MarketType,
 		}
@@ -267,7 +391,7 @@ func (client *Client) watchOrders(watcherConfig adapters.OrderWatcherConfig) {
 			params["trigger"] = true
 		}
 
-		orders, err := client.orderExchange.WatchOrders(
+		orders, err := orderExchange.WatchOrders(
 			ccxt.WithWatchOrdersParams(params),
 		)
 		if err != nil {
@@ -276,24 +400,33 @@ func (client *Client) watchOrders(watcherConfig adapters.OrderWatcherConfig) {
 			}
 
 			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
+				// Retry this subscription first with 1s, 2s, and 4s waits. Only
+				// exhausted retries ask the supervisor to restart the watcher group.
 				retryCount++
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
+				log.Printf("order stream: retry %d/%d, waiting %s (market=%s trigger=%t): %v", retryCount, maxWatchRetries, delay, watcherConfig.MarketType, watcherConfig.Trigger, err)
 				if !stream.waitForRetry(delay) {
 					return
 				}
 				continue
 			}
 
-			stream.emit(OrderUpdate{
-				Trigger: watcherConfig.Trigger,
-				Err: fmt.Errorf(
+			// Preserve the original CCXT error in the wrapped chain so the
+			// supervisor can classify it before normalizing a public error.
+			client.sendOrderWatchEvent(generationDone, events, orderWatchEvent{
+				trigger: watcherConfig.Trigger,
+				err: fmt.Errorf(
 					"watch %s orders (trigger=%t): %w",
 					watcherConfig.MarketType,
 					watcherConfig.Trigger,
-					normalizeError(err),
+					err,
 				),
 			})
 			return
+		}
+		// Backoff counts consecutive failures, not the lifetime total.
+		if retryCount > 0 {
+			log.Printf("order stream: watch succeeded after %d retries (market=%s trigger=%t)", retryCount, watcherConfig.MarketType, watcherConfig.Trigger)
 		}
 		retryCount = 0
 
@@ -302,10 +435,30 @@ func (client *Client) watchOrders(watcherConfig adapters.OrderWatcherConfig) {
 			if !stream.watches(update.Symbol) {
 				continue
 			}
-			if !stream.emit(update) {
+			if !client.sendOrderWatchEvent(
+				generationDone,
+				events,
+				orderWatchEvent{update: &update},
+			) {
 				return
 			}
 		}
+	}
+}
+
+// sendOrderWatchEvent lets generation cancellation release an internal send.
+// A retired watcher retains its own events channel; any late result cannot be
+// delivered through the next generation's channel.
+func (client *Client) sendOrderWatchEvent(
+	generationDone <-chan struct{},
+	events chan<- orderWatchEvent,
+	event orderWatchEvent,
+) bool {
+	select {
+	case <-generationDone:
+		return false
+	case events <- event:
+		return true
 	}
 }
 

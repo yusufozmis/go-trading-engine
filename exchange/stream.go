@@ -22,6 +22,19 @@ const (
 	ClosedOnly
 )
 
+// closeExchangeAsync prevents a slow CCXT WebSocket shutdown from blocking
+// the public stream lifecycle. Close leaves credentials and markets intact, so
+// the dedicated instance can establish a fresh WebSocket generation afterward.
+func closeExchangeAsync(exchange ccxt.IExchange) {
+	// CCXT Close clears its WebSocket client registry and closes those sockets.
+	// It does not permanently disable REST or discard configuration by default.
+	// This helper deliberately does not wait or report cleanup errors. It also
+	// does not guarantee that cleanup completes before the next watch starts.
+	go func() {
+		_ = exchange.Close()
+	}()
+}
+
 const (
 	// Retry transient watcher failures with 1s, 2s, and 4s waits.
 	maxWatchRetries    = 3
