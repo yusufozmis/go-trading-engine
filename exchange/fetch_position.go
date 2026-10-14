@@ -3,6 +3,7 @@ package exchange
 import (
 	"fmt"
 	"math"
+	"strconv"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
 	"github.com/yusufozmis/go-trading-engine/apperrors"
@@ -115,6 +116,213 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 	}
 
 	return result, nil
+}
+
+// FetchClosedPositions returns up to limit completed linear-futures positions
+// for one symbol. Entry and exit prices, open and close timestamps, side,
+// base-asset amount, trading fees, leverage, and realized net profit are copied
+// when the provider supplies them. Timeframe, TP, and SL remain zero-valued
+// because they are strategy metadata rather than position-history data.
+// SlippageCost also remains zero because the exchange does not report the
+// strategy's expected price needed to calculate execution slippage.
+//
+// State remains UNSPECIFIED because a normal exchange history record does not
+// reliably reveal whether TP, SL, duration, or a manual action caused the close.
+// The method requires CCXT's fetchPositionsHistory capability, which is
+// currently available for OKX but not Binance.
+func (client *Client) FetchClosedPositions(symbol string, limit int64) ([]types.Position, error) {
+	if err := client.validateConfigured(); err != nil {
+		return nil, err
+	}
+	if symbol == "" {
+		return nil, apperrors.ErrNilSymbol
+	}
+	if err := client.validateFetchPositionMarket(symbol); err != nil {
+		return nil, err
+	}
+	if limit <= 0 {
+		return nil, apperrors.ErrInvalidLimit
+	}
+
+	supported, _ := client.iExchange.GetHas()["fetchPositionsHistory"].(bool)
+	if !supported {
+		return nil, apperrors.ErrUnsupportedProvider
+	}
+
+	history, err := client.iExchange.FetchPositionsHistory(
+		ccxt.WithFetchPositionsHistorySymbols([]string{symbol}),
+		ccxt.WithFetchPositionsHistoryLimit(limit),
+	)
+	if err != nil {
+		return nil, normalizeError(err)
+	}
+
+	market := client.markets[symbol]
+	positions := make([]types.Position, 0, len(history))
+	for _, historicalPosition := range history {
+		if historicalPosition.Symbol == nil || *historicalPosition.Symbol != symbol {
+			continue
+		}
+
+		// OKX also includes partial reductions in this history. Types 1 and 4
+		// are not fully closed positions, so do not expose them as such.
+		closeType, _ := historyString(historicalPosition.Info, "type")
+		if closeType == "1" || closeType == "4" {
+			continue
+		}
+
+		side, err := closedPositionSide(historicalPosition)
+		if err != nil {
+			return nil, fmt.Errorf("fetch closed positions %q: %w", symbol, err)
+		}
+
+		entryPrice, err := requiredHistoryPrice(historicalPosition.EntryPrice)
+		if err != nil {
+			return nil, fmt.Errorf("fetch closed positions %q entry: %w", symbol, err)
+		}
+		exitPrice, err := requiredHistoryPrice(historicalPosition.LastPrice)
+		if err != nil {
+			return nil, fmt.Errorf("fetch closed positions %q exit: %w", symbol, err)
+		}
+
+		openTimestamp, err := requiredHistoryTimestamp(historicalPosition.Timestamp)
+		if err != nil {
+			return nil, fmt.Errorf("fetch closed positions %q open: %w", symbol, err)
+		}
+		closeTimestamp, err := requiredHistoryTimestamp(
+			historicalPosition.LastUpdateTimestamp,
+		)
+		if err != nil || closeTimestamp < openTimestamp {
+			return nil, fmt.Errorf(
+				"fetch closed positions %q close: %w",
+				symbol,
+				apperrors.ErrInvalidTimestamp,
+			)
+		}
+
+		// CCXT currently leaves Contracts nil for OKX history because OKX names
+		// this field closeTotalPos. Prefer the unified field, then use the raw
+		// provider value as a compatibility fallback.
+		contracts := 0.0
+		if historicalPosition.Contracts != nil {
+			contracts = *historicalPosition.Contracts
+		}
+		if !validPositiveNumber(contracts) {
+			contracts, _ = historyNumber(historicalPosition.Info, "closeTotalPos")
+		}
+		amount := contracts * *market.ContractSize
+		if !validPositiveNumber(amount) {
+			return nil, fmt.Errorf(
+				"fetch closed positions %q: %w",
+				symbol,
+				apperrors.ErrInvalidAmount,
+			)
+		}
+
+		position := types.Position{
+			Symbol:         symbol,
+			OpenTimestamp:  openTimestamp,
+			CloseTimestamp: closeTimestamp,
+			Side:           side,
+			EntryPrice:     entryPrice,
+			ExitPrice:      exitPrice,
+			Amount:         amount,
+			State:          types.UNSPECIFIED,
+		}
+
+		if historicalPosition.Leverage != nil &&
+			validPositiveNumber(*historicalPosition.Leverage) {
+			position.Leverage = *historicalPosition.Leverage
+		}
+		if fee, ok := historyNumber(historicalPosition.Info, "fee"); ok {
+			position.Fee = math.Abs(fee)
+		}
+		if historicalPosition.RealizedPnl != nil {
+			if math.IsNaN(*historicalPosition.RealizedPnl) ||
+				math.IsInf(*historicalPosition.RealizedPnl, 0) {
+				return nil, fmt.Errorf(
+					"fetch closed positions %q: %w",
+					symbol,
+					apperrors.ErrInvalidNetProfit,
+				)
+			}
+			position.NetProfit = *historicalPosition.RealizedPnl
+		}
+
+		positions = append(positions, position)
+	}
+
+	return positions, nil
+}
+
+func closedPositionSide(position ccxt.Position) (types.PositionSide, error) {
+	var side types.PositionSide
+	if position.Side != nil {
+		side = types.PositionSide(*position.Side)
+	}
+
+	// OKX returns historical direction in the raw `direction` field. Some CCXT
+	// Go responses do not propagate it to the unified Position.Side field.
+	if !side.Valid() {
+		if direction, ok := historyString(position.Info, "direction"); ok {
+			side = types.PositionSide(direction)
+		}
+	}
+	if !side.Valid() {
+		return "", apperrors.ErrInvalidSide
+	}
+
+	return side, nil
+}
+
+func requiredHistoryPrice(price *float64) (float64, error) {
+	if price == nil || !validPositiveNumber(*price) {
+		return 0, apperrors.ErrInvalidPrice
+	}
+
+	return *price, nil
+}
+
+func requiredHistoryTimestamp(timestamp *float64) (int64, error) {
+	if timestamp == nil || math.IsNaN(*timestamp) ||
+		math.IsInf(*timestamp, 0) || *timestamp <= 0 {
+		return 0, apperrors.ErrInvalidTimestamp
+	}
+
+	return int64(*timestamp), nil
+}
+
+func historyNumber(info map[string]any, key string) (float64, bool) {
+	value, exists := info[key]
+	if !exists || value == nil {
+		return 0, false
+	}
+
+	switch number := value.(type) {
+	case float64:
+		return number, true
+	case float32:
+		return float64(number), true
+	case int:
+		return float64(number), true
+	case int64:
+		return float64(number), true
+	case string:
+		parsed, err := strconv.ParseFloat(number, 64)
+		return parsed, err == nil
+	default:
+		return 0, false
+	}
+}
+
+func historyString(info map[string]any, key string) (string, bool) {
+	value, exists := info[key]
+	if !exists || value == nil {
+		return "", false
+	}
+
+	stringValue, ok := value.(string)
+	return stringValue, ok
 }
 
 func (client *Client) validateFetchPositionMarket(symbol string) error {
