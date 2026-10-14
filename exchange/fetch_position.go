@@ -15,9 +15,11 @@ import (
 // Hedge mode may return two positions for one symbol. Amounts are converted
 // from exchange contracts to base-asset units. Timeframe is left empty because
 // it is strategy state rather than exchange position data; callers must set it
-// before preloading a position into an engine. TP and SL also remain zero when
-// the provider does not include attached orders in its position response. An
-// empty slice means no matching position is currently open.
+// before preloading a position into an engine. Missing TP/SL prices are filled
+// from the first matching active protective orders. Orders are fetched once per
+// symbol; additional TP/SL levels and pages are not inspected. Missing protection
+// remains zero. An empty slice means no matching position is currently open.
+// FetchPositionSides is queried once per open symbol to confirm its active sides.
 func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error) {
 	if err := client.validateConfigured(); err != nil {
 		return nil, err
@@ -47,6 +49,9 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 	}
 
 	result := make([]types.Position, 0, len(positions))
+	// Both hedge sides reuse the same symbol's order response.
+	bySymbol := make(map[string][]OrderUpdate)
+	sidesBySymbol := make(map[string][]types.PositionSide)
 	for _, position := range positions {
 		if position.Symbol == nil {
 			continue
@@ -62,12 +67,32 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 			return nil, err
 		}
 		market := client.markets[symbol]
+		sides, fetched := sidesBySymbol[symbol]
+		if !fetched {
+			sides, err = client.FetchPositionSides(symbol)
+			if err != nil {
+				return nil, err
+			}
+			sidesBySymbol[symbol] = sides
+		}
+		if len(sides) == 0 {
+			continue
+		}
 		if position.Side == nil {
 			return nil, fmt.Errorf("fetch positions %q: %w", symbol, apperrors.ErrInvalidSide)
 		}
-		positionSide := types.PositionSide(*position.Side)
-		if !positionSide.Valid() {
-			return nil, fmt.Errorf("fetch positions %q: %w", symbol, apperrors.ErrInvalidSide)
+		// A symbol can have two hedge records. Match this record to a fetched
+		// side rather than assigning the first side to both long and short.
+		var positionSide types.PositionSide
+		for _, side := range sides {
+			if side.String() == *position.Side {
+				positionSide = side
+				break
+			}
+		}
+		if positionSide == "" {
+			// The position may have closed between the two snapshots.
+			continue
 		}
 		if position.EntryPrice == nil || !validPositiveNumber(*position.EntryPrice) {
 			return nil, fmt.Errorf(
@@ -112,10 +137,70 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 			wrapped.LiquidationPrice = *position.LiquidationPrice
 		}
 
+		if wrapped.TP == 0 || wrapped.StopLoss == 0 {
+			orders, fetched := bySymbol[symbol]
+			if !fetched {
+				orders, err = client.FetchOpenOrders(symbol)
+				if err != nil {
+					return nil, err
+				}
+				bySymbol[symbol] = orders
+			}
+			marginMode := types.MarginMode("")
+			if position.MarginMode != nil {
+				marginMode = types.MarginMode(*position.MarginMode)
+			}
+			for _, order := range orders {
+				if positionProtectionMatches(wrapped, marginMode, order) {
+					applyPositionProtection(&wrapped, order)
+				}
+				if wrapped.TP != 0 && wrapped.StopLoss != 0 {
+					break
+				}
+			}
+		}
 		result = append(result, wrapped)
 	}
 
 	return result, nil
+}
+
+// positionProtectionMatches rejects entry orders and the other hedge side.
+// One-way orders must explicitly reduce/close the position; matching a symbol
+// and a buy/sell direction alone could otherwise select a new entry order.
+func positionProtectionMatches(position types.Position, marginMode types.MarginMode, order OrderUpdate) bool {
+	if order.Err != nil || order.Symbol != position.Symbol ||
+		(order.Status != "" && order.Status != "open") {
+		return false
+	}
+	if (position.Side == types.PositionLong && order.Side != "sell") ||
+		(position.Side == types.PositionShort && order.Side != "buy") {
+		return false
+	}
+	if order.MarginMode != "" && order.MarginMode != marginMode {
+		return false
+	}
+	switch order.PositionSide {
+	case types.PositionLong, types.PositionShort:
+		return order.PositionSide == position.Side
+	case "", "net", "both":
+		reduceOnly := order.ReduceOnly != nil && *order.ReduceOnly
+		return reduceOnly || order.ClosePosition
+	default:
+		return false
+	}
+}
+
+// applyPositionProtection fills missing TP/SL fields from one matching order.
+// Keep provider-reported position levels and the first matched order levels.
+func applyPositionProtection(position *types.Position, order OrderUpdate) {
+	tpPrice, slPrice := order.TakeProfitPrice, order.StopLossPrice
+	if position.TP == 0 && tpPrice != nil && validPositiveNumber(*tpPrice) {
+		position.TP = *tpPrice
+	}
+	if position.StopLoss == 0 && slPrice != nil && validPositiveNumber(*slPrice) {
+		position.StopLoss = *slPrice
+	}
 }
 
 // FetchClosedPositions returns up to limit completed linear-futures positions

@@ -86,3 +86,10 @@ func (adapter *BinanceFuturesAdapter) AttachSL(FuturesOrderRequest) (map[string]
 func (adapter *BinanceFuturesAdapter) AttachTP(FuturesOrderRequest) (map[string]any, error) {
 	return nil, apperrors.ErrAttachedTPSLUnsupported
 }
+
+// ProtectionOrderParams selects Binance USD-M conditional algo orders.
+func (adapter *BinanceFuturesAdapter) ProtectionOrderParams() []map[string]any {
+	return []map[string]any{
+		{"type": "swap", "subType": "linear", "trigger": true},
+	}
+}

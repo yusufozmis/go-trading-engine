@@ -3,6 +3,7 @@ package exchange
 import (
 	"fmt"
 	"log"
+	"strings"
 	"sync"
 	"time"
 
@@ -22,6 +23,12 @@ type OrderUpdate struct {
 	Side          string
 	Status        string
 	Timestamp     *int64
+	// PositionSide is the provider's hedge side; net/both identify one-way mode.
+	PositionSide types.PositionSide
+	// MarginMode is empty when the provider omits the order's margin setting.
+	MarginMode types.MarginMode
+	// ClosePosition reports a close-all order, including OKX closeFraction=1.
+	ClosePosition bool
 
 	Price     *float64
 	Average   *float64
@@ -509,6 +516,30 @@ func wrapOrderUpdate(order ccxt.Order, trigger bool) OrderUpdate {
 	}
 	if order.Status != nil {
 		update.Status = *order.Status
+	}
+	positionSide, _ := historyString(order.Info, "posSide")
+	if positionSide == "" {
+		positionSide, _ = historyString(order.Info, "positionSide")
+	}
+	update.PositionSide = types.PositionSide(strings.ToLower(positionSide))
+	marginMode, _ := historyString(order.Info, "tdMode")
+	update.MarginMode = types.MarginMode(marginMode)
+	closePosition, _ := historyString(order.Info, "closePosition")
+	closeFraction, _ := historyString(order.Info, "closeFraction")
+	update.ClosePosition = order.Info["closePosition"] == true ||
+		closePosition == "true" || closeFraction == "1"
+
+	// Binance's unified order contains TriggerPrice but not the TP/SL role.
+	// Resolve it here so fetched and streamed orders share the same wrapper.
+	orderType, _ := historyString(order.Info, "orderType")
+	if orderType == "" {
+		orderType, _ = historyString(order.Info, "type")
+	}
+	switch orderType {
+	case "STOP", "STOP_MARKET":
+		update.StopLossPrice = order.TriggerPrice
+	case "TAKE_PROFIT", "TAKE_PROFIT_MARKET":
+		update.TakeProfitPrice = order.TriggerPrice
 	}
 
 	return update

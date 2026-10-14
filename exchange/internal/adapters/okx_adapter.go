@@ -97,3 +97,11 @@ func (adapter *OKXFuturesAdapter) AttachTP(req FuturesOrderRequest) (map[string]
 		},
 	}, nil
 }
+
+// ProtectionOrderParams includes combined OCO and individual TP/SL orders.
+func (adapter *OKXFuturesAdapter) ProtectionOrderParams() []map[string]any {
+	return []map[string]any{
+		{"trigger": true, "ordType": "oco", "instType": "SWAP"},
+		{"trigger": true, "ordType": "conditional", "instType": "SWAP"},
+	}
+}
