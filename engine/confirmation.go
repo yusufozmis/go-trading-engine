@@ -8,7 +8,7 @@ import (
 // CheckConfirmations applies candle to each pending side. Confirmed plans become
 // active independently, allowing both sides to progress in hedge mode.
 func (eng *Engine) CheckConfirmations(candle types.Candle) error {
-	if err := eng.validateCandle(candle); err != nil {
+	if err := eng.ValidateCandle(candle); err != nil {
 		return err
 	}
 
@@ -92,7 +92,7 @@ func (eng *Engine) pendingExists(side types.PositionSide) bool {
 // SetPending validates and records one confirmation plan.
 func (eng *Engine) SetPending(pending types.EntryPlan) error {
 
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 
@@ -100,7 +100,7 @@ func (eng *Engine) SetPending(pending types.EntryPlan) error {
 		pending.Confirmation != types.ConfirmationWaitingBelowEntry {
 		return apperrors.ErrInvalidConfirmationState
 	}
-	if err := eng.validateEntryPlan(pending); err != nil {
+	if err := eng.ValidateEntryPlan(pending); err != nil {
 		return err
 	}
 	// A filtered confirmation is intentionally ignored instead of occupying

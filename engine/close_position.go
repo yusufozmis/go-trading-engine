@@ -11,7 +11,7 @@ import (
 // Hedge mode may return two independent close actions. Break-even updates are
 // applied directly to each still-open side for use by subsequent candles.
 func (eng *Engine) DecideClosePositions(candle types.Candle) ([]ClosePositionAction, error) {
-	if err := eng.validateCandle(candle); err != nil {
+	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}
 
@@ -228,7 +228,7 @@ func (eng *Engine) applyProfitLockStop(position *types.Position, candle types.Ca
 // ConfirmClosePosition records a previously decided action as successfully
 // closed. It rejects actions that no longer match the tracked open position.
 func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 	closedPosition := action.Position

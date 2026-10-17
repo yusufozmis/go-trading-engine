@@ -14,7 +14,7 @@ import (
 func (eng *Engine) DecidePartialTakeProfits(
 	candle types.Candle,
 ) ([]PartialTakeProfitAction, error) {
-	if err := eng.validateCandle(candle); err != nil {
+	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}
 	if eng.partialTakeProfitPercentage == 0 {
@@ -64,7 +64,7 @@ func (eng *Engine) DecidePartialTakeProfits(
 // ConfirmPartialTakeProfit records a successfully executed reduction, realizes
 // its fee and PnL, and leaves the remaining amount open.
 func (eng *Engine) ConfirmPartialTakeProfit(action PartialTakeProfitAction) error {
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 

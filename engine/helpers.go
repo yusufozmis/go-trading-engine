@@ -45,8 +45,8 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	}
 }
 
-func (eng *Engine) validateCandle(candle types.Candle) error {
-	if err := eng.validate(); err != nil {
+func (eng *Engine) ValidateCandle(candle types.Candle) error {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 	if candle.Symbol != eng.symbol || candle.Timeframe != eng.timeframe {
@@ -88,10 +88,10 @@ func validateCandleData(candle types.Candle) error {
 	return nil
 }
 
-// validateEntryPlan ensures that a plan targets this engine and that its
+// ValidateEntryPlan ensures that a plan targets this engine and that its
 // prices form a valid bracket for the requested direction.
-func (eng *Engine) validateEntryPlan(plan types.EntryPlan) error {
-	if err := eng.validate(); err != nil {
+func (eng *Engine) ValidateEntryPlan(plan types.EntryPlan) error {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 
@@ -142,7 +142,7 @@ func validateEntryPlanData(plan types.EntryPlan) error {
 }
 
 func (eng *Engine) validPosition(position types.Position) bool {
-	if eng.validate() != nil ||
+	if eng.Validate() != nil ||
 		position.Symbol != eng.symbol ||
 		position.Timeframe != eng.timeframe ||
 		position.OpenTimestamp <= 0 ||
@@ -212,10 +212,10 @@ func (eng *Engine) applyLiquidationModel(position *types.Position) error {
 
 	position.Leverage = eng.liquidationModel.Leverage()
 	position.LiquidationPrice = liquidationPrice
-	return validateLiquidationPrice(*position)
+	return ValidateLiquidationPrice(*position)
 }
 
-func validateLiquidationPrice(position types.Position) error {
+func ValidateLiquidationPrice(position types.Position) error {
 	if math.IsNaN(position.Leverage) || math.IsInf(position.Leverage, 0) ||
 		position.Leverage <= 1 {
 		return apperrors.ErrInvalidLeverage

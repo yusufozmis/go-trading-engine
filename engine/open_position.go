@@ -12,7 +12,7 @@ import (
 // otherwise at most one action is returned.
 func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionAction, error) {
 
-	if err := eng.validateCandle(candle); err != nil {
+	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}
 
@@ -136,7 +136,7 @@ func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionActio
 // ConfirmOpenPosition records a previously decided action as successfully
 // opened. It rejects actions whose originating plan is no longer active.
 func (eng *Engine) ConfirmOpenPosition(action OpenPositionAction) error {
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 	// Enforce the filter again at the public confirmation boundary so a caller
@@ -188,7 +188,7 @@ func (eng *Engine) isPositionSideAllowed(side types.PositionSide) bool {
 // position. It reports whether the position was accepted and why it was rejected.
 func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return false, err
 	}
 	// SetPosition is also a position-opening boundary and must obey the same

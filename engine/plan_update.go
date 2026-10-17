@@ -8,7 +8,7 @@ import (
 // ApplyPlanUpdate validates and applies a strategy's requested plan transition.
 func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 
@@ -29,7 +29,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 			if plan.Confirmation != types.ConfirmationNone {
 				return apperrors.ErrInvalidConfirmationState
 			}
-			if err := eng.validateEntryPlan(plan); err != nil {
+			if err := eng.ValidateEntryPlan(plan); err != nil {
 				return err
 			}
 			// Validate every supplied plan, then keep only sides permitted by the
@@ -71,7 +71,7 @@ func (eng *Engine) ApplyPlanUpdate(update types.PlanUpdate) error {
 				pending.Confirmation != types.ConfirmationWaitingBelowEntry {
 				return apperrors.ErrInvalidConfirmationState
 			}
-			if err := eng.validateEntryPlan(pending); err != nil {
+			if err := eng.ValidateEntryPlan(pending); err != nil {
 				return err
 			}
 			// Filter before recording pending state; otherwise a forbidden side

@@ -164,7 +164,7 @@ func NewEngineWithPreloadedPositions(
 	return eng, nil
 }
 
-func (eng *Engine) validate() error {
+func (eng *Engine) Validate() error {
 	if eng == nil {
 		return apperrors.ErrNilEngine
 	}
@@ -187,7 +187,7 @@ func (eng *Engine) HedgeModeEnabled() bool {
 // positions in deterministic long-then-short order. Mutating a returned
 // position does not change the engine's internal state.
 func (eng *Engine) GetOpenPositions() ([]types.Position, error) {
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return nil, err
 	}
 
@@ -204,7 +204,7 @@ func (eng *Engine) GetOpenPositions() ([]types.Position, error) {
 
 // UpdatePositionSizer updates the engine's position sizer.
 func (eng *Engine) UpdatePositionSizer(newPositionSizer types.PositionSizer) error {
-	if err := eng.validate(); err != nil {
+	if err := eng.Validate(); err != nil {
 		return err
 	}
 	if newPositionSizer == nil {
