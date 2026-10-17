@@ -118,3 +118,33 @@ func (eng *Engine) validateIncreasePosition(action IncreasePositionAction) error
 	}
 	return nil
 }
+
+// DirectAmountIncrease immediately records an additional fill on the specified
+// open side without a separate decide/confirm step. Amount is the additional
+// base-asset amount; entryPrice is the executed fill and is not adjusted again
+// for slippage. Timestamp is the fill's Unix timestamp in milliseconds.
+// It sends no exchange order. Not recommended for production unless the caller
+// has already verified execution, since it updates engine state immediately.
+func (eng *Engine) DirectAmountIncrease(
+	side types.PositionSide,
+	entryPrice, amount float64,
+	timestamp int64,
+) error {
+	if err := eng.Validate(); err != nil {
+		return err
+	}
+	if !side.Valid() {
+		return apperrors.ErrInvalidSide
+	}
+	position := eng.positions[side]
+	if position == nil || position.State != types.PositionOpen {
+		return apperrors.ErrPositionNotFound
+	}
+
+	return eng.ConfirmIncreasePosition(IncreasePositionAction{
+		Position:   *position,
+		Amount:     amount,
+		EntryPrice: entryPrice,
+		Timestamp:  timestamp,
+	})
+}
