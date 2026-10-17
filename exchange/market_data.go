@@ -216,3 +216,27 @@ func (client *Client) SupportedTimeframes() []string {
 
 	return supported
 }
+
+// ContractSize returns the finite, positive contract size from cached market
+// metadata. It requires a contract market but no credentials or network request.
+// Missing or invalid metadata returns ErrContractSizeUnavailable.
+func (client *Client) ContractSize(symbol string) (float64, error) {
+	if err := client.Validate(); err != nil {
+		return 0, err
+	}
+	if symbol == "" {
+		return 0, apperrors.ErrNilSymbol
+	}
+	market, exists := client.markets[symbol]
+	if !exists {
+		return 0, apperrors.ErrInvalidSymbol
+	}
+	if market.Contract == nil || !*market.Contract {
+		return 0, apperrors.ErrUnsupportedFuturesMarket
+	}
+	if market.ContractSize == nil || math.IsNaN(*market.ContractSize) ||
+		math.IsInf(*market.ContractSize, 0) || *market.ContractSize <= 0 {
+		return 0, apperrors.ErrContractSizeUnavailable
+	}
+	return *market.ContractSize, nil
+}
