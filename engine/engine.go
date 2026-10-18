@@ -202,6 +202,22 @@ func (eng *Engine) GetOpenPositions() ([]types.Position, error) {
 	return positions, nil
 }
 
+// GetLastClosedPosition returns a value copy of the most recently confirmed
+// closed position, or ErrPositionNotFound if no position has been closed.
+func (eng *Engine) GetLastClosedPosition() (types.Position, error) {
+	if err := eng.Validate(); err != nil {
+		return types.Position{}, err
+	}
+
+	eng.realizedMu.RLock()
+	defer eng.realizedMu.RUnlock()
+
+	if len(eng.closedPositions) == 0 {
+		return types.Position{}, apperrors.ErrPositionNotFound
+	}
+	return eng.closedPositions[len(eng.closedPositions)-1], nil
+}
+
 // UpdatePositionSizer updates the engine's position sizer.
 func (eng *Engine) UpdatePositionSizer(newPositionSizer types.PositionSizer) error {
 	if err := eng.Validate(); err != nil {
