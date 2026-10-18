@@ -151,7 +151,7 @@ if err != nil {
 	return err
 }
 
-err = client.CreateFuturesMarketOrder(
+order, err := client.CreateFuturesMarketOrder(
 	symbol,
 	types.PositionLong,
 	0.001,
@@ -159,12 +159,23 @@ err = client.CreateFuturesMarketOrder(
 if err != nil {
 	return err
 }
+
+fmt.Println(order.ID, order.ClientOrderID, order.Status)
 ```
 
 Public futures amounts are base-asset quantities. The client estimates the
 exchange contract count using loaded market metadata; exchange precision can
 change the final traded quantity. Inverse futures markets are not currently
 supported by this conversion.
+
+All spot and futures order methods, including closes, reductions, and attached
+TP/SL entries, return `(exchange.OrderUpdate, error)`. The result contains the
+provider's submission response without an extra fetch. A successful submission
+does not guarantee a fill: price, filled amount, and fee may arrive later through
+the order stream. Returned futures quantities remain in exchange contracts;
+spot quantities use base-asset units. Fields omitted by the provider remain empty
+or nil. Attached TP/SL methods return the entry order, not separate protection
+orders.
 
 `SetFuturesConfig` applies remote position mode, margin mode, and leverage
 settings. Changing position mode may be rejected when the account has open
@@ -188,7 +199,11 @@ position := types.Position{
 	State:         types.PositionOpen,
 }
 
-err = client.CreateFuturesLimitOrderWithTPSL(position)
+order, err := client.CreateFuturesLimitOrderWithTPSL(position)
+if err != nil {
+	return err
+}
+fmt.Println(order.ID)
 ```
 
 The market variant is `CreateFuturesMarketOrderWithTPSL`. The entry order may be
@@ -245,7 +260,7 @@ The exchange package translates supported CCXT errors into stable library errors
 Use `errors.Is` to classify them:
 
 ```go
-err := client.CreateFuturesMarketOrder(symbol, types.PositionLong, 0.001)
+_, err := client.CreateFuturesMarketOrder(symbol, types.PositionLong, 0.001)
 if err != nil {
 	switch {
 	case stderrors.Is(err, apperrors.ErrInsufficientFunds):

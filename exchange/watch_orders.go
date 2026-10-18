@@ -13,8 +13,9 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// OrderUpdate contains either the latest exchange-reported order state or a
-// terminal watcher error. Optional fields remain nil when omitted by the provider.
+// OrderUpdate contains an exchange-reported order state from submission,
+// fetching, or streaming, or a terminal watcher error. A submission response is
+// not proof of a fill; optional fields remain nil when omitted by the provider.
 type OrderUpdate struct {
 	ID            string
 	ClientOrderID string
@@ -30,8 +31,11 @@ type OrderUpdate struct {
 	// ClosePosition reports a close-all order, including OKX closeFraction=1.
 	ClosePosition bool
 
-	Price     *float64
-	Average   *float64
+	Price   *float64
+	Average *float64
+	// Amount, Filled, and Remaining use the exchange's order units: base assets
+	// for spot and contracts for futures. Unlike futures method inputs, these
+	// returned quantities are not converted to base-asset amounts.
 	Amount    *float64
 	Filled    *float64
 	Remaining *float64

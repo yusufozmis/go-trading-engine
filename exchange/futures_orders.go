@@ -12,15 +12,15 @@ import (
 // CreateFuturesMarketOrder creates a market order using a requested base-asset
 // amount. The amount is estimated as contracts from the market's contract size,
 // so exchange precision may change the final traded base-asset quantity.
-func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) error {
+func (client *Client) CreateFuturesMarketOrder(symbol string, side types.PositionSide, amount float64) (OrderUpdate, error) {
 
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	contractAmount, err := client.baseAmountToContracts(symbol, amount)
 	if err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	client.futuresMu.Lock()
@@ -42,15 +42,15 @@ func (client *Client) CreateFuturesMarketOrder(symbol string, side types.Positio
 // CreateFuturesLimitOrder creates a limit order using a requested base-asset
 // amount. The amount is estimated as contracts from the market's contract size,
 // so exchange precision may change the final traded base-asset quantity.
-func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) error {
+func (client *Client) CreateFuturesLimitOrder(symbol string, side types.PositionSide, amount, price float64) (OrderUpdate, error) {
 
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	contractAmount, err := client.baseAmountToContracts(symbol, amount)
 	if err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	client.futuresMu.Lock()
@@ -75,7 +75,7 @@ func (client *Client) CreateFuturesLimitOrder(symbol string, side types.Position
 // request. The position amount is interpreted as a base-asset quantity and
 // estimated as contracts from market metadata. Currently, only OKX supports
 // this operation.
-func (client *Client) CreateFuturesMarketOrderWithTPSL(position types.Position) error {
+func (client *Client) CreateFuturesMarketOrderWithTPSL(position types.Position) (OrderUpdate, error) {
 	return client.createFuturesOrderWithTPSL(position, "market")
 }
 
@@ -84,22 +84,22 @@ func (client *Client) CreateFuturesMarketOrderWithTPSL(position types.Position) 
 // stop-loss, or both to the same entry request. The position amount is
 // interpreted as a base-asset quantity and estimated as contracts from market
 // metadata. Currently, only OKX supports this operation.
-func (client *Client) CreateFuturesLimitOrderWithTPSL(position types.Position) error {
+func (client *Client) CreateFuturesLimitOrderWithTPSL(position types.Position) (OrderUpdate, error) {
 	return client.createFuturesOrderWithTPSL(position, "limit")
 }
 
 // createFuturesOrderWithTPSL contains the validation and request construction
 // shared by the market and limit attached-protection methods.
-func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderType string) error {
+func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderType string) (OrderUpdate, error) {
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	if err := position.Validate(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 	if position.StopLoss == 0 && position.TP == 0 {
-		return apperrors.ErrInvalidPrice
+		return OrderUpdate{}, apperrors.ErrInvalidPrice
 	}
 	// Position.Validate accepts stops moved into profit on existing positions.
 	// A new attached stop must still begin on the loss side of the entry.
@@ -107,12 +107,12 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 		position.StopLoss != 0 && position.StopLoss >= position.EntryPrice) ||
 		(position.Side == types.PositionShort &&
 			position.StopLoss != 0 && position.StopLoss <= position.EntryPrice) {
-		return apperrors.ErrInvalidTPSLBracket
+		return OrderUpdate{}, apperrors.ErrInvalidTPSLBracket
 	}
 
 	contractAmount, err := client.baseAmountToContracts(position.Symbol, position.Amount)
 	if err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	client.futuresMu.Lock()
@@ -145,36 +145,36 @@ func (client *Client) createFuturesOrderWithTPSL(position types.Position, orderT
 func (client *Client) CloseFuturesPosition(
 	symbol string,
 	positionSide types.PositionSide,
-) error {
+) (OrderUpdate, error) {
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	if symbol == "" {
-		return apperrors.ErrNilSymbol
+		return OrderUpdate{}, apperrors.ErrNilSymbol
 	}
 
 	marketInfo, exists := client.markets[symbol]
 	if !exists || marketInfo.Swap == nil || !*marketInfo.Swap {
-		return apperrors.ErrInvalidSymbol
+		return OrderUpdate{}, apperrors.ErrInvalidSymbol
 	}
 
 	if !positionSide.Valid() {
-		return apperrors.ErrInvalidSide
+		return OrderUpdate{}, apperrors.ErrInvalidSide
 	}
 
 	client.futuresMu.Lock()
 	defer client.futuresMu.Unlock()
 
 	if client.futuresAdapter == nil {
-		return apperrors.ErrUnsupportedProvider
+		return OrderUpdate{}, apperrors.ErrUnsupportedProvider
 	}
 
 	positions, err := client.iExchange.FetchPositions(
 		ccxt.WithFetchPositionsSymbols([]string{symbol}),
 	)
 	if err != nil {
-		return normalizeError(err)
+		return OrderUpdate{}, normalizeError(err)
 	}
 
 	for _, position := range positions {
@@ -219,7 +219,7 @@ func (client *Client) CloseFuturesPosition(
 
 		// A reduce-only order closes the position without risking an
 		// accidental position in the opposite direction.
-		_, err = client.iExchange.CreateReduceOnlyOrder(
+		order, err := client.iExchange.CreateReduceOnlyOrder(
 			req.Symbol,
 			req.Type,
 			closeOrderSide(req.Side).String(),
@@ -228,10 +228,13 @@ func (client *Client) CloseFuturesPosition(
 				client.futuresAdapter.OrderParams(req),
 			),
 		)
-		return normalizeError(err)
+		if err != nil {
+			return OrderUpdate{}, normalizeError(err)
+		}
+		return wrapOrderUpdate(order, false), nil
 	}
 
-	return apperrors.ErrPositionNotFound
+	return OrderUpdate{}, apperrors.ErrPositionNotFound
 }
 
 // ReduceFuturesPositionMarket reduces the requested side of an open perpetual
@@ -242,7 +245,7 @@ func (client *Client) ReduceFuturesPositionMarket(
 	symbol string,
 	positionSide types.PositionSide,
 	amount float64,
-) error {
+) (OrderUpdate, error) {
 	return client.reduceFuturesPosition(symbol, positionSide, amount, "market", 0)
 }
 
@@ -254,7 +257,7 @@ func (client *Client) ReduceFuturesPositionLimit(
 	symbol string,
 	positionSide types.PositionSide,
 	amount, price float64,
-) error {
+) (OrderUpdate, error) {
 	return client.reduceFuturesPosition(symbol, positionSide, amount, "limit", price)
 }
 
@@ -266,37 +269,37 @@ func (client *Client) reduceFuturesPosition(
 	amount float64,
 	orderType string,
 	price float64,
-) error {
+) (OrderUpdate, error) {
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	contractAmount, err := client.baseAmountToContracts(symbol, amount)
 	if err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	if orderType == "limit" &&
 		(math.IsNaN(price) || math.IsInf(price, 0) || price <= 0) {
-		return apperrors.ErrInvalidPrice
+		return OrderUpdate{}, apperrors.ErrInvalidPrice
 	}
 
 	if !positionSide.Valid() {
-		return apperrors.ErrInvalidSide
+		return OrderUpdate{}, apperrors.ErrInvalidSide
 	}
 
 	client.futuresMu.Lock()
 	defer client.futuresMu.Unlock()
 
 	if client.futuresAdapter == nil {
-		return apperrors.ErrUnsupportedProvider
+		return OrderUpdate{}, apperrors.ErrUnsupportedProvider
 	}
 
 	positions, err := client.iExchange.FetchPositions(
 		ccxt.WithFetchPositionsSymbols([]string{symbol}),
 	)
 	if err != nil {
-		return normalizeError(err)
+		return OrderUpdate{}, normalizeError(err)
 	}
 
 	for _, position := range positions {
@@ -314,7 +317,7 @@ func (client *Client) reduceFuturesPosition(
 		}
 
 		if *position.Contracts < contractAmount {
-			return apperrors.ErrNotEnoughAmount
+			return OrderUpdate{}, apperrors.ErrNotEnoughAmount
 		}
 
 		// Prefer the position's actual settings because the client config may
@@ -356,26 +359,29 @@ func (client *Client) reduceFuturesPosition(
 
 		// A reduce-only order closes the position without risking an
 		// accidental position in the opposite direction.
-		_, err = client.iExchange.CreateReduceOnlyOrder(
+		order, err := client.iExchange.CreateReduceOnlyOrder(
 			req.Symbol,
 			req.Type,
 			closeOrderSide(req.Side).String(),
 			req.Amount,
 			options...,
 		)
-		return normalizeError(err)
+		if err != nil {
+			return OrderUpdate{}, normalizeError(err)
+		}
+		return wrapOrderUpdate(order, false), nil
 	}
 
-	return apperrors.ErrPositionNotFound
+	return OrderUpdate{}, apperrors.ErrPositionNotFound
 }
 
-func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error {
+func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) (OrderUpdate, error) {
 	if err := client.validateConfigured(); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	if err := client.validateFuturesOrder(req); err != nil {
-		return err
+		return OrderUpdate{}, err
 	}
 
 	params := client.futuresAdapter.OrderParams(req)
@@ -385,7 +391,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 	if req.StopLoss != nil {
 		attachedParams, err := client.futuresAdapter.AttachSL(req)
 		if err != nil {
-			return err
+			return OrderUpdate{}, err
 		}
 		for key, value := range attachedParams {
 			params[key] = value
@@ -394,7 +400,7 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 	if req.TakeProfit != nil {
 		attachedParams, err := client.futuresAdapter.AttachTP(req)
 		if err != nil {
-			return err
+			return OrderUpdate{}, err
 		}
 		for key, value := range attachedParams {
 			params[key] = value
@@ -415,19 +421,22 @@ func (client *Client) createFuturesOrder(req adapters.FuturesOrderRequest) error
 			MarginMode: req.MarginMode,
 			Hedged:     req.Hedged,
 		}); err != nil {
-			return normalizeError(err)
+			return OrderUpdate{}, normalizeError(err)
 		}
 		client.preparedFuturesSymbols[req.Symbol] = true
 	}
 
-	_, err := client.iExchange.CreateOrder(
+	order, err := client.iExchange.CreateOrder(
 		req.Symbol,
 		req.Type,
 		orderSide(req.Side).String(),
 		req.Amount,
 		options...,
 	)
-	return normalizeError(err)
+	if err != nil {
+		return OrderUpdate{}, normalizeError(err)
+	}
+	return wrapOrderUpdate(order, false), nil
 }
 
 func (client *Client) validateFuturesOrder(req adapters.FuturesOrderRequest) error {
