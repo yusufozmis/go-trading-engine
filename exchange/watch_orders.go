@@ -49,6 +49,18 @@ type OrderUpdate struct {
 	FeeRate         *float64
 	FeeCost         *float64
 
+	// ActualSide classifies a triggered protection as ClosedByProfit or
+	// ClosedByStop; it is UNSPECIFIED when the event cannot identify one.
+	// OKX reports the triggered leg directly; Binance uses the original order
+	// type together with closing direction and execution/trigger evidence.
+	// This is a reason classification, not proof that the entire position is
+	// closed: a triggered order can remain unfilled or close only part of it.
+	ActualSide types.PositionState
+	// TriggeredOrderIDs contains the execution order IDs created by the algo
+	// order (OKX ordIdList). Match these against a regular order update's ID to
+	// obtain its actual fill. The list is nil when absent or empty.
+	TriggeredOrderIDs []string
+
 	// Trigger identifies updates received from a provider's separate
 	// conditional-order channel, such as OKX orders-algo.
 	Trigger bool
@@ -525,25 +537,75 @@ func wrapOrderUpdate(order ccxt.Order, trigger bool) OrderUpdate {
 	if positionSide == "" {
 		positionSide, _ = historyString(order.Info, "positionSide")
 	}
+	if positionSide == "" {
+		positionSide, _ = historyString(order.Info, "ps")
+	}
 	update.PositionSide = types.PositionSide(strings.ToLower(positionSide))
 	marginMode, _ := historyString(order.Info, "tdMode")
 	update.MarginMode = types.MarginMode(marginMode)
 	closePosition, _ := historyString(order.Info, "closePosition")
 	closeFraction, _ := historyString(order.Info, "closeFraction")
 	update.ClosePosition = order.Info["closePosition"] == true ||
-		closePosition == "true" || closeFraction == "1"
+		closePosition == "true" || closeFraction == "1" || order.Info["cp"] == true
+
+	actualSide, _ := historyString(order.Info, "actualSide")
+	switch actualSide {
+	case "tp":
+		update.ActualSide = types.ClosedByProfit
+	case "sl":
+		update.ActualSide = types.ClosedByStop
+	}
+	// JSON responses decode arrays as []any; typed callers may supply []string.
+	// Copy the IDs so returned updates do not share the provider's mutable list.
+	switch ids := order.Info["ordIdList"].(type) {
+	case []string:
+		update.TriggeredOrderIDs = append([]string(nil), ids...)
+	case []any:
+		for _, value := range ids {
+			if id, ok := value.(string); ok {
+				update.TriggeredOrderIDs = append(update.TriggeredOrderIDs, id)
+			}
+		}
+	}
 
 	// Binance's unified order contains TriggerPrice but not the TP/SL role.
 	// Resolve it here so fetched and streamed orders share the same wrapper.
-	orderType, _ := historyString(order.Info, "orderType")
-	if orderType == "" {
-		orderType, _ = historyString(order.Info, "type")
+	var orderType string
+	for _, key := range []string{"ot", "origType", "orderType", "type", "o"} {
+		orderType, _ = historyString(order.Info, key)
+		if orderType != "" {
+			break
+		}
 	}
+	var protection types.PositionState
 	switch orderType {
-	case "STOP", "STOP_MARKET":
+	case "STOP", "STOP_MARKET", "STOP_LOSS", "STOP_LOSS_LIMIT":
 		update.StopLossPrice = order.TriggerPrice
-	case "TAKE_PROFIT", "TAKE_PROFIT_MARKET":
+		protection = types.ClosedByStop
+	case "TAKE_PROFIT", "TAKE_PROFIT_MARKET", "TAKE_PROFIT_LIMIT":
 		update.TakeProfitPrice = order.TriggerPrice
+		protection = types.ClosedByProfit
+	}
+	if update.ActualSide == types.UNSPECIFIED && protection != types.UNSPECIFIED {
+		// A stop entry is not a stop-loss close. Hedge closing direction can
+		// identify a reduction even when Binance does not set reduceOnly.
+		closing := update.ClosePosition || (order.ReduceOnly != nil && *order.ReduceOnly) ||
+			order.Info["R"] == true ||
+			(update.PositionSide == types.PositionLong && update.Side == "sell") ||
+			(update.PositionSide == types.PositionShort && update.Side == "buy")
+		var rawStatus string
+		for _, key := range []string{"X", "algoStatus", "status"} {
+			rawStatus, _ = historyString(order.Info, key)
+			if rawStatus != "" {
+				break
+			}
+		}
+		triggered := update.Status == "closed" || (order.Filled != nil && *order.Filled > 0) ||
+			rawStatus == "TRIGGERED" || rawStatus == "FINISHED" ||
+			rawStatus == "FILLED" || rawStatus == "PARTIALLY_FILLED"
+		if closing && triggered {
+			update.ActualSide = protection
+		}
 	}
 
 	return update
