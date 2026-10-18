@@ -8,29 +8,30 @@ import (
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// IncreasePositionAction describes an additional entry on an already open side.
-// Live callers should execute Amount on the exchange, replace EntryPrice and
-// Timestamp with the actual fill details, and confirm only after execution.
+// IncreasePositionAction describes the resulting state after adding to an open
+// side. Live callers should execute Amount - Position.Amount on the exchange,
+// then confirm using the actual total amount and average entry price.
 type IncreasePositionAction struct {
 	// Position is the original open snapshot used to reject stale confirmations.
 	Position types.Position
-	// Amount is the additional base-asset amount, not the resulting total.
+	// Amount is the new total base-asset amount after the increase.
 	Amount float64
-	// EntryPrice is the additional entry fill, including simulated slippage.
+	// EntryPrice is the new average entry price of the entire remaining position,
+	// not the fill price of the additional entry.
 	EntryPrice float64
 	// Timestamp is the additional entry's Unix timestamp in milliseconds.
 	Timestamp int64
 }
 
-// DecideIncreasePosition prepares an explicit increase using the candle close
-// and configured slippage without changing engine state. The caller chooses
-// when to increase and supplies the additional amount; the sizer is not used.
-// The resulting average entry and liquidation price are calculated and
-// validated only on confirmation, using the final execution details.
+// DecideIncreasePosition prepares an increase to newAmount without changing
+// engine state. It estimates the resulting average entry using the candle close
+// and configured slippage for the added quantity. The caller supplies the new
+// total base-asset amount; the position sizer is not used. Liquidation is
+// calculated only on confirmation, using the final amount and average entry.
 func (eng *Engine) DecideIncreasePosition(
 	candle types.Candle,
 	side types.PositionSide,
-	amount float64,
+	newAmount float64,
 ) (*IncreasePositionAction, error) {
 	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
@@ -45,18 +46,21 @@ func (eng *Engine) DecideIncreasePosition(
 
 	action := IncreasePositionAction{
 		Position:   *position,
-		Amount:     amount,
+		Amount:     newAmount,
 		EntryPrice: eng.entryFillPrice(candle.PriceData.ClosePrice, side),
 		Timestamp:  candle.Timestamp,
 	}
 	if err := eng.validateIncreasePosition(action); err != nil {
 		return nil, err
 	}
+	addedAmount := newAmount - position.Amount
+	action.EntryPrice = position.EntryPrice +
+		(action.EntryPrice-position.EntryPrice)*(addedAmount/newAmount)
 	return &action, nil
 }
 
-// ConfirmIncreasePosition adds an executed entry to the tracked side using a
-// weighted average entry price. TP/SL, the original opening time, and realized
+// ConfirmIncreasePosition records the new total amount and average entry price
+// reported by the action. TP/SL, the original opening time, and realized
 // accounting are preserved; an executed partial TP is not rearmed. Liquidation
 // is recalculated when configured. Preloaded liquidation data requires a model
 // so an increase cannot silently retain an outdated liquidation price.
@@ -69,10 +73,17 @@ func (eng *Engine) ConfirmIncreasePosition(action IncreasePositionAction) error 
 	}
 
 	position := action.Position
-	position.Amount += action.Amount
-	// This is the amount-weighted average without multiplying large notionals.
-	position.EntryPrice += (action.EntryPrice - position.EntryPrice) * (action.Amount / position.Amount)
-	position.SlippageCost += eng.entrySlippageCost(action.EntryPrice, action.Amount, position.Side)
+	addedAmount := action.Amount - position.Amount
+	// Infer the added fill from the old and new average entries for slippage
+	// reporting. Do not average the reported average entry a second time.
+	addedEntryPrice := action.EntryPrice +
+		((action.EntryPrice-position.EntryPrice)/addedAmount)*position.Amount
+	if math.IsNaN(addedEntryPrice) || math.IsInf(addedEntryPrice, 0) || addedEntryPrice <= 0 {
+		return apperrors.ErrInvalidPrice
+	}
+	position.Amount = action.Amount
+	position.EntryPrice = action.EntryPrice
+	position.SlippageCost += eng.entrySlippageCost(addedEntryPrice, addedAmount, position.Side)
 	// Entry fees remain deferred until reduction or close, where the weighted
 	// entry accounts for both the existing amount and this additional entry.
 	if eng.liquidationModel != nil {
@@ -99,7 +110,7 @@ func (eng *Engine) validateIncreasePosition(action IncreasePositionAction) error
 	if current == nil || current.State != types.PositionOpen || *current != action.Position {
 		return apperrors.ErrStalePositionAction
 	}
-	if math.IsNaN(action.Amount) || math.IsInf(action.Amount, 0) || action.Amount <= 0 {
+	if math.IsNaN(action.Amount) || math.IsInf(action.Amount, 0) || action.Amount <= current.Amount {
 		return apperrors.ErrInvalidAmount
 	}
 	if math.IsNaN(action.EntryPrice) || math.IsInf(action.EntryPrice, 0) || action.EntryPrice <= 0 {
@@ -109,25 +120,21 @@ func (eng *Engine) validateIncreasePosition(action IncreasePositionAction) error
 		return apperrors.ErrInvalidTimestamp
 	}
 
-	totalAmount := current.Amount + action.Amount
-	if math.IsInf(totalAmount, 0) || totalAmount <= current.Amount {
-		return apperrors.ErrInvalidAmount
-	}
 	if eng.liquidationModel == nil && (current.Leverage != 0 || current.LiquidationPrice != 0) {
 		return fmt.Errorf("increase leveraged position: %w", apperrors.ErrNilLiquidationModel)
 	}
 	return nil
 }
 
-// DirectAmountIncrease immediately records an additional fill on the specified
-// open side without a separate decide/confirm step. Amount is the additional
-// base-asset amount; entryPrice is the executed fill and is not adjusted again
-// for slippage. Timestamp is the fill's Unix timestamp in milliseconds.
+// DirectAmountIncrease immediately records the new total base-asset amount and
+// average entry price on the specified open side without a separate
+// decide/confirm step. The average entry is stored as supplied, without applying
+// slippage again. Timestamp is the increase's Unix timestamp in milliseconds.
 // It sends no exchange order. Not recommended for production unless the caller
 // has already verified execution, since it updates engine state immediately.
 func (eng *Engine) DirectAmountIncrease(
 	side types.PositionSide,
-	entryPrice, amount float64,
+	averageEntryPrice, newAmount float64,
 	timestamp int64,
 ) error {
 	if err := eng.Validate(); err != nil {
@@ -143,8 +150,8 @@ func (eng *Engine) DirectAmountIncrease(
 
 	return eng.ConfirmIncreasePosition(IncreasePositionAction{
 		Position:   *position,
-		Amount:     amount,
-		EntryPrice: entryPrice,
+		Amount:     newAmount,
+		EntryPrice: averageEntryPrice,
 		Timestamp:  timestamp,
 	})
 }

@@ -52,7 +52,7 @@ func (eng *Engine) DecidePartialTakeProfits(
 
 		actions = append(actions, PartialTakeProfitAction{
 			Position:  *position,
-			Amount:    reductionAmount,
+			Amount:    remainingAmount,
 			ExitPrice: exitPrice,
 			Timestamp: candle.Timestamp,
 		})
@@ -62,7 +62,10 @@ func (eng *Engine) DecidePartialTakeProfits(
 }
 
 // ConfirmPartialTakeProfit records a successfully executed reduction, realizes
-// its fee and PnL, and leaves the remaining amount open.
+// its fee and PnL, and leaves action.Amount open. The reduced quantity is the
+// difference between the tracked amount and the new remaining amount; it need
+// not match the configured percentage if actual execution differs. ExitPrice
+// must be the actual reduction fill, not the remaining position's entry price.
 func (eng *Engine) ConfirmPartialTakeProfit(action PartialTakeProfitAction) error {
 	if err := eng.Validate(); err != nil {
 		return err
@@ -77,36 +80,35 @@ func (eng *Engine) ConfirmPartialTakeProfit(action PartialTakeProfitAction) erro
 		return apperrors.ErrStalePositionAction
 	}
 
-	expectedAmount := current.Amount * eng.partialReductionPercentage
-	if action.Amount != expectedAmount || !validPartialValue(action.Amount) ||
+	if !validPartialValue(action.Amount) || action.Amount >= current.Amount ||
 		!validPartialValue(action.ExitPrice) ||
 		action.Timestamp <= current.OpenTimestamp {
 		return apperrors.ErrInvalidPositionAction
 	}
 
-	remainingAmount := current.Amount - action.Amount
-	if !validPartialValue(remainingAmount) {
+	reductionAmount := current.Amount - action.Amount
+	if !validPartialValue(reductionAmount) {
 		return apperrors.ErrInvalidAmount
 	}
 
 	// A partial take-profit realizes only the reduced amount while the position
 	// itself remains open and accumulates the resulting accounting values.
-	entryFee := current.EntryPrice * action.Amount * eng.tradingFeeRate
-	exitFee := action.ExitPrice * action.Amount * eng.tradingFeeRate
+	entryFee := current.EntryPrice * reductionAmount * eng.tradingFeeRate
+	exitFee := action.ExitPrice * reductionAmount * eng.tradingFeeRate
 	partialFee := entryFee + exitFee
 
 	exitSlippage := eng.exitSlippageCost(
 		action.ExitPrice,
-		action.Amount,
+		reductionAmount,
 		current.Side,
 	)
 
 	var partialNetProfit float64
 	switch current.Side {
 	case types.PositionLong:
-		partialNetProfit = (action.ExitPrice - current.EntryPrice) * action.Amount
+		partialNetProfit = (action.ExitPrice - current.EntryPrice) * reductionAmount
 	case types.PositionShort:
-		partialNetProfit = (current.EntryPrice - action.ExitPrice) * action.Amount
+		partialNetProfit = (current.EntryPrice - action.ExitPrice) * reductionAmount
 	default:
 		return apperrors.ErrInvalidSide
 	}
@@ -123,7 +125,7 @@ func (eng *Engine) ConfirmPartialTakeProfit(action PartialTakeProfitAction) erro
 	}
 
 	remaining := *current
-	remaining.Amount = remainingAmount
+	remaining.Amount = action.Amount
 	remaining.PartialTakeProfitExecuted = true
 	remaining.PartialTPTimestamp = action.Timestamp
 	// Keep cumulative realized accounting on the open position. The original
