@@ -37,6 +37,9 @@ const (
 	ClosedByLiquidation
 	// ClosedByDuration identifies a position closed after reaching its maximum lifetime.
 	ClosedByDuration
+	// ClosedManually identifies a position closed by an explicit user action
+	// rather than an automated exit condition.
+	ClosedManually
 )
 
 const (
