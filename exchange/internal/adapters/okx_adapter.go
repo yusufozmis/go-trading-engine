@@ -98,6 +98,17 @@ func (adapter *OKXFuturesAdapter) AttachTP(req FuturesOrderRequest) (map[string]
 	}, nil
 }
 
+// OCOParams supplies both triggers for one standalone OKX OCO order.
+// Both legs close the entire position at market; these are not attached entries.
+func (adapter *OKXFuturesAdapter) OCOParams(req FuturesOrderRequest) (map[string]any, error) {
+	return map[string]any{
+		"stopLossPrice":   *req.StopLoss,
+		"takeProfitPrice": *req.TakeProfit,
+		"reduceOnly":      true,
+		"closeFraction":   "1",
+	}, nil
+}
+
 // ProtectionOrderParams includes combined OCO and individual TP/SL orders.
 func (adapter *OKXFuturesAdapter) ProtectionOrderParams() []map[string]any {
 	return []map[string]any{

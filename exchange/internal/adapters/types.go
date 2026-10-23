@@ -64,6 +64,8 @@ type FuturesAdapter interface {
 	AttachSL(req FuturesOrderRequest) (map[string]any, error)
 	// AttachTP translates an attached take-profit for the futures entry.
 	AttachTP(req FuturesOrderRequest) (map[string]any, error)
+	// OCOParams translates standalone TP/SL protection or rejects unsupported providers.
+	OCOParams(req FuturesOrderRequest) (map[string]any, error)
 	// ProtectionOrderParams selects the provider's active TP/SL order queries.
 	ProtectionOrderParams() []map[string]any
 }

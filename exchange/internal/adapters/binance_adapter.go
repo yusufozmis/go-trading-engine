@@ -87,6 +87,12 @@ func (adapter *BinanceFuturesAdapter) AttachTP(FuturesOrderRequest) (map[string]
 	return nil, apperrors.ErrAttachedTPSLUnsupported
 }
 
+// OCOParams rejects standalone futures OCO because Binance only supports
+// independent TP and SL conditional orders, not a linked OCO pair.
+func (adapter *BinanceFuturesAdapter) OCOParams(FuturesOrderRequest) (map[string]any, error) {
+	return nil, apperrors.ErrFuturesOCOUnsupported
+}
+
 // ProtectionOrderParams selects Binance USD-M conditional algo orders.
 func (adapter *BinanceFuturesAdapter) ProtectionOrderParams() []map[string]any {
 	return []map[string]any{

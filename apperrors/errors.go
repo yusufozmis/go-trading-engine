@@ -169,6 +169,9 @@ var (
 	// ErrAttachedTPSLUnsupported indicates that the provider cannot attach both
 	// protective orders to the futures entry in a single request.
 	ErrAttachedTPSLUnsupported = errors.New("attached futures tp/sl is unsupported by provider")
+	// ErrFuturesOCOUnsupported indicates that the provider cannot create a linked
+	// standalone TP/SL OCO order for a futures position.
+	ErrFuturesOCOUnsupported = errors.New("futures oco is unsupported by provider")
 	// ErrPositionModeChangeRejected indicates that the exchange refused to
 	// change position mode, commonly because positions, orders, or bots are active.
 	ErrPositionModeChangeRejected = errors.New("position mode change rejected")
