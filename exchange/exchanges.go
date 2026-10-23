@@ -105,10 +105,18 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 		}
 	}
 
-	pro := ccxtpro.NewOkx(nil)
-	streamPro := ccxtpro.NewOkx(nil)
-	positionPro := ccxtpro.NewOkx(nil)
-	orderPro := ccxtpro.NewOkx(nil)
+	// Override this CCXT version's retiring port 8443 for all OKX streams.
+	// Omitting the port selects TLS port 443 in both live and demo environments.
+	wsConfig := map[string]any{
+		"urls": map[string]any{
+			"api":  map[string]any{"ws": "wss://ws.okx.com/ws/v5"},
+			"test": map[string]any{"ws": "wss://wspap.okx.com/ws/v5"},
+		},
+	}
+	pro := ccxtpro.NewOkx(wsConfig)
+	streamPro := ccxtpro.NewOkx(wsConfig)
+	positionPro := ccxtpro.NewOkx(wsConfig)
+	orderPro := ccxtpro.NewOkx(wsConfig)
 
 	// CCXT maps OKX sandbox mode to the provider's demo-trading environment.
 	if cfg.PaperTrading {
