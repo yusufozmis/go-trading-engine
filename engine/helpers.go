@@ -308,3 +308,16 @@ func (eng *Engine) entryPlanLockKey(plan types.EntryPlan) string {
 
 	return plan.Symbol + "|" + plan.Timeframe + "|" + key
 }
+
+func (eng *Engine) StrategyContext() (types.StrategyContext, error) {
+	if err := eng.Validate(); err != nil {
+		return types.StrategyContext{}, err
+	}
+	return types.StrategyContext{
+		HedgeMode:            eng.HedgeModeEnabled(),
+		HasPendingPosition:   eng.PendingExists(),
+		HasOpenPosition:      eng.PositionExists(),
+		PendingPositionSides: eng.PendingSides(),
+		OpenPositionSides:    eng.PositionSides(),
+	}, nil
+}
