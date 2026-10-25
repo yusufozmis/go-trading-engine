@@ -43,6 +43,9 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 		case types.ClosedByDuration:
 			result.DurationCloseCount++
 
+		case types.ClosedManually:
+			result.ManualCloseCount++
+
 		default:
 			continue
 		}

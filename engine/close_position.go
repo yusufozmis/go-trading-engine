@@ -227,6 +227,8 @@ func (eng *Engine) applyProfitLockStop(position *types.Position, candle types.Ca
 
 // ConfirmClosePosition records a previously decided action as successfully
 // closed. It rejects actions that no longer match the tracked open position.
+// External manual closes may use ClosedManually with the actual exit price
+// and close timestamp while preserving the tracked position's other fields.
 func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	if err := eng.Validate(); err != nil {
 		return err

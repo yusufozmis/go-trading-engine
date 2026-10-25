@@ -94,7 +94,8 @@ func (pos *Position) Validate() error {
 		if pos.ExitPrice != 0 {
 			return apperrors.ErrInvalidPrice
 		}
-	case ClosedByStop, ClosedByProfit, ClosedByLiquidation, ClosedByDuration:
+	case ClosedByStop, ClosedByProfit,
+		ClosedByLiquidation, ClosedByDuration, ClosedManually:
 		if !pos.Side.Valid() {
 			return apperrors.ErrInvalidSide
 		}
@@ -214,6 +215,8 @@ type PerformanceResult struct {
 	LiquidationCount int
 	// DurationCloseCount is the number of positions closed at their maximum lifetime.
 	DurationCloseCount int
+	// ManualCloseCount is the number of positions closed by an explicit user action.
+	ManualCloseCount int
 	// PartialTakeProfitCount is the number of confirmed partial reductions.
 	PartialTakeProfitCount int
 
