@@ -193,9 +193,8 @@ func (client *Client) RunOrderStream(
 		return nil, apperrors.ErrOrderStreamAlreadyExists
 	}
 
-	bufferSize := max(len(symbols)*len(watcherConfigs)*2, 2)
 	stream := &orderStream{
-		updates:             make(chan OrderUpdate, bufferSize),
+		updates:             make(chan OrderUpdate, 100),
 		done:                make(chan struct{}),
 		marketType:          marketType,
 		watchAllSymbols:     len(symbols) == 0,

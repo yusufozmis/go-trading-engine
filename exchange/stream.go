@@ -225,7 +225,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 	s.stream = &candleStream{
 		symbols:       symbols,
 		timeframes:    timeframes,
-		stream:        make(chan CandleUpdate, len(symbols)*2),
+		stream:        make(chan CandleUpdate, 100),
 		streamMode:    mode,
 		activeSymbols: make(map[subKey]uint64),
 		done:          make(chan struct{}),

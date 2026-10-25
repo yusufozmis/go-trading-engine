@@ -137,9 +137,8 @@ func (client *Client) RunPositionStream(symbols ...string) (<-chan PositionUpdat
 		return nil, apperrors.ErrPositionStreamAlreadyExists
 	}
 
-	bufferSize := max(len(symbols)*2, 2)
 	stream := &positionStream{
-		updates: make(chan PositionUpdate, bufferSize),
+		updates: make(chan PositionUpdate, 100),
 		done:    make(chan struct{}),
 	}
 	client.positionStream = stream
