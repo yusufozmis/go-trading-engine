@@ -2,6 +2,9 @@ package types
 
 // Strategy consumes candles and produces plan updates for an engine.
 type Strategy interface {
+	// Call Engine.ValidateCandle successfully before AddBar to avoid
+	// duplicate candles distorting indicators and backtest results;
+	// Backtester.Run enforces this order.
 	AddBar(candle Candle)
 	Calculate(ctx StrategyContext) (PlanUpdate, error)
 }
