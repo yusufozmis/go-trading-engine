@@ -59,14 +59,7 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 // supplied in order before processing can resume. Rejections do not advance
 // the sequence. Monthly timeframes use UTC calendar months, not fixed days.
 func (eng *Engine) ValidateCandle(candle types.Candle) error {
-	if err := eng.Validate(); err != nil {
-		return err
-	}
-	if candle.Symbol != eng.symbol || candle.Timeframe != eng.timeframe {
-		return apperrors.ErrCandleMarketMismatch
-	}
-
-	if err := validateCandleData(candle); err != nil {
+	if err := eng.validateCandle(candle); err != nil {
 		return err
 	}
 	if eng.acceptedCandles[candle.Timestamp] {
@@ -92,6 +85,18 @@ func (eng *Engine) ValidateCandle(candle types.Candle) error {
 	eng.acceptedCandles[candle.Timestamp] = true
 	eng.lastCandleTimestamp = candle.Timestamp
 	return nil
+}
+
+// validateCandle checks engine compatibility and candle data without recording
+// acceptance, allowing decision methods to share a candle in one processing cycle.
+func (eng *Engine) validateCandle(candle types.Candle) error {
+	if err := eng.Validate(); err != nil {
+		return err
+	}
+	if candle.Symbol != eng.symbol || candle.Timeframe != eng.timeframe {
+		return apperrors.ErrCandleMarketMismatch
+	}
+	return validateCandleData(candle)
 }
 
 func validateCandleData(candle types.Candle) error {

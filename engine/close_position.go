@@ -11,11 +11,7 @@ import (
 // Hedge mode may return two independent close actions. Break-even updates are
 // applied directly to each still-open side for use by subsequent candles.
 func (eng *Engine) DecideClosePositions(candle types.Candle) ([]ClosePositionAction, error) {
-	if err := eng.Validate(); err != nil {
-		return nil, err
-	}
-
-	if err := eng.ValidateCandle(candle); err != nil {
+	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
 	}
 
