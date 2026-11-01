@@ -22,6 +22,8 @@ var (
 	ErrEntryPlanMarketMismatch = errors.New("entry plan market does not match engine")
 	// ErrCandleMarketMismatch indicates that a candle targets another market.
 	ErrCandleMarketMismatch = errors.New("candle market does not match engine")
+	// ErrDuplicateCandle indicates that the engine already accepted this timestamp.
+	ErrDuplicateCandle = errors.New("candle already processed")
 	// ErrInvalidPositionAction indicates that a position action would violate
 	// the engine's position invariants.
 	ErrInvalidPositionAction = errors.New("invalid position action")

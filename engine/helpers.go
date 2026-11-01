@@ -45,6 +45,14 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 	}
 }
 
+// ValidateCandle validates and records a candle for processing, rejecting an
+// already accepted timestamp with ErrDuplicateCandle. Call it once before
+// passing each new candle to the strategy; engine action methods only validate
+// candle data, so the same candle can be used throughout one processing cycle.
+// Invalid candles are not recorded. Only finalized candles should be submitted.
+// Call Strategy.AddBar only after validation succeeds to prevent
+// duplicate candles from distorting indicators and backtest results;
+// Backtester.Run enforces this order.
 func (eng *Engine) ValidateCandle(candle types.Candle) error {
 	if err := eng.Validate(); err != nil {
 		return err
@@ -53,7 +61,17 @@ func (eng *Engine) ValidateCandle(candle types.Candle) error {
 		return apperrors.ErrCandleMarketMismatch
 	}
 
-	return validateCandleData(candle)
+	if err := validateCandleData(candle); err != nil {
+		return err
+	}
+	if eng.acceptedCandles[candle.Timestamp] {
+		return apperrors.ErrDuplicateCandle
+	}
+	if eng.acceptedCandles == nil {
+		eng.acceptedCandles = make(map[int64]bool)
+	}
+	eng.acceptedCandles[candle.Timestamp] = true
+	return nil
 }
 
 func validateCandleData(candle types.Candle) error {

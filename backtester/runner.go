@@ -26,7 +26,9 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 	}
 
 	for _, candle := range b.candles {
-
+		if err := eng.ValidateCandle(candle); err != nil {
+			return types.PerformanceResult{}, nil, err
+		}
 		strategy.AddBar(candle)
 
 		pendingSides := eng.PendingSides()

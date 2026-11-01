@@ -16,6 +16,8 @@ import (
 type Engine struct {
 	symbol    string
 	timeframe string
+	// acceptedCandles records timestamps admitted through ValidateCandle.
+	acceptedCandles map[int64]bool
 
 	positions map[types.PositionSide]*types.Position
 
@@ -90,6 +92,7 @@ func NewEngine(symbol, timeframe string,
 	return &Engine{
 		symbol:                      symbol,
 		timeframe:                   timeframe,
+		acceptedCandles:             make(map[int64]bool),
 		positions:                   make(map[types.PositionSide]*types.Position, 2),
 		partiallyRealizedPositions:  make(map[types.PositionSide]types.Position, 2),
 		lockKeyMap:                  make(map[string]bool),
