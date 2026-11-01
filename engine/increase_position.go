@@ -33,6 +33,9 @@ func (eng *Engine) DecideIncreasePosition(
 	side types.PositionSide,
 	newAmount float64,
 ) (*IncreasePositionAction, error) {
+	if err := eng.Validate(); err != nil {
+		return nil, err
+	}
 	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}

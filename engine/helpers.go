@@ -1,6 +1,7 @@
 package engine
 
 import (
+	"fmt"
 	"math"
 	"strconv"
 
@@ -53,6 +54,10 @@ func MoveTPSLFromPlan(candle types.Candle, plan types.EntryPlan) (newTP float64,
 // Call Strategy.AddBar only after validation succeeds to prevent
 // duplicate candles from distorting indicators and backtest results;
 // Backtester.Run enforces this order.
+// The first candle establishes the sequence. Later candles must advance by
+// exactly one timeframe; missing intervals return ErrCandleGap and must be
+// supplied in order before processing can resume. Rejections do not advance
+// the sequence. Monthly timeframes use UTC calendar months, not fixed days.
 func (eng *Engine) ValidateCandle(candle types.Candle) error {
 	if err := eng.Validate(); err != nil {
 		return err
@@ -67,10 +72,25 @@ func (eng *Engine) ValidateCandle(candle types.Candle) error {
 	if eng.acceptedCandles[candle.Timestamp] {
 		return apperrors.ErrDuplicateCandle
 	}
+	if candle.Timestamp <= eng.lastCandleTimestamp {
+		return apperrors.ErrInvalidTimestamp
+	}
+	expectedTimestamp, err := nextCandleTimestamp(eng.lastCandleTimestamp, eng.timeframe)
+	if err != nil {
+		return err
+	}
+	if eng.lastCandleTimestamp != 0 && candle.Timestamp != expectedTimestamp {
+		sequenceErr := apperrors.ErrCandleGap
+		if candle.Timestamp < expectedTimestamp {
+			sequenceErr = apperrors.ErrInvalidTimestamp
+		}
+		return fmt.Errorf("%w: expected timestamp %d, got %d", sequenceErr, expectedTimestamp, candle.Timestamp)
+	}
 	if eng.acceptedCandles == nil {
 		eng.acceptedCandles = make(map[int64]bool)
 	}
 	eng.acceptedCandles[candle.Timestamp] = true
+	eng.lastCandleTimestamp = candle.Timestamp
 	return nil
 }
 

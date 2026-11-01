@@ -11,7 +11,9 @@ import (
 // fills. Hedge mode may produce one action for each currently free side;
 // otherwise at most one action is returned.
 func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionAction, error) {
-
+	if err := eng.Validate(); err != nil {
+		return nil, err
+	}
 	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}

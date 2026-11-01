@@ -24,6 +24,8 @@ var (
 	ErrCandleMarketMismatch = errors.New("candle market does not match engine")
 	// ErrDuplicateCandle indicates that the engine already accepted this timestamp.
 	ErrDuplicateCandle = errors.New("candle already processed")
+	// ErrCandleGap indicates that a candle skips the next expected timeframe interval.
+	ErrCandleGap = errors.New("candle sequence has a gap")
 	// ErrInvalidPositionAction indicates that a position action would violate
 	// the engine's position invariants.
 	ErrInvalidPositionAction = errors.New("invalid position action")
@@ -138,7 +140,7 @@ var (
 	ErrNilSymbol = errors.New("nil symbol")
 	// ErrNilTimeframe indicates that a required timeframe is empty.
 	ErrNilTimeframe = errors.New("nil timeframe")
-	// ErrInvalidTimeframe indicates that the provider does not support the timeframe.
+	// ErrInvalidTimeframe indicates an invalid or unsupported timeframe.
 	ErrInvalidTimeframe = errors.New("invalid timeframe")
 	// ErrInvalidSide indicates an unsupported order or position side.
 	ErrInvalidSide = errors.New("invalid side")

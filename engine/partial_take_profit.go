@@ -14,6 +14,9 @@ import (
 func (eng *Engine) DecidePartialTakeProfits(
 	candle types.Candle,
 ) ([]PartialTakeProfitAction, error) {
+	if err := eng.Validate(); err != nil {
+		return nil, err
+	}
 	if err := eng.ValidateCandle(candle); err != nil {
 		return nil, err
 	}

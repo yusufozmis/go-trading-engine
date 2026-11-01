@@ -8,6 +8,9 @@ import (
 // CheckConfirmations applies candle to each pending side. Confirmed plans become
 // active independently, allowing both sides to progress in hedge mode.
 func (eng *Engine) CheckConfirmations(candle types.Candle) error {
+	if err := eng.Validate(); err != nil {
+		return err
+	}
 	if err := eng.ValidateCandle(candle); err != nil {
 		return err
 	}

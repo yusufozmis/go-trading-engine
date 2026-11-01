@@ -17,7 +17,8 @@ type Engine struct {
 	symbol    string
 	timeframe string
 	// acceptedCandles records timestamps admitted through ValidateCandle.
-	acceptedCandles map[int64]bool
+	acceptedCandles     map[int64]bool
+	lastCandleTimestamp int64
 
 	positions map[types.PositionSide]*types.Position
 
