@@ -32,7 +32,9 @@ type PositionUpdate struct {
 	MarginMode       types.MarginMode
 	Hedged           *bool
 
-	// Err is non-nil only when the watcher has stopped after a terminal failure.
+	// Err identifies a stopped subscription after retries are exhausted or a
+	// permanent failure occurs. Symbol is empty for the all-positions subscription.
+	// SubscribePositionStream can restart it on the same output channel.
 	Err error
 }
 
@@ -42,52 +44,88 @@ func (update PositionUpdate) Closed() bool {
 }
 
 type positionStream struct {
-	// updates survives reconnects. Only the supervisor sends to and closes it;
-	// individual CCXT watchers send their results through an internal channel.
+	// Subscription supervisors publish here; ClosePositionStream closes it only
+	// after they have stopped. Failed subscriptions do not close this channel.
 	updates chan PositionUpdate
-	// done stops the entire public stream, including future reconnect attempts.
+	// done stops the entire public stream, including every subscription.
 	done chan struct{}
 
 	mu     sync.Mutex
 	closed bool
-	// wg tracks the supervisor only. Waiting for a watcher blocked inside CCXT
+	// Each cancellation channel also identifies its subscription's owner, so an
+	// old watcher cannot publish into a replacement for the same symbol.
+	subscriptions   map[string]chan struct{}
+	excludedSymbols map[string]bool
+	// wg tracks subscription supervisors only. Waiting for a watcher blocked inside CCXT
 	// would make ClosePositionStream depend on CCXT successfully unblocking it.
 	wg        sync.WaitGroup
 	closeOnce sync.Once
 }
 
-// positionWatchEvent is an internal watcher result. The supervisor decides
-// whether to publish the update, retry the connection, or terminate the stream.
+// positionWatchEvent is an internal watcher result. Its supervisor forwards
+// updates or retires the failed subscription without closing the public stream.
 type positionWatchEvent struct {
 	update *PositionUpdate
 	err    error
 }
 
-func (stream *positionStream) isClosed() bool {
+func (stream *positionStream) isCurrent(symbol string, subscriptionDone <-chan struct{}) bool {
 	stream.mu.Lock()
 	defer stream.mu.Unlock()
 
-	return stream.closed
+	return !stream.closed && stream.subscriptions[symbol] == subscriptionDone
 }
 
-func (stream *positionStream) emit(update PositionUpdate) bool {
+func (stream *positionStream) watches(symbol string, subscriptionDone <-chan struct{}, updateSymbol string) bool {
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+
+	return !stream.closed && stream.subscriptions[symbol] == subscriptionDone &&
+		(symbol == updateSymbol || (symbol == "" && !stream.excludedSymbols[updateSymbol]))
+}
+
+func (stream *positionStream) clearIfCurrent(symbol string, subscriptionDone <-chan struct{}) bool {
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+
+	if stream.closed || stream.subscriptions[symbol] != subscriptionDone {
+		return false
+	}
+	close(stream.subscriptions[symbol])
+	delete(stream.subscriptions, symbol)
+	return true
+}
+
+func (stream *positionStream) emit(update PositionUpdate, subscriptionDone <-chan struct{}) bool {
 	// A slow consumer can block publication, but closing the stream releases
 	// this send so shutdown does not require the consumer to keep reading.
+	// Terminal errors use nil because their subscription has already been removed.
 	select {
 	case <-stream.done:
+		return false
+	case <-subscriptionDone:
+		return false
+	default:
+	}
+	select {
+	case <-stream.done:
+		return false
+	case <-subscriptionDone:
 		return false
 	case stream.updates <- update:
 		return true
 	}
 }
 
-func (stream *positionStream) waitForRetry(delay time.Duration) bool {
+func (stream *positionStream) waitForRetry(delay time.Duration, subscriptionDone <-chan struct{}) bool {
 	// Backoff is interruptible: explicit shutdown should not wait for the timer.
 	timer := time.NewTimer(delay)
 	defer timer.Stop()
 
 	select {
 	case <-stream.done:
+		return false
+	case <-subscriptionDone:
 		return false
 	case <-timer.C:
 		return true
@@ -98,35 +136,31 @@ func (stream *positionStream) stop() {
 	stream.closeOnce.Do(func() {
 		stream.mu.Lock()
 		stream.closed = true
+		for _, done := range stream.subscriptions {
+			close(done)
+		}
+		clear(stream.subscriptions)
+		clear(stream.excludedSymbols)
 		stream.mu.Unlock()
 		close(stream.done)
 	})
 }
 
-// RunPositionStream starts one private WebSocket watcher for the requested
+// RunPositionStream starts private WebSocket watchers for the requested
 // futures symbols. The returned channel receives the initial provider snapshot
-// when available and every later position update until ClosePositionStream is
-// called or a terminal watcher error occurs. Passing no symbols watches all
-// futures positions supported by the configured account.
-// Transient failures are retried and reconnect automatically on the same output
-// channel. Authentication and other permanent failures terminate the stream.
+// when available and later updates from active subscriptions until
+// ClosePositionStream is called. Passing no symbols watches all futures
+// positions supported by the configured account.
+// Transient failures are retried with 1s, 2s, and 4s delays. An exhausted or
+// permanent failure removes that subscription and emits Err without closing the
+// output channel. SubscribePositionStream can then restart the subscription.
 func (client *Client) RunPositionStream(symbols ...string) (<-chan PositionUpdate, error) {
-	if err := client.validateConfigured(); err != nil {
+	if err := client.validatePositionStreamSymbols(symbols); err != nil {
 		return nil, err
 	}
-	for _, symbol := range symbols {
-		if symbol == "" {
-			return nil, apperrors.ErrNilSymbol
-		}
 
-		market, exists := client.markets[symbol]
-		if !exists || market.Swap == nil || !*market.Swap {
-			return nil, apperrors.ErrInvalidSymbol
-		}
-	}
-
-	// Serialize lifecycle changes so two callers cannot create two public
-	// streams, or inspect a stream while the supervisor removes it.
+	// Serialize lifecycle changes so creation, subscription, and close cannot
+	// overlap a WaitGroup Add with a shutdown wait.
 	client.positionMu.Lock()
 	defer client.positionMu.Unlock()
 
@@ -138,21 +172,121 @@ func (client *Client) RunPositionStream(symbols ...string) (<-chan PositionUpdat
 	}
 
 	stream := &positionStream{
-		updates: make(chan PositionUpdate, 100),
-		done:    make(chan struct{}),
+		updates:         make(chan PositionUpdate, 100),
+		done:            make(chan struct{}),
+		subscriptions:   make(map[string]chan struct{}),
+		excludedSymbols: make(map[string]bool),
 	}
 	client.positionStream = stream
-	// Capture this instance for the supervisor and its watchers. The dedicated
-	// exchange already contains credentials, demo settings, and loaded markets.
-	positionExchange := client.positionExchange
-
-	stream.wg.Add(1)
-	go func() {
-		defer stream.wg.Done()
-		client.supervisePositionStream(stream, positionExchange, symbols)
-	}()
+	client.subscribePositionStream(stream, symbols)
 
 	return stream.updates, nil
+}
+
+// SubscribePositionStream adds or restarts position subscriptions on the existing
+// output channel. Active subscriptions are left unchanged. Passing no symbols
+// replaces individual subscriptions with one all-positions subscription and
+// clears exclusions; while it is active, subscribing a symbol only unmutes it.
+// After an Err update, pass its Symbol, or no arguments when Symbol is empty.
+func (client *Client) SubscribePositionStream(symbols ...string) error {
+	if err := client.validatePositionStreamSymbols(symbols); err != nil {
+		return err
+	}
+	client.positionMu.Lock()
+	defer client.positionMu.Unlock()
+	if client.positionStream == nil {
+		return apperrors.ErrPositionStreamNotRunning
+	}
+	client.subscribePositionStream(client.positionStream, symbols)
+	return nil
+}
+
+// subscribePositionStream runs with positionMu held, serializing subscription
+// creation with ClosePositionStream and its WaitGroup wait.
+func (client *Client) subscribePositionStream(stream *positionStream, symbols []string) {
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	if len(symbols) == 0 {
+		clear(stream.excludedSymbols)
+		if _, exists := stream.subscriptions[""]; exists {
+			return
+		}
+		for symbol, done := range stream.subscriptions {
+			close(done)
+			delete(stream.subscriptions, symbol)
+		}
+		symbols = []string{""}
+	}
+	for _, symbol := range symbols {
+		if _, all := stream.subscriptions[""]; all {
+			delete(stream.excludedSymbols, symbol)
+			continue
+		}
+		if _, exists := stream.subscriptions[symbol]; exists {
+			continue
+		}
+		subscriptionDone := make(chan struct{})
+		stream.subscriptions[symbol] = subscriptionDone
+		positionExchange := client.positionExchange
+		stream.wg.Add(1)
+		go func() {
+			defer stream.wg.Done()
+			client.supervisePositionStream(stream, positionExchange, symbol, subscriptionDone)
+		}()
+	}
+}
+
+// UnsubscribePositionStream stops forwarding the requested symbols without
+// closing the output channel or other subscriptions. Passing no symbols pauses
+// all subscriptions. Already-buffered or in-flight updates may still be received.
+// CCXT does not implement position UnWatch for the supported providers: a call
+// already waiting inside CCXT can finish later, but its result is discarded.
+func (client *Client) UnsubscribePositionStream(symbols ...string) error {
+	if err := client.validatePositionStreamSymbols(symbols); err != nil {
+		return err
+	}
+	client.positionMu.Lock()
+	defer client.positionMu.Unlock()
+	stream := client.positionStream
+	if stream == nil {
+		return apperrors.ErrPositionStreamNotRunning
+	}
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
+	if len(symbols) == 0 {
+		for symbol, done := range stream.subscriptions {
+			close(done)
+			delete(stream.subscriptions, symbol)
+		}
+		clear(stream.excludedSymbols)
+		return nil
+	}
+	for _, symbol := range symbols {
+		if _, all := stream.subscriptions[""]; all {
+			stream.excludedSymbols[symbol] = true
+		}
+		if done, exists := stream.subscriptions[symbol]; exists {
+			close(done)
+			delete(stream.subscriptions, symbol)
+		}
+	}
+	return nil
+}
+
+func (client *Client) validatePositionStreamSymbols(symbols []string) error {
+	if err := client.validateConfigured(); err != nil {
+		return err
+	}
+	for _, symbol := range symbols {
+		if symbol == "" {
+			return apperrors.ErrNilSymbol
+		}
+		market, exists := client.markets[symbol]
+		if !exists || market.Swap == nil || !*market.Swap {
+			return apperrors.ErrInvalidSymbol
+		}
+	}
+	return nil
 }
 
 // ClosePositionStream stops the private position watcher without closing the
@@ -164,101 +298,60 @@ func (client *Client) ClosePositionStream() error {
 		return err
 	}
 	client.positionMu.Lock()
+	defer client.positionMu.Unlock()
 	stream := client.positionStream
-	client.positionMu.Unlock()
 	if stream == nil {
 		return apperrors.ErrPositionStreamNotRunning
 	}
 
-	// Signal shutdown first, then wait only for output publication to finish.
-	// The supervisor starts CCXT cleanup separately and closes updates on exit.
+	// Supervisors, not blocked CCXT watchers, own publication. Cancellation
+	// releases every supervisor before the output channel is closed.
 	stream.stop()
+	closeExchangeAsync(client.positionExchange)
 	stream.wg.Wait()
+	close(stream.updates)
+	client.positionStream = nil
 	return nil
 }
 
-// supervisePositionStream owns the public update channel and replaces a failed
-// watcher generation while retaining the configured CCXT exchange instance.
+// supervisePositionStream forwards one subscription until it is removed or
+// fails. Only the current owner can remove it and publish a terminal error.
 func (client *Client) supervisePositionStream(
 	stream *positionStream,
 	positionExchange ccxt.IExchange,
-	symbols []string,
+	symbol string,
+	subscriptionDone <-chan struct{},
 ) {
-	// Keeping channel closure here avoids send-on-closed-channel panics from
-	// CCXT watchers that return after public shutdown has already completed.
-	defer close(stream.updates)
-	defer func() {
-		client.positionMu.Lock()
-		if client.positionStream == stream {
-			client.positionStream = nil
-		}
-		client.positionMu.Unlock()
-	}()
-
-	waitingForRestartUpdate := false
+	if !stream.isCurrent(symbol, subscriptionDone) {
+		return
+	}
+	var symbols []string
+	if symbol != "" {
+		symbols = []string{symbol}
+	}
+	events := make(chan positionWatchEvent, 2)
+	go client.watchPositions(stream, positionExchange, symbols, subscriptionDone, events)
 	for {
-		// A generation is one watcher attempt. Reconnect creates new internal
-		// channels while the caller continues reading the same updates channel.
-		events := make(chan positionWatchEvent, max(len(symbols)*2, 2))
-		// This cancels local work and event forwarding. It cannot interrupt a
-		// WatchPositions call already blocked inside CCXT; Close handles that.
-		generationDone := make(chan struct{})
-		go client.watchPositions(
-			stream,
-			positionExchange,
-			symbols,
-			generationDone,
-			events,
-		)
-
-		// Process this watcher until shutdown or a reconnect is needed.
-		watching := true
-		for watching {
-			select {
-			case <-stream.done:
-				// Public shutdown retires the watcher and starts socket cleanup.
-				close(generationDone)
-				closeExchangeAsync(positionExchange)
-				return
-
-			case event := <-events:
-				if event.err == nil {
-					if event.update != nil && waitingForRestartUpdate {
-						log.Print("position stream: received first update after watcher restart")
-						waitingForRestartUpdate = false
-					}
-					if event.update != nil && !stream.emit(*event.update) {
-						close(generationDone)
-						closeExchangeAsync(positionExchange)
-						return
-					}
-					continue
-				}
-
-				// The watcher has reported failure and will return. Retire this
-				// generation before deciding whether another attempt is allowed.
-				close(generationDone)
-				if !isRetryableWatchError(event.err) {
-					log.Printf("position stream: terminal error: %v", normalizeError(event.err))
-					closeExchangeAsync(positionExchange)
+		select {
+		case <-stream.done:
+			return
+		case <-subscriptionDone:
+			return
+		case event := <-events:
+			if event.err != nil {
+				if stream.clearIfCurrent(symbol, subscriptionDone) {
+					log.Printf("position stream: subscription stopped (symbol=%q): %v", symbol, normalizeError(event.err))
 					stream.emit(PositionUpdate{
-						Err: fmt.Errorf("watch positions: %w", normalizeError(event.err)),
-					})
+						Symbol: symbol,
+						Err:    fmt.Errorf("watch positions %q: %w", symbol, normalizeError(event.err)),
+					}, nil)
+				}
+				return
+			}
+			if event.update != nil && stream.watches(symbol, subscriptionDone, event.update.Symbol) {
+				if !stream.emit(*event.update, subscriptionDone) {
 					return
 				}
-
-				// Close only the stale WebSocket generation. CCXT keeps credentials,
-				// market metadata, and REST state on this reusable exchange instance.
-				log.Printf("position stream: retries exhausted, restarting watcher after %s: %v", watchRetryBaseWait, event.err)
-				closeExchangeAsync(positionExchange)
-				// This is reconnect backoff, not confirmation that Close finished.
-				// The current implementation can overlap cleanup and the next watch.
-				if !stream.waitForRetry(watchRetryBaseWait) {
-					return
-				}
-				// End this watcher. The outer loop starts its subscription again.
-				waitingForRestartUpdate = true
-				watching = false
 			}
 		}
 	}
@@ -273,35 +366,31 @@ func (client *Client) watchPositions(
 	generationDone <-chan struct{},
 	events chan<- positionWatchEvent,
 ) {
-
+	symbol := ""
 	var options []ccxt.WatchPositionsOptions
 	if len(symbols) > 0 {
+		symbol = symbols[0]
 		options = append(options, ccxt.WithWatchPositionsSymbols(symbols))
 	}
 
 	retryCount := 0
 	for {
-		select {
-		case <-stream.done:
+		if !stream.isCurrent(symbol, generationDone) {
 			return
-		case <-generationDone:
-			return
-		default:
 		}
 
 		positions, err := positionExchange.WatchPositions(options...)
+		if !stream.isCurrent(symbol, generationDone) {
+			return
+		}
 		if err != nil {
-			if stream.isClosed() {
-				return
-			}
-
 			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
 				// First retry the existing subscription with 1s, 2s, and 4s waits.
-				// After these attempts fail, the supervisor handles reconnection.
+				// Exhaustion removes this subscription so the caller can restart it.
 				retryCount++
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
-				log.Printf("position stream: retry %d/%d, waiting %s: %v", retryCount, maxWatchRetries, delay, err)
-				if !stream.waitForRetry(delay) {
+				log.Printf("position stream: retry %d/%d, waiting %s (symbol=%q): %v", retryCount, maxWatchRetries, delay, symbol, err)
+				if !stream.waitForRetry(delay, generationDone) {
 					return
 				}
 				continue
