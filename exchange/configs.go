@@ -183,6 +183,7 @@ func (client *Client) SetConfig(exchangeCfg ExchangeConfig) error {
 	client.orderExchange.SetPassword(exchangeCfg.Password)
 
 	client.preparedFuturesSymbols = nil
+	client.exchangeConfig = exchangeCfg
 	client.configured = true
 
 	return nil

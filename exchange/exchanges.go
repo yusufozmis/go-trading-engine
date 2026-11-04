@@ -41,6 +41,9 @@ type Client struct {
 
 	// SetConfig can only be applied once.
 	configured bool
+	// Retain constructor options and credentials to recreate independent clients.
+	clientOptions  options.ClientOptions
+	exchangeConfig ExchangeConfig
 	// preparedFuturesSymbols contains symbols successfully prepared for the
 	// current futures configuration. The bool value keeps order checks cheap.
 	preparedFuturesSymbols map[string]bool
@@ -93,6 +96,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 		orderStreamAdapter: adapters.NewBinanceOrderStreamAdapter(),
 		ohlcvPageSize:      binanceOHLCVPageSize,
 		markets:            markets,
+		clientOptions:      cfg,
 	}, nil
 }
 
@@ -148,6 +152,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 		orderStreamAdapter: adapters.NewOKXOrderStreamAdapter(),
 		ohlcvPageSize:      okxOHLCVPageSize,
 		markets:            markets,
+		clientOptions:      cfg,
 	}, nil
 }
 
