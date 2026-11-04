@@ -23,7 +23,7 @@ type Engine struct {
 	positions map[types.PositionSide]*types.Position
 
 	// realizedMu protects complete closes and snapshots of still-open positions
-	// with realized partial profit while Performance runs concurrently.
+	// with realized reductions while Performance runs concurrently.
 	realizedMu                 sync.RWMutex
 	closedPositions            []types.Position
 	partiallyRealizedPositions map[types.PositionSide]types.Position
@@ -160,7 +160,8 @@ func NewEngineWithPreloadedPositions(
 
 		positionCopy := position
 		eng.positions[position.Side] = &positionCopy
-		if position.PartialTakeProfitExecuted {
+		if position.PartialTakeProfitExecuted || position.Fee != 0 || position.NetProfit != 0 ||
+			position.PartialTakeProfitCount > 0 || position.PartialLoseCount > 0 {
 			eng.partiallyRealizedPositions[position.Side] = positionCopy
 		}
 	}

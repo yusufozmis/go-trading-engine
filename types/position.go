@@ -30,12 +30,18 @@ type Position struct {
 	// eventual exit fill.
 	TP     float64
 	Amount float64
-	// PartialTakeProfitExecuted reports whether this open position has already
-	// consumed the engine's one allowed partial take-profit reduction.
+	// PartialTakeProfitExecuted reports whether the engine's one-shot partial-TP
+	// option has been consumed. External reductions do not change this flag.
 	PartialTakeProfitExecuted bool
-	// PartialTPTimestamp is the confirmed partial reduction's Unix timestamp in
-	// milliseconds. It remains zero until partial take-profit is executed.
+	// PartialTPTimestamp is the automatic partial TP's Unix timestamp in
+	// milliseconds. External reductions do not change it.
 	PartialTPTimestamp int64
+	// PartialTakeProfitCount counts confirmed reductions with positive realized
+	// PnL after their allocated entry/exit fees, whether automatic or external.
+	PartialTakeProfitCount int
+	// PartialLoseCount counts confirmed reductions with negative realized PnL
+	// after fees. Break-even reductions increment neither counter.
+	PartialLoseCount int
 	// Leverage is zero when liquidation simulation is disabled.
 	Leverage float64
 	// LiquidationPrice is the estimated isolated-position liquidation level. It
@@ -74,6 +80,9 @@ func (pos *Position) Validate() error {
 
 	if pos.OpenTimestamp <= 0 {
 		return apperrors.ErrInvalidTimestamp
+	}
+	if pos.PartialTakeProfitCount < 0 || pos.PartialLoseCount < 0 {
+		return apperrors.ErrInvalidReductionCount
 	}
 	if pos.PartialTakeProfitExecuted {
 		if pos.PartialTPTimestamp <= pos.OpenTimestamp {
@@ -217,8 +226,12 @@ type PerformanceResult struct {
 	DurationCloseCount int
 	// ManualCloseCount is the number of positions closed by an explicit user action.
 	ManualCloseCount int
-	// PartialTakeProfitCount is the number of confirmed partial reductions.
+	// PartialTakeProfitCount counts reductions with positive realized PnL after
+	// fees. Multiple reductions of one position are counted separately.
 	PartialTakeProfitCount int
+	// PartialLoseCount counts reductions with negative realized PnL after fees.
+	// Break-even reductions increment neither counter.
+	PartialLoseCount int
 
 	// Profit is the total positive gross PnL before trading fees.
 	Profit float64

@@ -255,6 +255,8 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.PartialTakeProfitExecuted !=
 			closedPosition.PartialTakeProfitExecuted ||
 		currentPosition.PartialTPTimestamp != closedPosition.PartialTPTimestamp ||
+		currentPosition.PartialTakeProfitCount != closedPosition.PartialTakeProfitCount ||
+		currentPosition.PartialLoseCount != closedPosition.PartialLoseCount ||
 		currentPosition.Fee != closedPosition.Fee ||
 		currentPosition.SlippageCost != closedPosition.SlippageCost ||
 		currentPosition.NetProfit != closedPosition.NetProfit {

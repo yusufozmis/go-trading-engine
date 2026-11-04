@@ -79,7 +79,7 @@ func WithAutomatedClose() Option {
 }
 
 // WithTradingFeeRate applies the same feeRate independently to the entry and
-// exit fill of every confirmed closed position. The resulting total is stored
+// exit fill of every confirmed reduction or complete close. The total is stored
 // in Position.Fee and summed by Performance. Fees use quote notional (price
 // times amount), as required by linear futures such as USDT-margined
 // perpetuals. The rate is a decimal fraction, so 0.0005 means 0.05% per fill.
@@ -217,8 +217,10 @@ func WithConfirmationTimeout(timeout time.Duration) Option {
 // triggerPercentage is measured across the entry-to-TP distance, while
 // reductionPercentage is the fraction of the then-open amount to realize. For
 // example, (0.50, 0.50) realizes half the position halfway to TP. Without this
-// option no partial reduction occurs. If supplied more than once, the last
-// values replace earlier values.
+// option no automatic reduction occurs. DecideDecreasePositions produces its
+// action and ConfirmDecreasePosition consumes the one-shot option on success;
+// external reductions do not consume or rearm it. If supplied more than once,
+// the last values replace earlier values.
 func WithPartialTakeProfit(triggerPercentage, reductionPercentage float64) Option {
 	return func(cfg *Config) error {
 		if math.IsNaN(triggerPercentage) ||

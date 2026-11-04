@@ -202,6 +202,9 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.State != types.PositionOpen {
 		return false
 	}
+	if position.PartialTakeProfitCount < 0 || position.PartialLoseCount < 0 {
+		return false
+	}
 	if (position.PartialTakeProfitExecuted &&
 		position.PartialTPTimestamp <= position.OpenTimestamp) ||
 		(!position.PartialTakeProfitExecuted && position.PartialTPTimestamp != 0) {

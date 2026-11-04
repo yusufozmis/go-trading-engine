@@ -29,6 +29,8 @@ var (
 	// ErrInvalidPositionAction indicates that a position action would violate
 	// the engine's position invariants.
 	ErrInvalidPositionAction = errors.New("invalid position action")
+	// ErrInvalidReductionCount indicates a negative realized-reduction count.
+	ErrInvalidReductionCount = errors.New("invalid reduction count")
 	// ErrStalePositionAction indicates that engine state changed after an action
 	// was decided and before it was confirmed.
 	ErrStalePositionAction = errors.New("stale position action")

@@ -111,14 +111,16 @@ type PositionSizer interface {
 
 ### Engine Position Updates
 
-Engine increase and partial take-profit actions use the resulting position
+Engine increase and decrease actions use the resulting position
 amount, not the quantity added or removed:
 
 - `IncreasePositionAction.Amount` is the new total base-asset amount, and
   `EntryPrice` is the new average entry of the position. `DecideIncreasePosition`
   also takes the new total amount. `DirectAmountIncrease` takes the new average
   entry and total amount.
-- `PartialTakeProfitAction.Amount` is the remaining base-asset amount.
+- `DecreasePositionAction.Amount` is the remaining base-asset amount. Automatic
+  partial TP uses `DecideDecreasePositions`; both automatic and external reductions
+  are confirmed through `ConfirmDecreasePosition`.
   `ExitPrice` is still the actual exit fill of the removed quantity, not the
   remaining position's entry price. A position snapshot alone does not provide
   enough information to calculate realized PnL; use order or trade fill data.
@@ -126,6 +128,11 @@ amount, not the quantity added or removed:
 For live execution, submit only the difference from `action.Position.Amount`,
 then confirm with the actual resulting amount. Exchange order methods still
 accept the quantity to buy, sell, or reduce, not the resulting position size.
+
+Each confirmed reduction with positive net PnL after fees increments
+`PartialTakeProfitCount`; a negative result increments `PartialLoseCount`.
+Break-even reductions increment neither. These counts are independent of the
+partial-TP option's one-shot flag.
 
 ## Exchange Setup
 

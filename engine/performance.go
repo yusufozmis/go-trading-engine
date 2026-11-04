@@ -9,7 +9,7 @@ import (
 )
 
 // Performance calculates gross profit and loss from confirmed closes and
-// realized partial profits. The returned positions contain only complete closes.
+// realized reductions. The returned positions contain only complete closes.
 func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
 		return types.PerformanceResult{}, nil
@@ -21,14 +21,13 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	eng.realizedMu.RUnlock()
 
 	result := types.PerformanceResult{
-		Symbol:                 eng.symbol,
-		Timeframe:              eng.timeframe,
-		PartialTakeProfitCount: len(partiallyRealizedPositions),
+		Symbol:    eng.symbol,
+		Timeframe: eng.timeframe,
 	}
 	positions := make([]types.Position, 0, len(closedPositions))
 
 	// Only complete closes are returned to the caller and included in close-reason
-	// counts. Open positions with partial profit remain absent from this result.
+	// counts. Open positions with realized reductions remain absent from this result.
 	for _, position := range closedPositions {
 		switch position.State {
 		case types.ClosedByProfit:
@@ -51,9 +50,8 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 		}
 
 		positions = append(positions, position)
-		if position.PartialTakeProfitExecuted {
-			result.PartialTakeProfitCount++
-		}
+		result.PartialTakeProfitCount += position.PartialTakeProfitCount
+		result.PartialLoseCount += position.PartialLoseCount
 
 		// NetProfit already has fees deducted, so add them back when grouping
 		// fee-exclusive gross profit and loss.
@@ -71,6 +69,8 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	// These snapshots contribute only the realized partial accounting of
 	// positions that remain open, so they do not affect close-reason counts.
 	for _, position := range partiallyRealizedPositions {
+		result.PartialTakeProfitCount += position.PartialTakeProfitCount
+		result.PartialLoseCount += position.PartialLoseCount
 		grossPnL := position.NetProfit + position.Fee
 		if grossPnL >= 0 {
 			result.Profit += grossPnL

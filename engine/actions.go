@@ -23,18 +23,3 @@ type ClosePositionAction struct {
 	// Position retains the trade side and contains its close reason and exit price.
 	Position types.Position
 }
-
-// PartialTakeProfitAction describes a requested reduction of an open position.
-// Live callers should reduce Position.Amount - Amount on the exchange and call
-// ConfirmPartialTakeProfit only after that operation succeeds.
-type PartialTakeProfitAction struct {
-	// Position is the open position snapshot used to reject stale confirmations.
-	Position types.Position
-	// Amount is the remaining base-asset amount after the reduction.
-	Amount float64
-	// ExitPrice is the reduction's exit fill, not the position's average entry.
-	// Decided actions include simulated slippage; live callers supply the actual fill.
-	ExitPrice float64
-	// Timestamp is the triggering candle's Unix timestamp in milliseconds.
-	Timestamp int64
-}

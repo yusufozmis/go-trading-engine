@@ -214,7 +214,8 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	}
 
 	eng.positions[position.Side] = &position
-	if position.PartialTakeProfitExecuted {
+	if position.PartialTakeProfitExecuted || position.Fee != 0 || position.NetProfit != 0 ||
+		position.PartialTakeProfitCount > 0 || position.PartialLoseCount > 0 {
 		eng.realizedMu.Lock()
 		eng.partiallyRealizedPositions[position.Side] = position
 		eng.realizedMu.Unlock()
