@@ -80,6 +80,7 @@ type orderStream struct {
 	marketType          types.MarketType
 	watchAllSymbols     bool
 	symbolSubscriptions map[string]bool
+	health              map[bool]OrderSubscriptionHealth
 
 	// Only the supervisor is counted; a blocked CCXT watcher must not make the
 	// public CloseOrderStream call wait indefinitely.
@@ -199,6 +200,12 @@ func (client *Client) RunOrderStream(
 		marketType:          marketType,
 		watchAllSymbols:     len(symbols) == 0,
 		symbolSubscriptions: symbolSubscriptions,
+		health:              make(map[bool]OrderSubscriptionHealth, len(watcherConfigs)),
+	}
+	for _, config := range watcherConfigs {
+		stream.health[config.Trigger] = OrderSubscriptionHealth{
+			MarketType: marketType, Trigger: config.Trigger, Status: StreamStarting,
+		}
 	}
 	client.orderStream = stream
 	// Reconnect reuses this prepared instance, including credentials and demo
@@ -372,6 +379,14 @@ func (client *Client) superviseOrderStream(
 				// CCXT Close resets only this instance's WebSocket clients. Its
 				// credentials and loaded markets remain available for reconnection.
 				log.Printf("order stream: retries exhausted, restarting watchers after %s (trigger=%t): %v", watchRetryBaseWait, event.trigger, event.err)
+				// Both watchers are paused while their shared connection restarts.
+				stream.mu.Lock()
+				for trigger, health := range stream.health {
+					health.Status = StreamRetrying
+					health.LastError = normalizeError(event.err)
+					stream.health[trigger] = health
+				}
+				stream.mu.Unlock()
 				closeExchangeAsync(orderExchange)
 				// The delay limits reconnect frequency. It does not synchronize
 				// with asynchronous Close; cleanup may overlap the next watcher group.
@@ -396,6 +411,9 @@ func (client *Client) watchOrders(
 	events chan<- orderWatchEvent,
 ) {
 	retryCount := 0
+	stream.mu.Lock()
+	health := stream.health[watcherConfig.Trigger]
+	stream.mu.Unlock()
 
 	for {
 		select {
@@ -420,11 +438,17 @@ func (client *Client) watchOrders(
 			if stream.isClosed() {
 				return
 			}
+			health.LastError = normalizeError(err)
 
 			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
 				// Retry this subscription first with 1s, 2s, and 4s waits. Only
 				// exhausted retries ask the supervisor to restart the watcher group.
 				retryCount++
+				health.Status = StreamRetrying
+				health.RetryCount = retryCount
+				if !stream.recordHealth(generationDone, health) {
+					return
+				}
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
 				log.Printf("order stream: retry %d/%d, waiting %s (market=%s trigger=%t): %v", retryCount, maxWatchRetries, delay, watcherConfig.MarketType, watcherConfig.Trigger, err)
 				if !stream.waitForRetry(delay) {
@@ -435,6 +459,10 @@ func (client *Client) watchOrders(
 
 			// Preserve the original CCXT error in the wrapped chain so the
 			// supervisor can classify it before normalizing a public error.
+			health.Status = StreamStopped
+			if !stream.recordHealth(generationDone, health) {
+				return
+			}
 			client.sendOrderWatchEvent(generationDone, events, orderWatchEvent{
 				trigger: watcherConfig.Trigger,
 				err: fmt.Errorf(
@@ -451,6 +479,14 @@ func (client *Client) watchOrders(
 			log.Printf("order stream: watch succeeded after %d retries (market=%s trigger=%t)", retryCount, watcherConfig.MarketType, watcherConfig.Trigger)
 		}
 		retryCount = 0
+		health.Status = StreamRunning
+		health.RetryCount = 0
+		if len(orders) > 0 {
+			health.LastUpdate = time.Now()
+		}
+		if !stream.recordHealth(generationDone, health) {
+			return
+		}
 
 		for _, order := range orders {
 			update := wrapOrderUpdate(order, watcherConfig.Trigger)

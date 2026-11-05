@@ -42,7 +42,7 @@ type CandleSubscriptionHealth struct {
 }
 
 // HeartbeatStatus describes the freshness of CCXT's recorded WebSocket heartbeat.
-// It does not confirm that a particular candle subscription is receiving data.
+// It does not confirm that a particular subscription is receiving data.
 type HeartbeatStatus string
 
 const (
@@ -55,7 +55,7 @@ const (
 )
 
 // StreamConnectionHealth contains heartbeat data read from an existing CCXT
-// WebSocket client. A connection can serve multiple candle subscriptions.
+// WebSocket client. A connection can serve multiple subscriptions.
 type StreamConnectionHealth struct {
 	URL    string
 	Status HeartbeatStatus
@@ -108,22 +108,30 @@ func (client *Client) CandleStreamHealth() (CandleStreamHealthSnapshot, error) {
 		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
 	}
 
-	base := client.streamBaseExchange
-	snapshot := CandleStreamHealthSnapshot{Subscriptions: health}
+	return CandleStreamHealthSnapshot{
+		Subscriptions: health,
+		Connections:   streamConnectionsHealth(client.streamBaseExchange),
+	}, nil
+}
+
+// streamConnectionsHealth inspects existing sockets without opening connections
+// or issuing requests. Each stream supplies its own exchange's registry.
+func streamConnectionsHealth(base *ccxt.BaseExchange) []StreamConnectionHealth {
 	if base == nil {
-		return snapshot, nil
+		return nil
 	}
 	// Client(url) would create a client when absent; inspecting the registry must
 	// remain read-only. CCXT protects this registry with WsClientsMu.
 	base.WsClientsMu.Lock()
 	defer base.WsClientsMu.Unlock()
 	now := time.Now()
+	var connections []StreamConnectionHealth
 	for _, value := range base.Clients {
 		if ws, ok := value.(*ccxt.WSClient); ok && ws != nil && ws.Client != nil {
-			snapshot.Connections = append(snapshot.Connections, connectionHeartbeat(ws, now))
+			connections = append(connections, connectionHeartbeat(ws, now))
 		}
 	}
-	return snapshot, nil
+	return connections
 }
 
 // connectionHeartbeat mirrors CCXT's timeout calculation without reading its

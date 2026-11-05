@@ -24,8 +24,12 @@ type Client struct {
 	// positionExchange owns the authenticated position WebSocket connection so
 	// stopping it cannot close order submission or the candle stream.
 	positionExchange ccxt.IExchange
+	// positionBaseExchange exposes only the position instance's socket registry.
+	positionBaseExchange *ccxt.BaseExchange
 	// orderExchange owns private order and conditional-order subscriptions.
-	orderExchange      ccxt.IExchange
+	orderExchange ccxt.IExchange
+	// orderBaseExchange exposes only the order instance's socket registry.
+	orderBaseExchange  *ccxt.BaseExchange
 	futuresAdapter     adapters.FuturesAdapter
 	orderStreamAdapter adapters.OrderStreamAdapter
 	ohlcvPageSize      int64
@@ -92,16 +96,18 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	orderPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:          pro,
-		streamExchange:     streamPro,
-		streamBaseExchange: &streamPro.Core.BinanceCore.Exchange.BaseExchange,
-		positionExchange:   positionPro,
-		orderExchange:      orderPro,
-		futuresAdapter:     adapters.NewBinanceFuturesAdapter(core),
-		orderStreamAdapter: adapters.NewBinanceOrderStreamAdapter(),
-		ohlcvPageSize:      binanceOHLCVPageSize,
-		markets:            markets,
-		clientOptions:      cfg,
+		iExchange:            pro,
+		streamExchange:       streamPro,
+		streamBaseExchange:   &streamPro.Core.BinanceCore.Exchange.BaseExchange,
+		positionExchange:     positionPro,
+		positionBaseExchange: &positionPro.Core.BinanceCore.Exchange.BaseExchange,
+		orderExchange:        orderPro,
+		orderBaseExchange:    &orderPro.Core.BinanceCore.Exchange.BaseExchange,
+		futuresAdapter:       adapters.NewBinanceFuturesAdapter(core),
+		orderStreamAdapter:   adapters.NewBinanceOrderStreamAdapter(),
+		ohlcvPageSize:        binanceOHLCVPageSize,
+		markets:              markets,
+		clientOptions:        cfg,
 	}, nil
 }
 
@@ -149,16 +155,18 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	orderPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:          pro,
-		streamExchange:     streamPro,
-		streamBaseExchange: &streamPro.Core.OkxCore.Exchange.BaseExchange,
-		positionExchange:   positionPro,
-		orderExchange:      orderPro,
-		futuresAdapter:     adapters.NewOKXFuturesAdapter(core),
-		orderStreamAdapter: adapters.NewOKXOrderStreamAdapter(),
-		ohlcvPageSize:      okxOHLCVPageSize,
-		markets:            markets,
-		clientOptions:      cfg,
+		iExchange:            pro,
+		streamExchange:       streamPro,
+		streamBaseExchange:   &streamPro.Core.OkxCore.Exchange.BaseExchange,
+		positionExchange:     positionPro,
+		positionBaseExchange: &positionPro.Core.OkxCore.Exchange.BaseExchange,
+		orderExchange:        orderPro,
+		orderBaseExchange:    &orderPro.Core.OkxCore.Exchange.BaseExchange,
+		futuresAdapter:       adapters.NewOKXFuturesAdapter(core),
+		orderStreamAdapter:   adapters.NewOKXOrderStreamAdapter(),
+		ohlcvPageSize:        okxOHLCVPageSize,
+		markets:              markets,
+		clientOptions:        cfg,
 	}, nil
 }
 

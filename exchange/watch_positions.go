@@ -56,6 +56,7 @@ type positionStream struct {
 	// old watcher cannot publish into a replacement for the same symbol.
 	subscriptions   map[string]chan struct{}
 	excludedSymbols map[string]bool
+	health          map[string]PositionSubscriptionHealth
 	// wg tracks subscription supervisors only. Waiting for a watcher blocked inside CCXT
 	// would make ClosePositionStream depend on CCXT successfully unblocking it.
 	wg        sync.WaitGroup
@@ -84,13 +85,18 @@ func (stream *positionStream) watches(symbol string, subscriptionDone <-chan str
 		(symbol == updateSymbol || (symbol == "" && !stream.excludedSymbols[updateSymbol]))
 }
 
-func (stream *positionStream) clearIfCurrent(symbol string, subscriptionDone <-chan struct{}) bool {
+// clearIfCurrent retains terminal health only for the subscription being removed.
+func (stream *positionStream) clearIfCurrent(symbol string, subscriptionDone <-chan struct{}, err error) bool {
 	stream.mu.Lock()
 	defer stream.mu.Unlock()
 
 	if stream.closed || stream.subscriptions[symbol] != subscriptionDone {
 		return false
 	}
+	health := stream.health[symbol]
+	health.Status = StreamStopped
+	health.LastError = normalizeError(err)
+	stream.health[symbol] = health
 	close(stream.subscriptions[symbol])
 	delete(stream.subscriptions, symbol)
 	return true
@@ -176,6 +182,7 @@ func (client *Client) RunPositionStream(symbols ...string) (<-chan PositionUpdat
 		done:            make(chan struct{}),
 		subscriptions:   make(map[string]chan struct{}),
 		excludedSymbols: make(map[string]bool),
+		health:          make(map[string]PositionSubscriptionHealth),
 	}
 	client.positionStream = stream
 	client.subscribePositionStream(stream, symbols)
@@ -215,6 +222,7 @@ func (client *Client) subscribePositionStream(stream *positionStream, symbols []
 			close(done)
 			delete(stream.subscriptions, symbol)
 		}
+		clear(stream.health)
 		symbols = []string{""}
 	}
 	for _, symbol := range symbols {
@@ -227,6 +235,9 @@ func (client *Client) subscribePositionStream(stream *positionStream, symbols []
 		}
 		subscriptionDone := make(chan struct{})
 		stream.subscriptions[symbol] = subscriptionDone
+		stream.health[symbol] = PositionSubscriptionHealth{
+			Symbol: symbol, Status: StreamStarting,
+		}
 		positionExchange := client.positionExchange
 		stream.wg.Add(1)
 		go func() {
@@ -259,6 +270,7 @@ func (client *Client) UnsubscribePositionStream(symbols ...string) error {
 			delete(stream.subscriptions, symbol)
 		}
 		clear(stream.excludedSymbols)
+		clear(stream.health)
 		return nil
 	}
 	for _, symbol := range symbols {
@@ -269,6 +281,7 @@ func (client *Client) UnsubscribePositionStream(symbols ...string) error {
 			close(done)
 			delete(stream.subscriptions, symbol)
 		}
+		delete(stream.health, symbol)
 	}
 	return nil
 }
@@ -339,7 +352,7 @@ func (client *Client) supervisePositionStream(
 			return
 		case event := <-events:
 			if event.err != nil {
-				if stream.clearIfCurrent(symbol, subscriptionDone) {
+				if stream.clearIfCurrent(symbol, subscriptionDone, event.err) {
 					log.Printf("position stream: subscription stopped (symbol=%q): %v", symbol, normalizeError(event.err))
 					stream.emit(PositionUpdate{
 						Symbol: symbol,
@@ -374,6 +387,7 @@ func (client *Client) watchPositions(
 	}
 
 	retryCount := 0
+	health := PositionSubscriptionHealth{Symbol: symbol, Status: StreamStarting}
 	for {
 		if !stream.isCurrent(symbol, generationDone) {
 			return
@@ -384,10 +398,16 @@ func (client *Client) watchPositions(
 			return
 		}
 		if err != nil {
+			health.LastError = normalizeError(err)
 			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
 				// First retry the existing subscription with 1s, 2s, and 4s waits.
 				// Exhaustion removes this subscription so the caller can restart it.
 				retryCount++
+				health.Status = StreamRetrying
+				health.RetryCount = retryCount
+				if !stream.recordHealth(symbol, generationDone, health) {
+					return
+				}
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
 				log.Printf("position stream: retry %d/%d, waiting %s (symbol=%q): %v", retryCount, maxWatchRetries, delay, symbol, err)
 				if !stream.waitForRetry(delay, generationDone) {
@@ -404,6 +424,14 @@ func (client *Client) watchPositions(
 			log.Printf("position stream: watch succeeded after %d retries", retryCount)
 		}
 		retryCount = 0
+		health.Status = StreamRunning
+		health.RetryCount = 0
+		if len(positions) > 0 {
+			health.LastUpdate = time.Now()
+		}
+		if !stream.recordHealth(symbol, generationDone, health) {
+			return
+		}
 
 		for _, position := range positions {
 			update, err := wrapPositionUpdate(position)
