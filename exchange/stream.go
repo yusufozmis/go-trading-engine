@@ -85,6 +85,7 @@ type candleStream struct {
 	// With tokens, watcher A can prove "that active entry is not mine anymore" and exit.
 	activeSymbols map[subKey]uint64
 	nextToken     uint64
+	health        map[subKey]CandleSubscriptionHealth
 
 	closed   bool
 	closeErr error
@@ -222,14 +223,17 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 		}
 	}
 
+	s.candleMu.Lock()
 	s.stream = &candleStream{
 		symbols:       symbols,
 		timeframes:    timeframes,
 		stream:        make(chan CandleUpdate, 100),
 		streamMode:    mode,
 		activeSymbols: make(map[subKey]uint64),
+		health:        make(map[subKey]CandleSubscriptionHealth),
 		done:          make(chan struct{}),
 	}
+	s.candleMu.Unlock()
 
 	for _, symbol := range s.stream.symbols {
 		for _, timeframe := range s.stream.timeframes {
@@ -281,6 +285,9 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 	s.stream.nextToken++
 	token := s.stream.nextToken
 	s.stream.activeSymbols[key] = token
+	s.stream.health[key] = CandleSubscriptionHealth{
+		Symbol: symbol, Timeframe: timeframe, Status: StreamStarting,
+	}
 	s.stream.wg.Add(1)
 	s.stream.mu.Unlock()
 
@@ -292,8 +299,8 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 	return nil
 }
 
-// Unsubscribe stops a symbol and timeframe watcher on the running candle stream.
-// It is a no-op when the subscription is not active.
+// Unsubscribe stops a symbol and timeframe watcher and removes its health entry.
+// An already-stopped watcher needs no provider request; its health entry is removed too.
 func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err
@@ -317,6 +324,7 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	defer s.stream.mu.Unlock()
 
 	if _, ok := s.stream.activeSymbols[key]; !ok {
+		delete(s.stream.health, key)
 		return nil
 	}
 
@@ -332,6 +340,7 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	}
 
 	delete(s.stream.activeSymbols, key)
+	delete(s.stream.health, key)
 	return nil
 }
 
@@ -372,7 +381,9 @@ func (s *Client) CloseCandleStream() error {
 
 		stream.wg.Wait()
 		close(stream.stream)
+		s.candleMu.Lock()
 		s.stream = nil
+		s.candleMu.Unlock()
 
 		if len(errs) > 0 {
 			stream.closeErr = errors.Join(errs...)
@@ -386,12 +397,16 @@ func (s *Client) CloseCandleStream() error {
 // The repeated isCurrent checks are deliberate: they stop an old watcher from
 // publishing after unsubscribe+resubscribe created a newer owner for the same pair.
 func (s *Client) watch(key subKey, token uint64) {
+	stream := s.stream
+	health := CandleSubscriptionHealth{
+		Symbol: key.symbol, Timeframe: key.timeframe, Status: StreamStarting,
+	}
 	var previous ccxt.OHLCV
 	hasPrevious := false
 	retryCount := 0
 
 	for {
-		if !s.stream.isCurrent(key, token) {
+		if !stream.isCurrent(key, token) {
 			return
 		}
 
@@ -401,15 +416,21 @@ func (s *Client) watch(key subKey, token uint64) {
 		)
 		if err != nil {
 			// Unsubscribe can make WatchOHLCV return an error during normal shutdown.
-			if !s.stream.isCurrent(key, token) {
+			if !stream.isCurrent(key, token) {
 				return
 			}
+			health.LastError = normalizeError(err)
 
 			// Retry known temporary failures with a bounded exponential backoff.
 			if isRetryableWatchError(err) && retryCount < maxWatchRetries {
 				retryCount++
+				health.Status = StreamRetrying
+				health.RetryCount = retryCount
+				if !stream.recordHealth(key, token, health) {
+					return
+				}
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
-				if !s.stream.waitForRetry(delay) {
+				if !stream.waitForRetry(delay) {
 					return
 				}
 				// retries
@@ -417,8 +438,9 @@ func (s *Client) watch(key subKey, token uint64) {
 			}
 
 			// Publish only terminal errors from the watcher that still owns the key.
-			if s.stream.clearIfCurrent(key, token) {
-				s.stream.emit(CandleUpdate{
+			health.Status = StreamStopped
+			if stream.recordHealth(key, token, health) && stream.clearIfCurrent(key, token) {
+				stream.emit(CandleUpdate{
 					Err: fmt.Errorf(
 						"watch OHLCV %q %q: %w",
 						key.symbol,
@@ -433,25 +455,33 @@ func (s *Client) watch(key subKey, token uint64) {
 		}
 		// Any successful response starts a fresh retry budget.
 		retryCount = 0
+		health.Status = StreamRunning
+		health.RetryCount = 0
+		if len(candles) > 0 {
+			health.LastUpdate = time.Now()
+		}
+		if !stream.recordHealth(key, token, health) {
+			return
+		}
 
 		if len(candles) == 0 {
 			continue
 		}
 
-		if !s.stream.isCurrent(key, token) {
+		if !stream.isCurrent(key, token) {
 			return
 		}
 
 		current := candles[len(candles)-1]
 
-		if s.stream.streamMode == ClosedOnly {
+		if stream.streamMode == ClosedOnly {
 			if hasPrevious && current.Timestamp > previous.Timestamp {
-				if !s.stream.isCurrent(key, token) {
+				if !stream.isCurrent(key, token) {
 					return
 				}
 
 				// The previous candle is fully formed once a newer timestamp arrives.
-				if !s.stream.emit(CandleUpdate{
+				if !stream.emit(CandleUpdate{
 					Candle: s.wrapOHLCV(key.symbol, key.timeframe, previous),
 				}) {
 					return
@@ -463,12 +493,12 @@ func (s *Client) watch(key subKey, token uint64) {
 			continue
 		}
 
-		if !s.stream.isCurrent(key, token) {
+		if !stream.isCurrent(key, token) {
 			return
 		}
 
 		// AllUpdates publishes the latest candle even while it is still forming.
-		if !s.stream.emit(CandleUpdate{
+		if !stream.emit(CandleUpdate{
 			Candle: s.wrapOHLCV(key.symbol, key.timeframe, current),
 		}) {
 			return

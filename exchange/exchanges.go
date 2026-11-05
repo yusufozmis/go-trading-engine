@@ -19,6 +19,8 @@ type Client struct {
 	// streamExchange owns only candle WebSocket connections so closing a stream
 	// cannot interrupt account, market-data, or order operations.
 	streamExchange ccxt.IExchange
+	// streamBaseExchange exposes the candle instance's socket registry for health checks.
+	streamBaseExchange *ccxt.BaseExchange
 	// positionExchange owns the authenticated position WebSocket connection so
 	// stopping it cannot close order submission or the candle stream.
 	positionExchange ccxt.IExchange
@@ -31,8 +33,10 @@ type Client struct {
 	stream         *candleStream
 	positionStream *positionStream
 	orderStream    *orderStream
-	positionMu     sync.Mutex
-	orderMu        sync.Mutex
+	// candleMu protects the active stream pointer during health queries.
+	candleMu   sync.Mutex
+	positionMu sync.Mutex
+	orderMu    sync.Mutex
 
 	// futuresMu serializes futures configuration and order submission. Holding one
 	// lock prevents orders from observing a half-applied remote configuration.
@@ -90,6 +94,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	return &Client{
 		iExchange:          pro,
 		streamExchange:     streamPro,
+		streamBaseExchange: &streamPro.Core.BinanceCore.Exchange.BaseExchange,
 		positionExchange:   positionPro,
 		orderExchange:      orderPro,
 		futuresAdapter:     adapters.NewBinanceFuturesAdapter(core),
@@ -146,6 +151,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	return &Client{
 		iExchange:          pro,
 		streamExchange:     streamPro,
+		streamBaseExchange: &streamPro.Core.OkxCore.Exchange.BaseExchange,
 		positionExchange:   positionPro,
 		orderExchange:      orderPro,
 		futuresAdapter:     adapters.NewOKXFuturesAdapter(core),
