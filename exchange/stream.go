@@ -3,6 +3,7 @@ package exchange
 import (
 	"errors"
 	"fmt"
+	"strings"
 	"sync"
 	"time"
 
@@ -165,6 +166,14 @@ func isRetryableWatchError(err error) bool {
 	var exchangeErr *ccxt.Error
 	if !errors.As(err, &exchangeErr) {
 		return false
+	}
+
+	// CCXT sometimes wraps a failed DNS dial in a generic Exception instead of
+	// NetworkError. A lookup timeout is still a transient connection failure.
+	if exchangeErr.Type == ccxt.ErrorType("Exception") &&
+		strings.Contains(exchangeErr.Message, "dial tcp: lookup ") &&
+		strings.Contains(exchangeErr.Message, "i/o timeout") {
+		return true
 	}
 
 	switch exchangeErr.Type {
