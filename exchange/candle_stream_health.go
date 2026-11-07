@@ -70,32 +70,33 @@ type StreamConnectionHealth struct {
 	HeartbeatTimeout time.Duration
 }
 
-// CandleStreamHealthSnapshot separates subscription activity from the shared
-// WebSocket connections' heartbeat state. Both slices are independent snapshots
-// in unspecified order; their observations are not an atomic provider snapshot.
-type CandleStreamHealthSnapshot struct {
-	Subscriptions []CandleSubscriptionHealth
-	// Connections contains only clients currently registered in CCXT. An empty
-	// slice means no connection health is available, never "all connections healthy".
-	Connections []StreamConnectionHealth
+// CandleSubscriptionHealthSnapshot contains one watcher's state and the heartbeat
+// of its matching CCXT socket. The two observations are not atomic.
+type CandleSubscriptionHealthSnapshot struct {
+	Subscription CandleSubscriptionHealth
+	// Connection is nil when no matching socket is registered yet. Nil does not
+	// mean healthy; a non-nil connection can still have unknown heartbeat timing.
+	Connection *StreamConnectionHealth
 }
 
-// CandleStreamHealth reads watcher state and the dedicated candle exchange's
-// existing CCXT WebSocket clients without creating connections or sending requests.
-// It can run concurrently with stream activity and shutdown. Failed watchers stay
-// visible until resubscribed or unsubscribed; successful unsubscribe removes the entry.
-// ErrStreamNotRunning means the stream has not started or is closing/closed.
-// Recent heartbeats do not prove subscription readiness or candle delivery;
-// inspect LastUpdate separately.
-func (client *Client) CandleStreamHealth() (CandleStreamHealthSnapshot, error) {
+// CandleStreamHealth returns one snapshot per retained symbol/timeframe in
+// unspecified order. Each entry pairs local watcher state with its matching CCXT
+// socket heartbeat; pairs sharing a socket each receive an independent copy.
+// No connections or requests are made. It can run concurrently with stream
+// activity and shutdown. Failed watchers remain until resubscribed or unsubscribed.
+// A nil Connection means no matching socket is registered, not a healthy socket.
+// ErrStreamNotRunning means the stream is absent or closing/closed. Multiple
+// sockets matching one pair return ErrAmbiguousCandleConnection.
+// Heartbeats do not prove subscription readiness or candle delivery.
+func (client *Client) CandleStreamHealth() ([]CandleSubscriptionHealthSnapshot, error) {
 	if err := client.Validate(); err != nil {
-		return CandleStreamHealthSnapshot{}, err
+		return nil, err
 	}
 	client.candleMu.Lock()
 	stream := client.stream
 	client.candleMu.Unlock()
 	if stream == nil {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+		return nil, apperrors.ErrStreamNotRunning
 	}
 
 	stream.mu.Lock()
@@ -106,41 +107,45 @@ func (client *Client) CandleStreamHealth() (CandleStreamHealthSnapshot, error) {
 	closed := stream.closed
 	stream.mu.Unlock()
 	if closed {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+		return nil, apperrors.ErrStreamNotRunning
 	}
 
-	return CandleStreamHealthSnapshot{
-		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.streamBaseExchange, ""),
-	}, nil
+	snapshots := make([]CandleSubscriptionHealthSnapshot, 0, len(health))
+	for _, subscription := range health {
+		snapshot, err := client.candleSubscriptionHealthSnapshot(subscription)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	return snapshots, nil
 }
 
-// CandleSubscriptionHealth returns the same snapshot shape as CandleStreamHealth,
-// filtered to one symbol/timeframe and the CCXT sockets whose subscription registry
-// contains that pair's provider-specific key. No requests or connections are made.
-// Subscriptions contains exactly one local watcher record; Connections contains
-// only matching sockets and their CCXT heartbeat values. No match means an empty
-// Connections slice, not a healthy connection. A registered key is not proof of
-// provider acknowledgement, and a fresh heartbeat does not prove candle delivery.
+// CandleSubscriptionHealth returns one symbol/timeframe's watcher state and its
+// matching CCXT socket heartbeat without making requests or opening connections.
+// Connection is nil when no matching socket is registered. Multiple matches return
+// ErrAmbiguousCandleConnection rather than selecting an arbitrary socket.
+// A registered key is not proof of provider acknowledgement, and a fresh heartbeat
+// does not prove candle delivery.
 // Failed watchers remain visible until resubscribed or unsubscribed. A missing
 // pair returns ErrCandleSubscriptionNotFound; a closed stream returns
 // ErrStreamNotRunning. Watcher and socket observations are not atomic.
-func (client *Client) CandleSubscriptionHealth(symbol, timeframe string) (CandleStreamHealthSnapshot, error) {
+func (client *Client) CandleSubscriptionHealth(symbol, timeframe string) (CandleSubscriptionHealthSnapshot, error) {
 	if err := client.Validate(); err != nil {
-		return CandleStreamHealthSnapshot{}, err
+		return CandleSubscriptionHealthSnapshot{}, err
 	}
 	if symbol == "" {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrNilSymbol
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrNilSymbol
 	}
 	if timeframe == "" {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrNilTimeframe
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrNilTimeframe
 	}
 
 	client.candleMu.Lock()
 	stream := client.stream
 	client.candleMu.Unlock()
 	if stream == nil {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrStreamNotRunning
 	}
 
 	stream.mu.Lock()
@@ -148,30 +153,41 @@ func (client *Client) CandleSubscriptionHealth(symbol, timeframe string) (Candle
 	closed := stream.closed
 	stream.mu.Unlock()
 	if closed {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrStreamNotRunning
 	}
 	if !exists {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrCandleSubscriptionNotFound
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrCandleSubscriptionNotFound
 	}
+	return client.candleSubscriptionHealthSnapshot(health)
+}
+
+// candleSubscriptionHealthSnapshot pairs the copied watcher record with its
+// current socket so single-pair and all-pair queries use identical matching rules.
+func (client *Client) candleSubscriptionHealthSnapshot(health CandleSubscriptionHealth) (CandleSubscriptionHealthSnapshot, error) {
 	if client.candleStreamAdapter == nil {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrUnsupportedProvider
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrUnsupportedProvider
 	}
-	market, exists := client.markets[symbol]
+	market, exists := client.markets[health.Symbol]
 	if !exists {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrInvalidSymbol
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
 	}
-	interval, ok := client.streamExchange.GetTimeframes()[timeframe].(string)
+	interval, ok := client.streamExchange.GetTimeframes()[health.Timeframe].(string)
 	if !ok {
-		interval = timeframe
+		interval = health.Timeframe
 	}
-	key := client.candleStreamAdapter.SubscriptionKey(market, timeframe, interval)
+	key := client.candleStreamAdapter.SubscriptionKey(market, health.Timeframe, interval)
 	if key == "" {
-		return CandleStreamHealthSnapshot{}, apperrors.ErrInvalidSymbol
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
 	}
-	return CandleStreamHealthSnapshot{
-		Subscriptions: []CandleSubscriptionHealth{health},
-		Connections:   streamConnectionsHealth(client.streamBaseExchange, key),
-	}, nil
+	connections := streamConnectionsHealth(client.streamBaseExchange, key)
+	if len(connections) > 1 {
+		return CandleSubscriptionHealthSnapshot{}, apperrors.ErrAmbiguousCandleConnection
+	}
+	snapshot := CandleSubscriptionHealthSnapshot{Subscription: health}
+	if len(connections) == 1 {
+		snapshot.Connection = &connections[0]
+	}
+	return snapshot, nil
 }
 
 // streamConnectionsHealth inspects existing sockets without opening connections

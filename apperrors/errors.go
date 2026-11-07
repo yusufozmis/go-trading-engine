@@ -77,6 +77,9 @@ var (
 	// ErrCandleSubscriptionNotFound indicates that no health record exists for
 	// the requested symbol/timeframe, including after successful unsubscribe.
 	ErrCandleSubscriptionNotFound = errors.New("exchange: candle subscription not found")
+	// ErrAmbiguousCandleConnection indicates that multiple CCXT sockets contain
+	// the requested candle subscription, so no single connection can be selected.
+	ErrAmbiguousCandleConnection = errors.New("exchange: multiple sockets match candle subscription")
 	// ErrPositionStreamAlreadyExists indicates that a position stream is already running.
 	ErrPositionStreamAlreadyExists = errors.New("exchange: position stream already exists")
 	// ErrPositionStreamNotRunning indicates that no position stream is running.
