@@ -2,6 +2,7 @@ package exchange
 
 import (
 	"math"
+	"sync"
 	"time"
 
 	ccxt "github.com/ccxt/ccxt/go/v4"
@@ -110,13 +111,73 @@ func (client *Client) CandleStreamHealth() (CandleStreamHealthSnapshot, error) {
 
 	return CandleStreamHealthSnapshot{
 		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.streamBaseExchange),
+		Connections:   streamConnectionsHealth(client.streamBaseExchange, ""),
+	}, nil
+}
+
+// CandleSubscriptionHealth returns the same snapshot shape as CandleStreamHealth,
+// filtered to one symbol/timeframe and the CCXT sockets whose subscription registry
+// contains that pair's provider-specific key. No requests or connections are made.
+// Subscriptions contains exactly one local watcher record; Connections contains
+// only matching sockets and their CCXT heartbeat values. No match means an empty
+// Connections slice, not a healthy connection. A registered key is not proof of
+// provider acknowledgement, and a fresh heartbeat does not prove candle delivery.
+// Failed watchers remain visible until resubscribed or unsubscribed. A missing
+// pair returns ErrCandleSubscriptionNotFound; a closed stream returns
+// ErrStreamNotRunning. Watcher and socket observations are not atomic.
+func (client *Client) CandleSubscriptionHealth(symbol, timeframe string) (CandleStreamHealthSnapshot, error) {
+	if err := client.Validate(); err != nil {
+		return CandleStreamHealthSnapshot{}, err
+	}
+	if symbol == "" {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrNilSymbol
+	}
+	if timeframe == "" {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrNilTimeframe
+	}
+
+	client.candleMu.Lock()
+	stream := client.stream
+	client.candleMu.Unlock()
+	if stream == nil {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+	}
+
+	stream.mu.Lock()
+	health, exists := stream.health[newSubKey(symbol, timeframe)]
+	closed := stream.closed
+	stream.mu.Unlock()
+	if closed {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrStreamNotRunning
+	}
+	if !exists {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrCandleSubscriptionNotFound
+	}
+	if client.candleStreamAdapter == nil {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrUnsupportedProvider
+	}
+	market, exists := client.markets[symbol]
+	if !exists {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrInvalidSymbol
+	}
+	interval, ok := client.streamExchange.GetTimeframes()[timeframe].(string)
+	if !ok {
+		interval = timeframe
+	}
+	key := client.candleStreamAdapter.SubscriptionKey(market, timeframe, interval)
+	if key == "" {
+		return CandleStreamHealthSnapshot{}, apperrors.ErrInvalidSymbol
+	}
+	return CandleStreamHealthSnapshot{
+		Subscriptions: []CandleSubscriptionHealth{health},
+		Connections:   streamConnectionsHealth(client.streamBaseExchange, key),
 	}, nil
 }
 
 // streamConnectionsHealth inspects existing sockets without opening connections
-// or issuing requests. Each stream supplies its own exchange's registry.
-func streamConnectionsHealth(base *ccxt.BaseExchange) []StreamConnectionHealth {
+// or issuing requests. A non-empty key restricts results to sockets with that
+// exact CCXT subscription. An empty key returns every socket in the registry.
+func streamConnectionsHealth(base *ccxt.BaseExchange, subscriptionKey string) []StreamConnectionHealth {
 	if base == nil {
 		return nil
 	}
@@ -128,6 +189,15 @@ func streamConnectionsHealth(base *ccxt.BaseExchange) []StreamConnectionHealth {
 	var connections []StreamConnectionHealth
 	for _, value := range base.Clients {
 		if ws, ok := value.(*ccxt.WSClient); ok && ws != nil && ws.Client != nil {
+			if subscriptionKey != "" {
+				subscriptions, ok := ws.GetSubscriptions().(*sync.Map)
+				if !ok || subscriptions == nil {
+					continue
+				}
+				if _, exists := subscriptions.Load(subscriptionKey); !exists {
+					continue
+				}
+			}
 			connections = append(connections, connectionHeartbeat(ws, now))
 		}
 	}

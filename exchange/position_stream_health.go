@@ -57,7 +57,7 @@ func (client *Client) PositionStreamHealth() (PositionStreamHealthSnapshot, erro
 	}
 	return PositionStreamHealthSnapshot{
 		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.positionBaseExchange),
+		Connections:   streamConnectionsHealth(client.positionBaseExchange, ""),
 	}, nil
 }
 

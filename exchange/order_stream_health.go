@@ -61,7 +61,7 @@ func (client *Client) OrderStreamHealth() (OrderStreamHealthSnapshot, error) {
 	}
 	return OrderStreamHealthSnapshot{
 		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.orderBaseExchange),
+		Connections:   streamConnectionsHealth(client.orderBaseExchange, ""),
 	}, nil
 }
 

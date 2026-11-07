@@ -310,6 +310,8 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 
 // Unsubscribe stops a symbol and timeframe watcher and removes its health entry.
 // An already-stopped watcher needs no provider request; its health entry is removed too.
+// Provider-specific CCXT cleanup runs only after a successful unsubscribe, so a
+// later Subscribe can register a fresh watch without restarting other pairs.
 func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	if err := s.Validate(); err != nil {
 		return err
@@ -350,6 +352,16 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 
 	delete(s.stream.activeSymbols, key)
 	delete(s.stream.health, key)
+	if s.candleStreamAdapter != nil && s.streamBaseExchange != nil {
+		interval, ok := s.streamExchange.GetTimeframes()[timeframe].(string)
+		if !ok {
+			interval = timeframe
+		}
+		subscriptionKey := s.candleStreamAdapter.SubscriptionKey(s.markets[symbol], timeframe, interval)
+		// The local owner is already removed while stream.mu is held. Rejecting
+		// its pending CCXT future cannot report a failure against a replacement.
+		s.candleStreamAdapter.CleanupUnsubscription(s.streamBaseExchange, subscriptionKey)
+	}
 	return nil
 }
 

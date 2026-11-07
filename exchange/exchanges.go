@@ -29,10 +29,11 @@ type Client struct {
 	// orderExchange owns private order and conditional-order subscriptions.
 	orderExchange ccxt.IExchange
 	// orderBaseExchange exposes only the order instance's socket registry.
-	orderBaseExchange  *ccxt.BaseExchange
-	futuresAdapter     adapters.FuturesAdapter
-	orderStreamAdapter adapters.OrderStreamAdapter
-	ohlcvPageSize      int64
+	orderBaseExchange   *ccxt.BaseExchange
+	futuresAdapter      adapters.FuturesAdapter
+	orderStreamAdapter  adapters.OrderStreamAdapter
+	candleStreamAdapter adapters.CandleStreamAdapter
+	ohlcvPageSize       int64
 
 	stream         *candleStream
 	positionStream *positionStream
@@ -105,6 +106,7 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 		orderBaseExchange:    &orderPro.Core.BinanceCore.Exchange.BaseExchange,
 		futuresAdapter:       adapters.NewBinanceFuturesAdapter(core),
 		orderStreamAdapter:   adapters.NewBinanceOrderStreamAdapter(),
+		candleStreamAdapter:  adapters.BinanceCandleStreamAdapter{},
 		ohlcvPageSize:        binanceOHLCVPageSize,
 		markets:              markets,
 		clientOptions:        cfg,
@@ -164,6 +166,7 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 		orderBaseExchange:    &orderPro.Core.OkxCore.Exchange.BaseExchange,
 		futuresAdapter:       adapters.NewOKXFuturesAdapter(core),
 		orderStreamAdapter:   adapters.NewOKXOrderStreamAdapter(),
+		candleStreamAdapter:  adapters.OKXCandleStreamAdapter{},
 		ohlcvPageSize:        okxOHLCVPageSize,
 		markets:              markets,
 		clientOptions:        cfg,
