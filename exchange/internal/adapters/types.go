@@ -81,4 +81,6 @@ type OrderWatcherConfig struct {
 // subscriptions required by a provider.
 type OrderStreamAdapter interface {
 	WatcherConfigs(marketType types.MarketType) ([]OrderWatcherConfig, error)
+	// SubscriptionKey identifies the CCXT socket serving this account-wide watcher.
+	SubscriptionKey(config OrderWatcherConfig) string
 }

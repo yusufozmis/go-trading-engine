@@ -31,4 +31,13 @@ func (*OKXOrderStreamAdapter) WatcherConfigs(
 	}
 }
 
+// SubscriptionKey distinguishes the regular and separate algo-order channels.
+// This library watches them account-wide, so neither key contains a symbol.
+func (*OKXOrderStreamAdapter) SubscriptionKey(config OrderWatcherConfig) string {
+	if config.Trigger {
+		return "orders-algo"
+	}
+	return "orders"
+}
+
 var _ OrderStreamAdapter = (*OKXOrderStreamAdapter)(nil)

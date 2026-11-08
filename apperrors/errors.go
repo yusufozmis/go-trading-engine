@@ -84,10 +84,22 @@ var (
 	ErrPositionStreamAlreadyExists = errors.New("exchange: position stream already exists")
 	// ErrPositionStreamNotRunning indicates that no position stream is running.
 	ErrPositionStreamNotRunning = errors.New("exchange: position stream is not running")
+	// ErrPositionSubscriptionNotFound indicates that no retained position watcher
+	// covers the requested symbol, or that the symbol is explicitly excluded.
+	ErrPositionSubscriptionNotFound = errors.New("exchange: position subscription not found")
+	// ErrAmbiguousPositionConnection indicates that multiple CCXT sockets match
+	// the position watcher, so a single heartbeat cannot be selected safely.
+	ErrAmbiguousPositionConnection = errors.New("exchange: multiple sockets match position subscription")
 	// ErrOrderStreamAlreadyExists indicates that an order stream is already running.
 	ErrOrderStreamAlreadyExists = errors.New("exchange: order stream already exists")
 	// ErrOrderStreamNotRunning indicates that no order stream is running.
 	ErrOrderStreamNotRunning = errors.New("exchange: order stream is not running")
+	// ErrOrderSubscriptionNotFound indicates that the order stream does not allow
+	// the requested symbol or has no matching local watcher record.
+	ErrOrderSubscriptionNotFound = errors.New("exchange: order subscription not found")
+	// ErrAmbiguousOrderConnection indicates that multiple CCXT sockets match one
+	// order watcher, so a single heartbeat cannot be selected safely.
+	ErrAmbiguousOrderConnection = errors.New("exchange: multiple sockets match order subscription")
 )
 
 // Options Errors

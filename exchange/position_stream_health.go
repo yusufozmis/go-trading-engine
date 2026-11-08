@@ -21,6 +21,16 @@ type PositionSubscriptionHealth struct {
 	LastError error
 }
 
+// PositionSubscriptionHealthSnapshot contains the requested symbol's local watcher
+// record and its matching CCXT heartbeat. Subscription.Symbol is empty when the
+// symbol is covered by the all-positions watcher; its metrics are then account-wide.
+type PositionSubscriptionHealthSnapshot struct {
+	Symbol       string
+	Subscription PositionSubscriptionHealth
+	// Connection is nil when no matching socket is registered. Nil is not healthy.
+	Connection *StreamConnectionHealth
+}
+
 // PositionStreamHealthSnapshot separates watcher activity from socket heartbeat
 // timing. The slices are independent snapshots in unspecified order.
 type PositionStreamHealthSnapshot struct {
@@ -59,6 +69,65 @@ func (client *Client) PositionStreamHealth() (PositionStreamHealthSnapshot, erro
 		Subscriptions: health,
 		Connections:   streamConnectionsHealth(client.positionBaseExchange, ""),
 	}, nil
+}
+
+// PositionSubscriptionHealth returns one symbol's watcher and matching CCXT socket
+// without making requests or opening connections. Explicit subscriptions and the
+// all-positions subscription are supported; excluded symbols return
+// ErrPositionSubscriptionNotFound. Failed watcher records remain queryable until
+// resubscribed or unsubscribed. LastUpdate belongs to the selected watcher, not
+// necessarily the requested symbol, and silence alone is not considered failure.
+// Multiple matching sockets return ErrAmbiguousPositionConnection. A heartbeat
+// does not prove authentication, subscription readiness, or position delivery.
+// Watcher and socket observations are not atomic.
+func (client *Client) PositionSubscriptionHealth(symbol string) (PositionSubscriptionHealthSnapshot, error) {
+	if err := client.Validate(); err != nil {
+		return PositionSubscriptionHealthSnapshot{}, err
+	}
+	if symbol == "" {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrNilSymbol
+	}
+	market, exists := client.markets[symbol]
+	if !exists || market.Swap == nil || !*market.Swap {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
+	}
+	client.positionMu.Lock()
+	stream := client.positionStream
+	client.positionMu.Unlock()
+	if stream == nil {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrPositionStreamNotRunning
+	}
+
+	stream.mu.Lock()
+	health, exists := stream.health[symbol]
+	if !exists {
+		health, exists = stream.health[""]
+	}
+	excluded := stream.excludedSymbols[symbol]
+	closed := stream.closed
+	stream.mu.Unlock()
+	if closed {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrPositionStreamNotRunning
+	}
+	if !exists || excluded {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrPositionSubscriptionNotFound
+	}
+	if client.positionStreamAdapter == nil {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrUnsupportedProvider
+	}
+	key := client.positionStreamAdapter.SubscriptionKey(health.Symbol, market)
+	if key == "" {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrPositionSubscriptionNotFound
+	}
+	connections := streamConnectionsHealth(client.positionBaseExchange, key)
+	if len(connections) > 1 {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrAmbiguousPositionConnection
+	}
+	snapshot := PositionSubscriptionHealthSnapshot{Symbol: symbol, Subscription: health}
+	if len(connections) == 1 {
+		snapshot.Connection = &connections[0]
+	}
+	return snapshot, nil
 }
 
 // recordHealth ignores late results from an unsubscribed or replaced watcher.

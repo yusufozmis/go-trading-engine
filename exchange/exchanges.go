@@ -29,11 +29,12 @@ type Client struct {
 	// orderExchange owns private order and conditional-order subscriptions.
 	orderExchange ccxt.IExchange
 	// orderBaseExchange exposes only the order instance's socket registry.
-	orderBaseExchange   *ccxt.BaseExchange
-	futuresAdapter      adapters.FuturesAdapter
-	orderStreamAdapter  adapters.OrderStreamAdapter
-	candleStreamAdapter adapters.CandleStreamAdapter
-	ohlcvPageSize       int64
+	orderBaseExchange     *ccxt.BaseExchange
+	futuresAdapter        adapters.FuturesAdapter
+	orderStreamAdapter    adapters.OrderStreamAdapter
+	candleStreamAdapter   adapters.CandleStreamAdapter
+	positionStreamAdapter adapters.PositionStreamAdapter
+	ohlcvPageSize         int64
 
 	stream         *candleStream
 	positionStream *positionStream
@@ -97,19 +98,20 @@ func NewBinance(opts ...options.ClientOption) (*Client, error) {
 	orderPro.SetMarketsFromExchange(&pro.Core.BinanceCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:            pro,
-		streamExchange:       streamPro,
-		streamBaseExchange:   &streamPro.Core.BinanceCore.Exchange.BaseExchange,
-		positionExchange:     positionPro,
-		positionBaseExchange: &positionPro.Core.BinanceCore.Exchange.BaseExchange,
-		orderExchange:        orderPro,
-		orderBaseExchange:    &orderPro.Core.BinanceCore.Exchange.BaseExchange,
-		futuresAdapter:       adapters.NewBinanceFuturesAdapter(core),
-		orderStreamAdapter:   adapters.NewBinanceOrderStreamAdapter(),
-		candleStreamAdapter:  adapters.BinanceCandleStreamAdapter{},
-		ohlcvPageSize:        binanceOHLCVPageSize,
-		markets:              markets,
-		clientOptions:        cfg,
+		iExchange:             pro,
+		streamExchange:        streamPro,
+		streamBaseExchange:    &streamPro.Core.BinanceCore.Exchange.BaseExchange,
+		positionExchange:      positionPro,
+		positionBaseExchange:  &positionPro.Core.BinanceCore.Exchange.BaseExchange,
+		orderExchange:         orderPro,
+		orderBaseExchange:     &orderPro.Core.BinanceCore.Exchange.BaseExchange,
+		futuresAdapter:        adapters.NewBinanceFuturesAdapter(core),
+		orderStreamAdapter:    adapters.NewBinanceOrderStreamAdapter(),
+		candleStreamAdapter:   adapters.BinanceCandleStreamAdapter{},
+		positionStreamAdapter: adapters.BinancePositionStreamAdapter{},
+		ohlcvPageSize:         binanceOHLCVPageSize,
+		markets:               markets,
+		clientOptions:         cfg,
 	}, nil
 }
 
@@ -157,19 +159,20 @@ func NewOKX(opts ...options.ClientOption) (*Client, error) {
 	orderPro.SetMarketsFromExchange(&pro.Core.OkxCore.Exchange.BaseExchange)
 
 	return &Client{
-		iExchange:            pro,
-		streamExchange:       streamPro,
-		streamBaseExchange:   &streamPro.Core.OkxCore.Exchange.BaseExchange,
-		positionExchange:     positionPro,
-		positionBaseExchange: &positionPro.Core.OkxCore.Exchange.BaseExchange,
-		orderExchange:        orderPro,
-		orderBaseExchange:    &orderPro.Core.OkxCore.Exchange.BaseExchange,
-		futuresAdapter:       adapters.NewOKXFuturesAdapter(core),
-		orderStreamAdapter:   adapters.NewOKXOrderStreamAdapter(),
-		candleStreamAdapter:  adapters.OKXCandleStreamAdapter{},
-		ohlcvPageSize:        okxOHLCVPageSize,
-		markets:              markets,
-		clientOptions:        cfg,
+		iExchange:             pro,
+		streamExchange:        streamPro,
+		streamBaseExchange:    &streamPro.Core.OkxCore.Exchange.BaseExchange,
+		positionExchange:      positionPro,
+		positionBaseExchange:  &positionPro.Core.OkxCore.Exchange.BaseExchange,
+		orderExchange:         orderPro,
+		orderBaseExchange:     &orderPro.Core.OkxCore.Exchange.BaseExchange,
+		futuresAdapter:        adapters.NewOKXFuturesAdapter(core),
+		orderStreamAdapter:    adapters.NewOKXOrderStreamAdapter(),
+		candleStreamAdapter:   adapters.OKXCandleStreamAdapter{},
+		positionStreamAdapter: adapters.OKXPositionStreamAdapter{},
+		ohlcvPageSize:         okxOHLCVPageSize,
+		markets:               markets,
+		clientOptions:         cfg,
 	}, nil
 }
 

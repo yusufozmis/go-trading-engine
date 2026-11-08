@@ -27,4 +27,10 @@ func (*BinanceOrderStreamAdapter) WatcherConfigs(
 	}
 }
 
+// SubscriptionKey follows WatchOrders, which registers the user-data market type
+// (spot or future), not its orders result hash. Conditional events share this stream.
+func (*BinanceOrderStreamAdapter) SubscriptionKey(config OrderWatcherConfig) string {
+	return config.MarketType
+}
+
 var _ OrderStreamAdapter = (*BinanceOrderStreamAdapter)(nil)
