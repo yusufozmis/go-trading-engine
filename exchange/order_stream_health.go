@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"maps"
 	"time"
 
 	"github.com/yusufozmis/go-trading-engine/apperrors"
@@ -34,6 +35,7 @@ type OrderWatcherHealthSnapshot struct {
 
 // OrderSubscriptionHealthSnapshot describes the account-wide order watchers
 // delivering updates for one locally allowed symbol. The observations are not atomic.
+// Symbol is empty for the all-symbols entry returned by OrderStreamHealth.
 type OrderSubscriptionHealthSnapshot struct {
 	Symbol  string
 	Regular OrderWatcherHealthSnapshot
@@ -41,45 +43,51 @@ type OrderSubscriptionHealthSnapshot struct {
 	Trigger *OrderWatcherHealthSnapshot
 }
 
-// OrderStreamHealthSnapshot separates regular/conditional watcher activity from
-// socket heartbeat timing. The slices are independent snapshots in unspecified order.
-type OrderStreamHealthSnapshot struct {
-	Subscriptions []OrderSubscriptionHealth
-	// Empty Connections means no socket health is available, not healthy sockets.
-	Connections []StreamConnectionHealth
-}
-
-// OrderStreamHealth reads local watcher state and existing CCXT heartbeats
-// without network requests. It is safe during stream activity and shutdown.
-// SubscribeOrder and UnsubscribeOrder change only local symbol filters, so they
-// do not add or remove watcher entries here. A closed stream returns
-// ErrOrderStreamNotRunning; no final snapshot is retained. Heartbeats do not prove
-// authentication, subscription readiness, or order delivery.
-func (client *Client) OrderStreamHealth() (OrderStreamHealthSnapshot, error) {
+// OrderStreamHealth returns one snapshot per locally allowed symbol in unspecified
+// order, pairing regular and optional TP/SL watcher state with matching heartbeats.
+// All-symbols mode returns one entry with Symbol empty, subject to the current
+// local exclusions; it does not enumerate exchange markets. Muted symbols are
+// omitted in explicit-symbol mode. Metrics remain account-wide and snapshots are
+// independent copies. No requests or connections are made. A closed stream returns
+// ErrOrderStreamNotRunning. Heartbeats do not prove readiness or order delivery.
+func (client *Client) OrderStreamHealth() ([]OrderSubscriptionHealthSnapshot, error) {
 	if err := client.Validate(); err != nil {
-		return OrderStreamHealthSnapshot{}, err
+		return nil, err
 	}
 	client.orderMu.Lock()
 	stream := client.orderStream
 	client.orderMu.Unlock()
 	if stream == nil {
-		return OrderStreamHealthSnapshot{}, apperrors.ErrOrderStreamNotRunning
+		return nil, apperrors.ErrOrderStreamNotRunning
 	}
 
 	stream.mu.Lock()
-	health := make([]OrderSubscriptionHealth, 0, len(stream.health))
-	for _, subscription := range stream.health {
-		health = append(health, subscription)
+	symbols := make([]string, 0, len(stream.symbolSubscriptions))
+	if stream.watchAllSymbols {
+		symbols = append(symbols, "")
+	} else {
+		for symbol, allowed := range stream.symbolSubscriptions {
+			if allowed {
+				symbols = append(symbols, symbol)
+			}
+		}
 	}
+	health := maps.Clone(stream.health)
+	marketType := stream.marketType
 	closed := stream.closed
 	stream.mu.Unlock()
 	if closed {
-		return OrderStreamHealthSnapshot{}, apperrors.ErrOrderStreamNotRunning
+		return nil, apperrors.ErrOrderStreamNotRunning
 	}
-	return OrderStreamHealthSnapshot{
-		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.orderBaseExchange, ""),
-	}, nil
+	snapshots := make([]OrderSubscriptionHealthSnapshot, 0, len(symbols))
+	for _, symbol := range symbols {
+		snapshot, err := client.orderSubscriptionHealthSnapshot(symbol, marketType, health)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	return snapshots, nil
 }
 
 // OrderSubscriptionHealth returns one symbol's regular and, when configured,
@@ -110,18 +118,23 @@ func (client *Client) OrderSubscriptionHealth(symbol string) (OrderSubscriptionH
 	if stream.watchAllSymbols && !explicit {
 		allowed = true
 	}
-	regular, hasRegular := stream.health[false]
-	trigger, hasTrigger := stream.health[true]
+	health := maps.Clone(stream.health)
 	stream.mu.Unlock()
 	if closed {
 		return OrderSubscriptionHealthSnapshot{}, apperrors.ErrOrderStreamNotRunning
 	}
-	market, exists := client.markets[symbol]
-	if !exists || !isOrderStreamMarket(market, marketType) {
-		return OrderSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
-	}
-	if !allowed || !hasRegular {
+	if !allowed {
 		return OrderSubscriptionHealthSnapshot{}, apperrors.ErrOrderSubscriptionNotFound
+	}
+	return client.orderSubscriptionHealthSnapshot(symbol, marketType, health)
+}
+
+// orderSubscriptionHealthSnapshot shares watcher/socket matching between both
+// query methods. Empty symbol describes the all-symbols local filter.
+func (client *Client) orderSubscriptionHealthSnapshot(symbol string, marketType types.MarketType, health map[bool]OrderSubscriptionHealth) (OrderSubscriptionHealthSnapshot, error) {
+	market, exists := client.markets[symbol]
+	if symbol != "" && (!exists || !isOrderStreamMarket(market, marketType)) {
+		return OrderSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
 	}
 	if client.orderStreamAdapter == nil {
 		return OrderSubscriptionHealthSnapshot{}, apperrors.ErrUnsupportedProvider
@@ -132,19 +145,16 @@ func (client *Client) OrderSubscriptionHealth(symbol string) (OrderSubscriptionH
 	}
 	snapshot := OrderSubscriptionHealthSnapshot{Symbol: symbol}
 	for _, config := range configs {
-		health := regular
-		if config.Trigger {
-			if !hasTrigger {
-				return OrderSubscriptionHealthSnapshot{}, apperrors.ErrOrderSubscriptionNotFound
-			}
-			health = trigger
+		subscription, exists := health[config.Trigger]
+		if !exists {
+			return OrderSubscriptionHealthSnapshot{}, apperrors.ErrOrderSubscriptionNotFound
 		}
 		key := client.orderStreamAdapter.SubscriptionKey(config)
 		connections := streamConnectionsHealth(client.orderBaseExchange, key)
 		if len(connections) > 1 {
 			return OrderSubscriptionHealthSnapshot{}, apperrors.ErrAmbiguousOrderConnection
 		}
-		watcher := OrderWatcherHealthSnapshot{Subscription: health}
+		watcher := OrderWatcherHealthSnapshot{Subscription: subscription}
 		if len(connections) == 1 {
 			watcher.Connection = &connections[0]
 		}

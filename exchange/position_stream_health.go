@@ -24,6 +24,7 @@ type PositionSubscriptionHealth struct {
 // PositionSubscriptionHealthSnapshot contains the requested symbol's local watcher
 // record and its matching CCXT heartbeat. Subscription.Symbol is empty when the
 // symbol is covered by the all-positions watcher; its metrics are then account-wide.
+// Symbol itself is empty for an all-positions entry returned by PositionStreamHealth.
 type PositionSubscriptionHealthSnapshot struct {
 	Symbol       string
 	Subscription PositionSubscriptionHealth
@@ -31,28 +32,22 @@ type PositionSubscriptionHealthSnapshot struct {
 	Connection *StreamConnectionHealth
 }
 
-// PositionStreamHealthSnapshot separates watcher activity from socket heartbeat
-// timing. The slices are independent snapshots in unspecified order.
-type PositionStreamHealthSnapshot struct {
-	Subscriptions []PositionSubscriptionHealth
-	// Empty Connections means no socket health is available, not healthy sockets.
-	Connections []StreamConnectionHealth
-}
-
-// PositionStreamHealth reads local watcher state and existing CCXT heartbeats
-// without network requests. It is safe during stream activity and shutdown.
-// Failed watchers remain visible until resubscribed or unsubscribed. A closed
-// stream returns ErrPositionStreamNotRunning; no final snapshot is retained.
+// PositionStreamHealth returns one snapshot per retained position watcher in
+// unspecified order. Each contains local watcher state and its matching CCXT
+// heartbeat. An all-positions watcher is represented once with Symbol empty;
+// its current symbol exclusions still apply to delivery and per-symbol queries.
+// No requests or connections are made. Failed watchers remain until resubscribed
+// or unsubscribed. A closed stream returns ErrPositionStreamNotRunning.
 // Heartbeats do not prove authentication, subscription readiness, or delivery.
-func (client *Client) PositionStreamHealth() (PositionStreamHealthSnapshot, error) {
+func (client *Client) PositionStreamHealth() ([]PositionSubscriptionHealthSnapshot, error) {
 	if err := client.Validate(); err != nil {
-		return PositionStreamHealthSnapshot{}, err
+		return nil, err
 	}
 	client.positionMu.Lock()
 	stream := client.positionStream
 	client.positionMu.Unlock()
 	if stream == nil {
-		return PositionStreamHealthSnapshot{}, apperrors.ErrPositionStreamNotRunning
+		return nil, apperrors.ErrPositionStreamNotRunning
 	}
 
 	stream.mu.Lock()
@@ -63,12 +58,17 @@ func (client *Client) PositionStreamHealth() (PositionStreamHealthSnapshot, erro
 	closed := stream.closed
 	stream.mu.Unlock()
 	if closed {
-		return PositionStreamHealthSnapshot{}, apperrors.ErrPositionStreamNotRunning
+		return nil, apperrors.ErrPositionStreamNotRunning
 	}
-	return PositionStreamHealthSnapshot{
-		Subscriptions: health,
-		Connections:   streamConnectionsHealth(client.positionBaseExchange, ""),
-	}, nil
+	snapshots := make([]PositionSubscriptionHealthSnapshot, 0, len(health))
+	for _, subscription := range health {
+		snapshot, err := client.positionSubscriptionHealthSnapshot(subscription.Symbol, subscription)
+		if err != nil {
+			return nil, err
+		}
+		snapshots = append(snapshots, snapshot)
+	}
+	return snapshots, nil
 }
 
 // PositionSubscriptionHealth returns one symbol's watcher and matching CCXT socket
@@ -86,10 +86,6 @@ func (client *Client) PositionSubscriptionHealth(symbol string) (PositionSubscri
 	}
 	if symbol == "" {
 		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrNilSymbol
-	}
-	market, exists := client.markets[symbol]
-	if !exists || market.Swap == nil || !*market.Swap {
-		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
 	}
 	client.positionMu.Lock()
 	stream := client.positionStream
@@ -112,8 +108,18 @@ func (client *Client) PositionSubscriptionHealth(symbol string) (PositionSubscri
 	if !exists || excluded {
 		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrPositionSubscriptionNotFound
 	}
+	return client.positionSubscriptionHealthSnapshot(symbol, health)
+}
+
+// positionSubscriptionHealthSnapshot shares socket matching between individual
+// and full-stream queries. Empty symbol represents the all-positions scope.
+func (client *Client) positionSubscriptionHealthSnapshot(symbol string, health PositionSubscriptionHealth) (PositionSubscriptionHealthSnapshot, error) {
 	if client.positionStreamAdapter == nil {
 		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrUnsupportedProvider
+	}
+	market, exists := client.markets[symbol]
+	if symbol != "" && (!exists || market.Swap == nil || !*market.Swap) {
+		return PositionSubscriptionHealthSnapshot{}, apperrors.ErrInvalidSymbol
 	}
 	key := client.positionStreamAdapter.SubscriptionKey(health.Symbol, market)
 	if key == "" {
