@@ -93,6 +93,12 @@ func (adapter *BinanceFuturesAdapter) OCOParams(FuturesOrderRequest) (map[string
 	return nil, apperrors.ErrFuturesOCOUnsupported
 }
 
+// CancelOCOParams rejects linked futures OCO cancellation, matching the unsupported
+// creation flow. It does not attempt to cancel independent conditional orders.
+func (adapter *BinanceFuturesAdapter) CancelOCOParams() (map[string]any, error) {
+	return nil, apperrors.ErrFuturesOCOUnsupported
+}
+
 // ProtectionOrderParams selects Binance USD-M conditional algo orders.
 func (adapter *BinanceFuturesAdapter) ProtectionOrderParams() []map[string]any {
 	return []map[string]any{

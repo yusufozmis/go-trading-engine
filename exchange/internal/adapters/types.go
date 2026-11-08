@@ -66,6 +66,8 @@ type FuturesAdapter interface {
 	AttachTP(req FuturesOrderRequest) (map[string]any, error)
 	// OCOParams translates standalone TP/SL protection or rejects unsupported providers.
 	OCOParams(req FuturesOrderRequest) (map[string]any, error)
+	// CancelOCOParams selects standalone OCO cancellation or rejects unsupported providers.
+	CancelOCOParams() (map[string]any, error)
 	// ProtectionOrderParams selects the provider's active TP/SL order queries.
 	ProtectionOrderParams() []map[string]any
 }

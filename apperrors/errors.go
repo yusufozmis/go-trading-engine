@@ -187,14 +187,16 @@ var (
 	ErrRateLimitExceeded = errors.New("rate limit exceeded")
 	// ErrInvalidOrder indicates that the exchange rejected the submitted order parameters.
 	ErrInvalidOrder = errors.New("invalid order")
+	// ErrNilOrderID indicates that a required exchange order ID is empty.
+	ErrNilOrderID = errors.New("order id is empty")
 	// ErrInvalidTPSLBracket indicates that stop-loss and take-profit prices do
 	// not surround the requested futures entry price in the correct direction.
 	ErrInvalidTPSLBracket = errors.New("invalid futures tp/sl bracket")
 	// ErrAttachedTPSLUnsupported indicates that the provider cannot attach both
 	// protective orders to the futures entry in a single request.
 	ErrAttachedTPSLUnsupported = errors.New("attached futures tp/sl is unsupported by provider")
-	// ErrFuturesOCOUnsupported indicates that the provider cannot create a linked
-	// standalone TP/SL OCO order for a futures position.
+	// ErrFuturesOCOUnsupported indicates that the provider does not support this
+	// library's linked standalone futures TP/SL OCO creation or cancellation flow.
 	ErrFuturesOCOUnsupported = errors.New("futures oco is unsupported by provider")
 	// ErrPositionModeChangeRejected indicates that the exchange refused to
 	// change position mode, commonly because positions, orders, or bots are active.

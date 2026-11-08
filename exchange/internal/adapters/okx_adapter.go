@@ -109,6 +109,12 @@ func (adapter *OKXFuturesAdapter) OCOParams(req FuturesOrderRequest) (map[string
 	}, nil
 }
 
+// CancelOCOParams routes CCXT CancelOrder to OKX's cancel-algos endpoint, using
+// the OCO algo ID rather than a regular entry or execution order ID.
+func (adapter *OKXFuturesAdapter) CancelOCOParams() (map[string]any, error) {
+	return map[string]any{"trigger": true}, nil
+}
+
 // ProtectionOrderParams includes combined OCO and individual TP/SL orders.
 func (adapter *OKXFuturesAdapter) ProtectionOrderParams() []map[string]any {
 	return []map[string]any{

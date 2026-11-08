@@ -98,3 +98,56 @@ func (client *Client) CreateFuturesPositionOCO(
 	}
 	return OrderUpdate{}, apperrors.ErrPositionNotFound
 }
+
+// CancelFuturesPositionOCO requests cancellation of one existing futures OCO
+// protection order. Use the algo ID returned by CreateFuturesPositionOCO or the
+// corresponding trigger OrderUpdate.ID, not the position's entry/execution order ID.
+// This removes both linked protective legs, not the position itself. An already
+// triggered execution order is separate and is not canceled by this method.
+// Only OKX is supported; Binance returns ErrFuturesOCOUnsupported without sending
+// a request. No position/history fetch is performed. The returned OrderUpdate is
+// a cancellation acknowledgment with Trigger true; omitted fields remain empty,
+// and Status is not synthesized. Confirm final state through exchange updates.
+func (client *Client) CancelFuturesPositionOCO(symbol, orderID string) (OrderUpdate, error) {
+	if err := client.validateConfigured(); err != nil {
+		return OrderUpdate{}, err
+	}
+	if symbol == "" {
+		return OrderUpdate{}, apperrors.ErrNilSymbol
+	}
+	market, exists := client.markets[symbol]
+	if !exists || market.Swap == nil || !*market.Swap {
+		return OrderUpdate{}, apperrors.ErrInvalidSymbol
+	}
+	if orderID == "" {
+		return OrderUpdate{}, apperrors.ErrNilOrderID
+	}
+
+	client.futuresMu.Lock()
+	defer client.futuresMu.Unlock()
+	if client.futuresAdapter == nil {
+		return OrderUpdate{}, apperrors.ErrUnsupportedProvider
+	}
+	params, err := client.futuresAdapter.CancelOCOParams()
+	if err != nil {
+		return OrderUpdate{}, err
+	}
+	order, err := client.iExchange.CancelOrder(
+		orderID,
+		ccxt.WithCancelOrderSymbol(symbol),
+		ccxt.WithCancelOrderParams(params),
+	)
+	if err != nil {
+		return OrderUpdate{}, fmt.Errorf("cancel futures oco %q %q: %w", symbol, orderID, normalizeError(err))
+	}
+	// CCXT can represent a per-order rejection as a rejected Order without
+	// returning an error. Do not report such a cancellation as successful.
+	if order.Status != nil && *order.Status == "rejected" {
+		return OrderUpdate{}, fmt.Errorf("cancel futures oco %q %q: %w", symbol, orderID, apperrors.ErrOperationRejected)
+	}
+	if order.Id == nil || *order.Id != orderID {
+		return OrderUpdate{}, fmt.Errorf("cancel futures oco %q %q: %w", symbol, orderID,
+			ccxt.BadResponse("cancellation acknowledgment omitted or mismatched the algo ID"))
+	}
+	return wrapOrderUpdate(order, true), nil
+}
