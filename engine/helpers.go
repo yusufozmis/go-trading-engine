@@ -191,6 +191,9 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		position.OpenTimestamp <= 0 ||
 		position.CloseTimestamp != 0 ||
 		position.ExitPrice != 0 ||
+		math.IsNaN(position.MarkPrice) ||
+		math.IsInf(position.MarkPrice, 0) ||
+		position.MarkPrice < 0 ||
 		math.IsNaN(position.Fee) ||
 		math.IsInf(position.Fee, 0) ||
 		position.Fee < 0 ||

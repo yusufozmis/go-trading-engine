@@ -214,6 +214,8 @@ func applyPositionProtection(position *types.Position, order OrderUpdate) {
 // because they are strategy metadata rather than position-history data.
 // SlippageCost also remains zero because the exchange does not report the
 // strategy's expected price needed to calculate execution slippage.
+// MarkPrice is copied only when supplied in the history record; otherwise it
+// remains zero. Neither the exit price nor today's mark price is substituted.
 //
 // State remains UNSPECIFIED because a normal exchange history record does not
 // reliably reveal whether TP, SL, duration, or a manual action caused the close.
@@ -319,6 +321,9 @@ func (client *Client) FetchClosedPositions(symbol string, limit int64) ([]types.
 			State:          types.UNSPECIFIED,
 		}
 
+		if historicalPosition.MarkPrice != nil {
+			position.MarkPrice = *historicalPosition.MarkPrice
+		}
 		if historicalPosition.Leverage != nil &&
 			validPositiveNumber(*historicalPosition.Leverage) {
 			position.Leverage = *historicalPosition.Leverage

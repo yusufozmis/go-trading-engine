@@ -18,9 +18,10 @@ type Position struct {
 	Side PositionSide
 
 	EntryPrice float64
-	// MarkPrice is the exchange's current mark price at the time of the fetch,
-	// not necessarily the last traded price. It is a snapshot, not updated live,
-	// and remains zero when CCXT returns nil or no mark price has been supplied.
+	// MarkPrice is the exchange-reported mark price from the supplied snapshot,
+	// not necessarily the last traded price or execution price. It is not updated
+	// automatically by the engine and remains zero when unavailable, including
+	// when CCXT returns nil. Ordinary candle prices are not used as a substitute.
 	MarkPrice float64
 	// ExitPrice is zero while the position is open. For automated closes it is
 	// derived from the triggered TP or stop price; otherwise it is derived from
@@ -129,6 +130,9 @@ func (pos *Position) Validate() error {
 	}
 
 	if !validPositiveFloat(pos.EntryPrice) {
+		return apperrors.ErrInvalidPrice
+	}
+	if pos.MarkPrice != 0 && !validPositiveFloat(pos.MarkPrice) {
 		return apperrors.ErrInvalidPrice
 	}
 	if pos.StopLoss != 0 && !validPositiveFloat(pos.StopLoss) {
