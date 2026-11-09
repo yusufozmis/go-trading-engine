@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"strings"
@@ -69,11 +70,14 @@ type OrderUpdate struct {
 }
 
 type orderStream struct {
-	// The supervisor owns this public channel. Regular and trigger watchers
-	// forward results internally so neither can close another watcher's output.
+	// Only the supervisor publishes here. Cleanup closes the public channel
+	// after it exits; regular and trigger readers forward results internally.
 	updates chan OrderUpdate
 	// done stops the public stream and prevents further reconnect attempts.
 	done chan struct{}
+	// closeDone publishes closeErr once CCXT cleanup is complete and the publisher has stopped.
+	closeDone chan struct{}
+	closeErr  error
 
 	mu                  sync.Mutex
 	closed              bool
@@ -138,15 +142,6 @@ func (stream *orderStream) waitForRetry(delay time.Duration) bool {
 	}
 }
 
-func (stream *orderStream) stop() {
-	stream.closeOnce.Do(func() {
-		stream.mu.Lock()
-		stream.closed = true
-		stream.mu.Unlock()
-		close(stream.done)
-	})
-}
-
 // RunOrderStream starts private WebSocket watchers for the selected market.
 // Futures updates include conditional TP/SL orders when the provider publishes
 // them separately. Passing no symbols watches every order in the selected market.
@@ -197,6 +192,7 @@ func (client *Client) RunOrderStream(
 	stream := &orderStream{
 		updates:             make(chan OrderUpdate, 100),
 		done:                make(chan struct{}),
+		closeDone:           make(chan struct{}),
 		marketType:          marketType,
 		watchAllSymbols:     len(symbols) == 0,
 		symbolSubscriptions: symbolSubscriptions,
@@ -281,45 +277,76 @@ func (client *Client) validateOrderStreamSymbol(symbol string) (*orderStream, er
 	return stream, nil
 }
 
-// CloseOrderStream stops private order watchers without closing position,
-// candle, or order-submission connections.
-// WebSocket cleanup runs in the background; this method waits only for the
-// supervisor to stop publishing and close the output channel.
+// CloseOrderStream starts private order stream shutdown and waits up to ten
+// seconds for CCXT cleanup and the publishing supervisor to stop. Other streams
+// and order submission are unaffected. ErrStreamCloseTimeout does not cancel
+// stuck CCXT calls: cleanup continues in the background, and the public channel
+// closes only after its publisher stops. Repeated closes share the same cleanup.
+// Until cleanup finishes, use an independent client or Clone for recovery;
+// normal completion allows a new order stream on this client.
 func (client *Client) CloseOrderStream() error {
 	if err := client.Validate(); err != nil {
 		return err
 	}
 	client.orderMu.Lock()
 	stream := client.orderStream
+	orderExchange := client.orderExchange
 	client.orderMu.Unlock()
 	if stream == nil {
 		return apperrors.ErrOrderStreamNotRunning
 	}
 
-	// The supervisor closes the public channel; CCXT socket cleanup continues
-	// separately, so a stuck Close call does not block this wait.
-	stream.stop()
-	stream.wg.Wait()
-	return nil
+	client.closeOrderStream(stream, orderExchange)
+	timer := time.NewTimer(streamCloseTimeout)
+	defer timer.Stop()
+	select {
+	case <-stream.closeDone:
+		return stream.closeErr
+	case <-timer.C:
+		return apperrors.ErrStreamCloseTimeout
+	}
 }
 
-// superviseOrderStream owns the public update channel and restarts all provider
+// closeOrderStream starts one cleanup shared by explicit shutdown and terminal
+// supervisor exits. It never waits on the supervisor that may be calling it.
+func (client *Client) closeOrderStream(stream *orderStream, orderExchange ccxt.IExchange) {
+	stream.closeOnce.Do(func() {
+		stream.mu.Lock()
+		stream.closed = true
+		stream.watchAllSymbols = false
+		clear(stream.symbolSubscriptions)
+		clear(stream.health)
+		stream.mu.Unlock()
+		close(stream.done)
+
+		go func() {
+			var errs []error
+			for _, err := range orderExchange.Close() {
+				errs = append(errs, normalizeError(err))
+			}
+			// CCXT readers send internally; only the supervisor sends to updates.
+			stream.wg.Wait()
+			close(stream.updates)
+			client.orderMu.Lock()
+			if client.orderStream == stream {
+				client.orderStream = nil
+			}
+			client.orderMu.Unlock()
+			stream.closeErr = errors.Join(errs...)
+			close(stream.closeDone)
+		}()
+	})
+}
+
+// superviseOrderStream publishes public updates and restarts all provider
 // order watchers together when a retryable WebSocket failure survives backoff.
 func (client *Client) superviseOrderStream(
 	stream *orderStream,
 	orderExchange ccxt.IExchange,
 	watcherConfigs []adapters.OrderWatcherConfig,
 ) {
-	// Watchers never publish directly to updates. This remains safe even if an
-	// old CCXT call returns after the supervisor has closed the public channel.
-	defer close(stream.updates)
-	defer func() {
-		client.orderMu.Lock()
-		if client.orderStream == stream {
-			client.orderStream = nil
-		}
-		client.orderMu.Unlock()
-	}()
+	// Schedule cleanup without waiting here: wg includes this supervisor.
+	defer client.closeOrderStream(stream, orderExchange)
 
 	waitingForRestartUpdate := false
 	for {
@@ -346,7 +373,6 @@ func (client *Client) superviseOrderStream(
 			case <-stream.done:
 				// Public shutdown cancels every subscription in the watcher group.
 				close(generationDone)
-				closeExchangeAsync(orderExchange)
 				return
 
 			case event := <-events:
@@ -357,7 +383,6 @@ func (client *Client) superviseOrderStream(
 					}
 					if event.update != nil && !stream.emit(*event.update) {
 						close(generationDone)
-						closeExchangeAsync(orderExchange)
 						return
 					}
 					continue
@@ -368,7 +393,6 @@ func (client *Client) superviseOrderStream(
 				close(generationDone)
 				if !isRetryableWatchError(event.err) {
 					log.Printf("order stream: terminal error (trigger=%t): %v", event.trigger, normalizeError(event.err))
-					closeExchangeAsync(orderExchange)
 					stream.emit(OrderUpdate{
 						Trigger: event.trigger,
 						Err:     normalizeError(event.err),

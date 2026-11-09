@@ -41,5 +41,5 @@ func normalizeError(err error) error {
 		return err
 	}
 
-	return normalized
+	return stderrors.Join(normalized, err)
 }

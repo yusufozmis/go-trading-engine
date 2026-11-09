@@ -1,6 +1,7 @@
 package exchange
 
 import (
+	"errors"
 	"fmt"
 	"log"
 	"math"
@@ -49,6 +50,9 @@ type positionStream struct {
 	updates chan PositionUpdate
 	// done stops the entire public stream, including every subscription.
 	done chan struct{}
+	// closeDone publishes closeErr after CCXT cleanup and all publishers finish.
+	closeDone chan struct{}
+	closeErr  error
 
 	mu     sync.Mutex
 	closed bool
@@ -138,20 +142,6 @@ func (stream *positionStream) waitForRetry(delay time.Duration, subscriptionDone
 	}
 }
 
-func (stream *positionStream) stop() {
-	stream.closeOnce.Do(func() {
-		stream.mu.Lock()
-		stream.closed = true
-		for _, done := range stream.subscriptions {
-			close(done)
-		}
-		clear(stream.subscriptions)
-		clear(stream.excludedSymbols)
-		stream.mu.Unlock()
-		close(stream.done)
-	})
-}
-
 // RunPositionStream starts private WebSocket watchers for the requested
 // futures symbols. The returned channel receives the initial provider snapshot
 // when available and later updates from active subscriptions until
@@ -180,6 +170,7 @@ func (client *Client) RunPositionStream(symbols ...string) (<-chan PositionUpdat
 	stream := &positionStream{
 		updates:         make(chan PositionUpdate, 100),
 		done:            make(chan struct{}),
+		closeDone:       make(chan struct{}),
 		subscriptions:   make(map[string]chan struct{}),
 		excludedSymbols: make(map[string]bool),
 		health:          make(map[string]PositionSubscriptionHealth),
@@ -204,7 +195,14 @@ func (client *Client) SubscribePositionStream(symbols ...string) error {
 	if client.positionStream == nil {
 		return apperrors.ErrPositionStreamNotRunning
 	}
-	client.subscribePositionStream(client.positionStream, symbols)
+	stream := client.positionStream
+	stream.mu.Lock()
+	closed := stream.closed
+	stream.mu.Unlock()
+	if closed {
+		return apperrors.ErrPositionStreamNotRunning
+	}
+	client.subscribePositionStream(stream, symbols)
 	return nil
 }
 
@@ -302,29 +300,64 @@ func (client *Client) validatePositionStreamSymbols(symbols []string) error {
 	return nil
 }
 
-// ClosePositionStream stops the private position watcher without closing the
-// main exchange client or the candle stream.
-// WebSocket cleanup runs in the background; this method waits only for the
-// supervisor to stop publishing and close the output channel.
+// ClosePositionStream starts private position stream shutdown and waits up to
+// ten seconds for CCXT cleanup and the publishing supervisors to stop. The main
+// client and other streams are unaffected. ErrStreamCloseTimeout does not cancel
+// stuck CCXT calls: cleanup continues in the background, and the public channel
+// closes only after its publishers stop. Repeated closes share the same cleanup.
+// Until cleanup finishes, use an independent client or Clone for recovery;
+// normal completion allows a new position stream on this client.
 func (client *Client) ClosePositionStream() error {
 	if err := client.Validate(); err != nil {
 		return err
 	}
 	client.positionMu.Lock()
-	defer client.positionMu.Unlock()
 	stream := client.positionStream
 	if stream == nil {
+		client.positionMu.Unlock()
 		return apperrors.ErrPositionStreamNotRunning
 	}
 
-	// Supervisors, not blocked CCXT watchers, own publication. Cancellation
-	// releases every supervisor before the output channel is closed.
-	stream.stop()
-	closeExchangeAsync(client.positionExchange)
-	stream.wg.Wait()
-	close(stream.updates)
-	client.positionStream = nil
-	return nil
+	positionExchange := client.positionExchange
+	stream.closeOnce.Do(func() {
+		stream.mu.Lock()
+		stream.closed = true
+		for _, done := range stream.subscriptions {
+			close(done)
+		}
+		clear(stream.subscriptions)
+		clear(stream.excludedSymbols)
+		clear(stream.health)
+		stream.mu.Unlock()
+		close(stream.done)
+
+		go func() {
+			var errs []error
+			for _, err := range positionExchange.Close() {
+				errs = append(errs, normalizeError(err))
+			}
+			// Only supervisors publish to updates; late CCXT results are discarded.
+			stream.wg.Wait()
+			close(stream.updates)
+			client.positionMu.Lock()
+			if client.positionStream == stream {
+				client.positionStream = nil
+			}
+			client.positionMu.Unlock()
+			stream.closeErr = errors.Join(errs...)
+			close(stream.closeDone)
+		}()
+	})
+	client.positionMu.Unlock()
+
+	timer := time.NewTimer(streamCloseTimeout)
+	defer timer.Stop()
+	select {
+	case <-stream.closeDone:
+		return stream.closeErr
+	case <-timer.C:
+		return apperrors.ErrStreamCloseTimeout
+	}
 }
 
 // supervisePositionStream forwards one subscription until it is removed or

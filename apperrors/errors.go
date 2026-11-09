@@ -74,6 +74,9 @@ var (
 	ErrStreamAlreadyExists = errors.New("there is already a stream running")
 	// ErrStreamNotRunning indicates that the client has no running candle stream.
 	ErrStreamNotRunning = errors.New("exchange: candle stream is not running")
+	// ErrStreamCloseTimeout indicates that stream cleanup did not finish
+	// within the wait limit. Cleanup continues in the background.
+	ErrStreamCloseTimeout = errors.New("exchange: stream close timed out")
 	// ErrCandleSubscriptionNotFound indicates that no health record exists for
 	// the requested symbol/timeframe, including after successful unsubscribe.
 	ErrCandleSubscriptionNotFound = errors.New("exchange: candle subscription not found")

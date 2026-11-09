@@ -39,7 +39,8 @@ type Client struct {
 	stream         *candleStream
 	positionStream *positionStream
 	orderStream    *orderStream
-	// candleMu protects the active stream pointer during health queries.
+	// candleMu protects the active candle stream pointer during health queries,
+	// lifecycle calls, and asynchronous cleanup.
 	candleMu   sync.Mutex
 	positionMu sync.Mutex
 	orderMu    sync.Mutex

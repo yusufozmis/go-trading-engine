@@ -40,6 +40,8 @@ const (
 	// Retry transient watcher failures with 1s, 2s, and 4s waits.
 	maxWatchRetries    = 3
 	watchRetryBaseWait = time.Second
+	// Bound the caller's wait without interrupting background cleanup.
+	streamCloseTimeout = 10 * time.Second
 )
 
 // CandleUpdate carries either a candle or an asynchronous watcher error.
@@ -98,6 +100,8 @@ type candleStream struct {
 	// UnWatchOHLCV may stop WatchOHLCV, but it does nothing for a goroutine already stuck on:
 	//     s.stream <- candle
 	done chan struct{}
+	// closeDone publishes closeErr after exchange cleanup and all watchers finish.
+	closeDone chan struct{}
 }
 
 func newSubKey(symbol, timeframe string) subKey {
@@ -201,7 +205,10 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 		return nil, err
 	}
 
-	if s.stream != nil {
+	s.candleMu.Lock()
+	hasStream := s.stream != nil
+	s.candleMu.Unlock()
+	if hasStream {
 		return nil, apperrors.ErrStreamAlreadyExists
 	}
 
@@ -241,6 +248,7 @@ func (s *Client) RunCandleStream(symbols, timeframes []string, mode StreamMode) 
 		activeSymbols: make(map[subKey]uint64),
 		health:        make(map[subKey]CandleSubscriptionHealth),
 		done:          make(chan struct{}),
+		closeDone:     make(chan struct{}),
 	}
 	s.candleMu.Unlock()
 
@@ -275,33 +283,36 @@ func (s *Client) Subscribe(symbol, timeframe string) error {
 		return apperrors.ErrInvalidSymbol
 	}
 
-	if s.stream == nil {
+	s.candleMu.Lock()
+	stream := s.stream
+	s.candleMu.Unlock()
+	if stream == nil {
 		return apperrors.ErrStreamNotRunning
 	}
 
 	key := newSubKey(symbol, timeframe)
 
-	s.stream.mu.Lock()
-	if s.stream.closed {
-		s.stream.mu.Unlock()
-		return nil
+	stream.mu.Lock()
+	if stream.closed {
+		stream.mu.Unlock()
+		return apperrors.ErrStreamNotRunning
 	}
-	if _, ok := s.stream.activeSymbols[key]; ok {
-		s.stream.mu.Unlock()
+	if _, ok := stream.activeSymbols[key]; ok {
+		stream.mu.Unlock()
 		return nil
 	}
 
-	s.stream.nextToken++
-	token := s.stream.nextToken
-	s.stream.activeSymbols[key] = token
-	s.stream.health[key] = CandleSubscriptionHealth{
+	stream.nextToken++
+	token := stream.nextToken
+	stream.activeSymbols[key] = token
+	stream.health[key] = CandleSubscriptionHealth{
 		Symbol: symbol, Timeframe: timeframe, Status: StreamStarting,
 	}
-	s.stream.wg.Add(1)
-	s.stream.mu.Unlock()
+	stream.wg.Add(1)
+	stream.mu.Unlock()
 
 	go func() {
-		defer s.stream.wg.Done()
+		defer stream.wg.Done()
 		s.watch(key, token)
 	}()
 
@@ -325,17 +336,20 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 		return apperrors.ErrNilTimeframe
 	}
 
-	if s.stream == nil {
+	s.candleMu.Lock()
+	stream := s.stream
+	s.candleMu.Unlock()
+	if stream == nil {
 		return apperrors.ErrStreamNotRunning
 	}
 
 	key := newSubKey(symbol, timeframe)
 
-	s.stream.mu.Lock()
-	defer s.stream.mu.Unlock()
+	stream.mu.Lock()
+	defer stream.mu.Unlock()
 
-	if _, ok := s.stream.activeSymbols[key]; !ok {
-		delete(s.stream.health, key)
+	if _, ok := stream.activeSymbols[key]; !ok {
+		delete(stream.health, key)
 		return nil
 	}
 
@@ -350,8 +364,8 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 		return normalizeError(err)
 	}
 
-	delete(s.stream.activeSymbols, key)
-	delete(s.stream.health, key)
+	delete(stream.activeSymbols, key)
+	delete(stream.health, key)
 	if s.candleStreamAdapter != nil && s.streamBaseExchange != nil {
 		interval, ok := s.streamExchange.GetTimeframes()[timeframe].(string)
 		if !ok {
@@ -365,53 +379,63 @@ func (s *Client) Unsubscribe(symbol, timeframe string) error {
 	return nil
 }
 
-// CloseCandleStream shuts down the running candle stream and detaches it from the client.
-// Order matters:
-// 1. mark the stream closed and clear active subscriptions
-// 2. close done so blocked senders can stop
-// 3. close the dedicated stream exchange so pending WatchOHLCV calls return
-// 4. wait for watcher goroutines
-// 5. only then close s.stream
-//
-// The channel must be closed last; closing it earlier risks "send on closed channel".
+// CloseCandleStream starts candle stream shutdown and waits up to ten seconds
+// for cleanup. ErrStreamCloseTimeout bounds the caller's wait; it does not
+// cancel a stuck CCXT call. Cleanup continues and closes the public channel only
+// after all watchers exit. REST, order, and position operations are unaffected.
+// The same client cannot start a new candle stream until cleanup finishes;
+// after a timeout, use an independent client or Clone for immediate recovery.
+// Repeated closes while cleanup is pending wait for the same cleanup operation.
+// Normal completion detaches the stream and permits reopening on this client.
 func (s *Client) CloseCandleStream() error {
 	if err := s.Validate(); err != nil {
 		return err
 	}
 
-	if s.stream == nil {
+	s.candleMu.Lock()
+	stream := s.stream
+	s.candleMu.Unlock()
+	if stream == nil {
 		return apperrors.ErrStreamNotRunning
 	}
-
-	stream := s.stream
 
 	stream.closeOnce.Do(func() {
 		stream.mu.Lock()
 		stream.closed = true
 		clear(stream.activeSymbols)
+		clear(stream.health)
 		stream.mu.Unlock()
 
 		close(stream.done)
 
-		var errs []error
-		// This closes only the CCXT instance dedicated to candle streaming. REST,
-		// account, and order operations continue through the main exchange instance.
-		for _, err := range s.streamExchange.Close() {
-			errs = append(errs, normalizeError(err))
-		}
+		go func() {
+			var errs []error
+			for _, err := range s.streamExchange.Close() {
+				errs = append(errs, normalizeError(err))
+			}
 
-		stream.wg.Wait()
-		close(stream.stream)
-		s.candleMu.Lock()
-		s.stream = nil
-		s.candleMu.Unlock()
+			// A timed-out watcher may still send; never close the channel early.
+			stream.wg.Wait()
+			close(stream.stream)
+			s.candleMu.Lock()
+			if s.stream == stream {
+				s.stream = nil
+			}
+			s.candleMu.Unlock()
 
-		if len(errs) > 0 {
 			stream.closeErr = errors.Join(errs...)
-		}
+			close(stream.closeDone)
+		}()
 	})
 
-	return stream.closeErr
+	timer := time.NewTimer(streamCloseTimeout)
+	defer timer.Stop()
+	select {
+	case <-stream.closeDone:
+		return stream.closeErr
+	case <-timer.C:
+		return apperrors.ErrStreamCloseTimeout
+	}
 }
 
 // watch belongs to one symbol/timeframe pair and one token only.
