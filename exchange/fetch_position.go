@@ -247,6 +247,8 @@ func (client *Client) FetchClosedPositions(symbol string, limit int64) ([]types.
 
 	history, err := client.iExchange.FetchPositionsHistory(
 		ccxt.WithFetchPositionsHistorySymbols([]string{symbol}),
+		// A non-nil since avoids CCXT's unsafe slicing of short descending pages.
+		ccxt.WithFetchPositionsHistorySince(1),
 		ccxt.WithFetchPositionsHistoryLimit(limit),
 	)
 	if err != nil {
