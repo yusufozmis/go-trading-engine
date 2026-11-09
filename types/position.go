@@ -18,6 +18,10 @@ type Position struct {
 	Side PositionSide
 
 	EntryPrice float64
+	// MarkPrice is the exchange's current mark price at the time of the fetch,
+	// not necessarily the last traded price. It is a snapshot, not updated live,
+	// and remains zero when CCXT returns nil or no mark price has been supplied.
+	MarkPrice float64
 	// ExitPrice is zero while the position is open. For automated closes it is
 	// derived from the triggered TP or stop price; otherwise it is derived from
 	// the candle close. Configured slippage is included in the simulated fill.
