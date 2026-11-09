@@ -13,6 +13,8 @@ import (
 // FetchPositions returns open long and short linear futures positions for the
 // requested symbols. Calling it without symbols returns all open positions.
 // MarkPrice is copied from the exchange snapshot, or left zero if CCXT omits it.
+// LastUpdateTimestamp is the exchange's last position update time in Unix
+// milliseconds, or zero if CCXT omits it. No additional request is made for it.
 // Hedge mode may return two positions for one symbol. Amounts are converted
 // from exchange contracts to base-asset units. Timeframe is left empty because
 // it is strategy state rather than exchange position data; callers must set it
@@ -123,6 +125,9 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 			return nil, apperrors.ErrInvalidAmount
 		}
 
+		if position.LastUpdateTimestamp != nil {
+			wrapped.LastUpdateTimestamp = int64(*position.LastUpdateTimestamp)
+		}
 		if position.MarkPrice != nil {
 			wrapped.MarkPrice = *position.MarkPrice
 		}

@@ -14,6 +14,9 @@ type Position struct {
 	OpenTimestamp int64
 	// CloseTimestamp is the position's close Unix timestamp in milliseconds.
 	CloseTimestamp int64
+	// LastUpdateTimestamp is the exchange-reported last position update time in
+	// Unix milliseconds. It is zero when unavailable and is not updated by the engine.
+	LastUpdateTimestamp int64
 
 	Side PositionSide
 
