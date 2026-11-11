@@ -172,6 +172,13 @@ func isRetryableWatchError(err error) bool {
 		return false
 	}
 
+	// CCXT can flatten a WebSocket handshake failure into a generic Exception.
+	// Retry only this specific message within the existing bounded retry budget.
+	if exchangeErr.Type == ccxt.ErrorType("Exception") &&
+		strings.Contains(exchangeErr.Message, "websocket: bad handshake") {
+		return true
+	}
+
 	// CCXT sometimes wraps a failed DNS dial in a generic Exception instead of
 	// NetworkError. A lookup timeout is still a transient connection failure.
 	if exchangeErr.Type == ccxt.ErrorType("Exception") &&
