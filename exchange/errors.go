@@ -33,6 +33,10 @@ func normalizeError(err error) error {
 		normalized = apperrors.ErrPermissionDenied
 	case ccxt.RateLimitExceededErrType:
 		normalized = apperrors.ErrRateLimitExceeded
+	case ccxt.OnMaintenanceErrType:
+		normalized = apperrors.ErrOnMaintenance
+	case ccxt.RequestTimeoutErrType:
+		normalized = apperrors.ErrRequestTimeout
 	case ccxt.BadSymbolErrType:
 		normalized = apperrors.ErrInvalidSymbol
 	case ccxt.InvalidOrderErrType:

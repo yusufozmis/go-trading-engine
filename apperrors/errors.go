@@ -188,6 +188,10 @@ var (
 	ErrPermissionDenied = errors.New("permission denied")
 	// ErrRateLimitExceeded indicates that the exchange rejected a request due to its rate limit.
 	ErrRateLimitExceeded = errors.New("rate limit exceeded")
+	// ErrOnMaintenance indicates that the exchange is temporarily unavailable for maintenance.
+	ErrOnMaintenance = errors.New("exchange is under maintenance")
+	// ErrRequestTimeout indicates that an exchange request timed out; its outcome may be unknown.
+	ErrRequestTimeout = errors.New("exchange request timed out")
 	// ErrInvalidOrder indicates that the exchange rejected the submitted order parameters.
 	ErrInvalidOrder = errors.New("invalid order")
 	// ErrNilOrderID indicates that a required exchange order ID is empty.
