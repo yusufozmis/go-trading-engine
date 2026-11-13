@@ -197,6 +197,8 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		math.IsNaN(position.Fee) ||
 		math.IsInf(position.Fee, 0) ||
 		position.Fee < 0 ||
+		math.IsNaN(position.FundingFee) ||
+		math.IsInf(position.FundingFee, 0) ||
 		math.IsNaN(position.SlippageCost) ||
 		math.IsInf(position.SlippageCost, 0) ||
 		position.SlippageCost < 0 ||

@@ -160,7 +160,9 @@ func NewEngineWithPreloadedPositions(
 
 		positionCopy := position
 		eng.positions[position.Side] = &positionCopy
-		if position.PartialTakeProfitExecuted || position.Fee != 0 || position.NetProfit != 0 ||
+		// This only tracks existing realized cash flows for Performance; it does
+		// not require funding. Zero funding needs no accounting snapshot by itself.
+		if position.PartialTakeProfitExecuted || position.Fee != 0 || position.FundingFee != 0 || position.NetProfit != 0 ||
 			position.PartialTakeProfitCount > 0 || position.PartialLoseCount > 0 {
 			eng.partiallyRealizedPositions[position.Side] = positionCopy
 		}

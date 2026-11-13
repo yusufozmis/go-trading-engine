@@ -9,7 +9,9 @@ import (
 )
 
 // Performance calculates gross profit and loss from confirmed closes and
-// realized reductions. The returned positions contain only complete closes.
+// realized reductions, then includes signed settled funding in the net result.
+// The returned positions contain only complete closes; each retains FundingFee
+// separately from its trading NetProfit.
 func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
 		return types.PerformanceResult{}, nil
@@ -63,11 +65,12 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 		}
 
 		result.TradingFees += position.Fee
-		result.NetProfit += position.NetProfit
+		result.FundingFees += position.FundingFee
+		result.NetProfit += position.NetProfit + position.FundingFee
 	}
 
-	// These snapshots contribute only the realized partial accounting of
-	// positions that remain open, so they do not affect close-reason counts.
+	// These snapshots contribute realized reductions and settled funding from
+	// positions that remain open, without affecting close-reason counts.
 	for _, position := range partiallyRealizedPositions {
 		result.PartialTakeProfitCount += position.PartialTakeProfitCount
 		result.PartialLoseCount += position.PartialLoseCount
@@ -79,7 +82,8 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 		}
 
 		result.TradingFees += position.Fee
-		result.NetProfit += position.NetProfit
+		result.FundingFees += position.FundingFee
+		result.NetProfit += position.NetProfit + position.FundingFee
 	}
 
 	return result, positions

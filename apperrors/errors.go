@@ -121,6 +121,8 @@ var (
 	ErrInvalidLiquidationFeeRate = errors.New("invalid liquidation fee rate")
 	// ErrInvalidFee indicates a negative or non-finite position fee.
 	ErrInvalidFee = errors.New("invalid position fee")
+	// ErrInvalidFundingFee indicates a non-finite funding cash flow. Both signs are valid.
+	ErrInvalidFundingFee = errors.New("invalid position funding fee")
 	// ErrInvalidNetProfit indicates a non-finite position net profit.
 	ErrInvalidNetProfit = errors.New("invalid position net profit")
 

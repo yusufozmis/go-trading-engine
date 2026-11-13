@@ -15,6 +15,8 @@ import (
 // MarkPrice is copied from the exchange snapshot, or left zero if CCXT omits it.
 // LastUpdateTimestamp is the exchange's last position update time in Unix
 // milliseconds, or zero if CCXT omits it. No additional request is made for it.
+// FundingFee preserves the signed accumulated funding reported by the provider
+// (OKX fundingFee); it remains zero when omitted. No funding history is fetched.
 // Hedge mode may return two positions for one symbol. Amounts are converted
 // from exchange contracts to base-asset units. Timeframe is left empty because
 // it is strategy state rather than exchange position data; callers must set it
@@ -131,6 +133,13 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 		if position.MarkPrice != nil {
 			wrapped.MarkPrice = *position.MarkPrice
 		}
+		if raw := position.Info["fundingFee"]; raw != nil && raw != "" {
+			fundingFee, ok := historyNumber(position.Info, "fundingFee")
+			if !ok || math.IsNaN(fundingFee) || math.IsInf(fundingFee, 0) {
+				return nil, fmt.Errorf("fetch positions %q: %w", symbol, apperrors.ErrInvalidFundingFee)
+			}
+			wrapped.FundingFee = fundingFee
+		}
 		if position.StopLossPrice != nil && validPositiveNumber(*position.StopLossPrice) {
 			wrapped.StopLoss = *position.StopLossPrice
 		}
@@ -221,6 +230,10 @@ func applyPositionProtection(position *types.Position, order OrderUpdate) {
 // strategy's expected price needed to calculate execution slippage.
 // MarkPrice is copied only when supplied in the history record; otherwise it
 // remains zero. Neither the exit price nor today's mark price is substituted.
+// FundingFee is optional: missing, nil, empty, and zero values remain zero
+// without an error. It preserves signed accumulated funding when reported.
+// OKX's realized PnL already includes funding, so it is separated out of NetProfit; add
+// NetProfit + FundingFee to recover the provider's full realized result.
 //
 // State remains UNSPECIFIED because a normal exchange history record does not
 // reliably reveal whether TP, SL, duration, or a manual action caused the close.
@@ -335,8 +348,18 @@ func (client *Client) FetchClosedPositions(symbol string, limit int64) ([]types.
 			validPositiveNumber(*historicalPosition.Leverage) {
 			position.Leverage = *historicalPosition.Leverage
 		}
+		// Default optional fees to zero; overwrite only when supplied.
+		position.Fee = 0
+		position.FundingFee = 0
 		if fee, ok := historyNumber(historicalPosition.Info, "fee"); ok {
 			position.Fee = math.Abs(fee)
+		}
+		if raw := historicalPosition.Info["fundingFee"]; raw != nil && raw != "" {
+			fundingFee, ok := historyNumber(historicalPosition.Info, "fundingFee")
+			if !ok || math.IsNaN(fundingFee) || math.IsInf(fundingFee, 0) {
+				return nil, fmt.Errorf("fetch closed positions %q: %w", symbol, apperrors.ErrInvalidFundingFee)
+			}
+			position.FundingFee = fundingFee
 		}
 		if historicalPosition.RealizedPnl != nil {
 			if math.IsNaN(*historicalPosition.RealizedPnl) ||
@@ -347,7 +370,11 @@ func (client *Client) FetchClosedPositions(symbol string, limit int64) ([]types.
 					apperrors.ErrInvalidNetProfit,
 				)
 			}
-			position.NetProfit = *historicalPosition.RealizedPnl
+			// Keep trading PnL separate; Performance adds signed funding once.
+			position.NetProfit = *historicalPosition.RealizedPnl - position.FundingFee
+			if math.IsNaN(position.NetProfit) || math.IsInf(position.NetProfit, 0) {
+				return nil, fmt.Errorf("fetch closed positions %q: %w", symbol, apperrors.ErrInvalidNetProfit)
+			}
 		}
 
 		positions = append(positions, position)

@@ -229,6 +229,9 @@ func (eng *Engine) applyProfitLockStop(position *types.Position, candle types.Ca
 // closed. It rejects actions that no longer match the tracked open position.
 // External manual closes may use ClosedManually with the actual exit price
 // and close timestamp while preserving the tracked position's other fields.
+// FundingFee may contain the latest cumulative exchange funding snapshot. It is
+// stored separately from trading NetProfit and included by Performance, not
+// applied to exit prices or allocated again to the final remaining amount.
 func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 	if err := eng.Validate(); err != nil {
 		return err

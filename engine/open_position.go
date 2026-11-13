@@ -214,7 +214,9 @@ func (eng *Engine) SetPosition(position types.Position) (bool, error) {
 	}
 
 	eng.positions[position.Side] = &position
-	if position.PartialTakeProfitExecuted || position.Fee != 0 || position.NetProfit != 0 ||
+	// Funding is not required at entry. Only existing nonzero cash flows need
+	// an open-position accounting snapshot for Performance.
+	if position.PartialTakeProfitExecuted || position.Fee != 0 || position.FundingFee != 0 || position.NetProfit != 0 ||
 		position.PartialTakeProfitCount > 0 || position.PartialLoseCount > 0 {
 		eng.realizedMu.Lock()
 		eng.partiallyRealizedPositions[position.Side] = position

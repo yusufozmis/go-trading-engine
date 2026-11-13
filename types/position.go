@@ -58,14 +58,23 @@ type Position struct {
 
 	// Fee is the cumulative fee allocated to realized reductions and the final
 	// close. It may be non-zero while a partially reduced position remains open.
+	// It is optional: an omitted or zero value is valid.
 	Fee float64
+	// FundingFee is the cumulative settled funding cash flow in quote currency:
+	// positive means received, negative means paid. It is optional: leave it zero
+	// when opening a new position, for spot positions, or when funding is unavailable.
+	// Both zero and an omitted value are valid; funding need not be known at entry.
+	// It is kept separate from NetProfit and added once by Engine.Performance.
+	// The engine does not simulate funding settlements or change TP/SL for it.
+	FundingFee float64
 	// SlippageCost is the total adverse entry and exit price difference expressed
 	// in quote currency. It is informational because slippage is already included
 	// in EntryPrice, ExitPrice, and NetProfit.
 	SlippageCost float64
 
-	// NetProfit is cumulative signed realized PnL after fees. It may be non-zero
-	// while a partially reduced position remains open.
+	// NetProfit is cumulative signed realized PnL after trading fees, excluding
+	// FundingFee. It may be non-zero while a partially reduced position remains
+	// open. Add FundingFee to obtain the net result including settled funding.
 	NetProfit float64
 
 	State PositionState
@@ -151,8 +160,12 @@ func (pos *Position) Validate() error {
 	if err := validateLiquidationFields(*pos); err != nil {
 		return err
 	}
+	// Zero fees are valid. IsInf(value, 0) tests both signs of infinity, not zero.
 	if math.IsNaN(pos.Fee) || math.IsInf(pos.Fee, 0) || pos.Fee < 0 {
 		return apperrors.ErrInvalidFee
+	}
+	if math.IsNaN(pos.FundingFee) || math.IsInf(pos.FundingFee, 0) {
+		return apperrors.ErrInvalidFundingFee
 	}
 	if math.IsNaN(pos.SlippageCost) || math.IsInf(pos.SlippageCost, 0) ||
 		pos.SlippageCost < 0 {
@@ -244,14 +257,16 @@ type PerformanceResult struct {
 	// Break-even reductions increment neither counter.
 	PartialLoseCount int
 
-	// Profit is the total positive gross PnL before trading fees.
+	// Profit is the total positive gross PnL before trading fees and funding.
 	Profit float64
-	// Loss is the absolute total negative gross PnL before trading fees.
+	// Loss is the absolute total negative gross PnL before trading fees and funding.
 	Loss float64
 
 	// TradingFees is the total entry and exit fees across complete closes and
 	// partial reductions.
 	TradingFees float64
-	// NetProfit is the signed realized PnL after trading fees.
+	// FundingFees is the signed total settled funding: positive received, negative paid.
+	FundingFees float64
+	// NetProfit is Profit - Loss - TradingFees + FundingFees.
 	NetProfit float64
 }

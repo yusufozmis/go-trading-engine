@@ -134,6 +134,16 @@ Each confirmed reduction with positive net PnL after fees increments
 Break-even reductions increment neither. These counts are independent of the
 partial-TP option's one-shot flag.
 
+`Position.FundingFee` is cumulative settled funding in quote currency: positive
+means received, negative means paid, and zero means none or unavailable.
+`Position.NetProfit` excludes funding; the full net result is
+`NetProfit + FundingFee`. `Engine.Performance` includes funding once in its
+`NetProfit` and reports the signed total separately as `FundingFees`.
+TP/SL prices are unchanged, and the engine does not simulate funding settlements.
+`FetchPositions` reads funding from the provider response when available without
+fetching funding history. `FetchClosedPositions` separates reported funding from
+OKX's funding-inclusive realized PnL to preserve the same accounting convention.
+
 ## Exchange Setup
 
 Constructors load current market metadata and may therefore return an exchange or
