@@ -3,7 +3,6 @@ package exchange
 import (
 	"errors"
 	"fmt"
-	"log"
 	"strings"
 	"sync"
 	"time"
@@ -348,7 +347,6 @@ func (client *Client) superviseOrderStream(
 	// Schedule cleanup without waiting here: wg includes this supervisor.
 	defer client.closeOrderStream(stream, orderExchange)
 
-	waitingForRestartUpdate := false
 	for {
 		// A generation contains all regular/conditional subscriptions. They share
 		// one dedicated exchange, so a reconnect retires the entire group.
@@ -377,10 +375,6 @@ func (client *Client) superviseOrderStream(
 
 			case event := <-events:
 				if event.err == nil {
-					if event.update != nil && waitingForRestartUpdate {
-						log.Printf("order stream: received first update after watcher restart (trigger=%t)", event.update.Trigger)
-						waitingForRestartUpdate = false
-					}
 					if event.update != nil && !stream.emit(*event.update) {
 						close(generationDone)
 						return
@@ -392,7 +386,6 @@ func (client *Client) superviseOrderStream(
 				// Their old events channel is never reused by the next generation.
 				close(generationDone)
 				if !isRetryableWatchError(event.err) {
-					log.Printf("order stream: terminal error (trigger=%t): %v", event.trigger, normalizeError(event.err))
 					stream.emit(OrderUpdate{
 						Trigger: event.trigger,
 						Err:     normalizeError(event.err),
@@ -402,7 +395,6 @@ func (client *Client) superviseOrderStream(
 
 				// CCXT Close resets only this instance's WebSocket clients. Its
 				// credentials and loaded markets remain available for reconnection.
-				log.Printf("order stream: retries exhausted, restarting watchers after %s (trigger=%t): %v", watchRetryBaseWait, event.trigger, event.err)
 				// Both watchers are paused while their shared connection restarts.
 				stream.mu.Lock()
 				for trigger, health := range stream.health {
@@ -418,7 +410,6 @@ func (client *Client) superviseOrderStream(
 					return
 				}
 				// End this group. The outer loop starts its subscriptions again.
-				waitingForRestartUpdate = true
 				watching = false
 			}
 		}
@@ -474,7 +465,6 @@ func (client *Client) watchOrders(
 					return
 				}
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
-				log.Printf("order stream: retry %d/%d, waiting %s (market=%s trigger=%t): %v", retryCount, maxWatchRetries, delay, watcherConfig.MarketType, watcherConfig.Trigger, err)
 				if !stream.waitForRetry(delay) {
 					return
 				}
@@ -499,9 +489,6 @@ func (client *Client) watchOrders(
 			return
 		}
 		// Backoff counts consecutive failures, not the lifetime total.
-		if retryCount > 0 {
-			log.Printf("order stream: watch succeeded after %d retries (market=%s trigger=%t)", retryCount, watcherConfig.MarketType, watcherConfig.Trigger)
-		}
 		retryCount = 0
 		health.Status = StreamRunning
 		health.RetryCount = 0

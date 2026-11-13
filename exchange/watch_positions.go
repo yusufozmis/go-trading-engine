@@ -3,7 +3,6 @@ package exchange
 import (
 	"errors"
 	"fmt"
-	"log"
 	"math"
 	"sync"
 	"time"
@@ -386,7 +385,6 @@ func (client *Client) supervisePositionStream(
 		case event := <-events:
 			if event.err != nil {
 				if stream.clearIfCurrent(symbol, subscriptionDone, event.err) {
-					log.Printf("position stream: subscription stopped (symbol=%q): %v", symbol, normalizeError(event.err))
 					stream.emit(PositionUpdate{
 						Symbol: symbol,
 						Err:    fmt.Errorf("watch positions %q: %w", symbol, normalizeError(event.err)),
@@ -442,7 +440,6 @@ func (client *Client) watchPositions(
 					return
 				}
 				delay := watchRetryBaseWait * time.Duration(1<<(retryCount-1))
-				log.Printf("position stream: retry %d/%d, waiting %s (symbol=%q): %v", retryCount, maxWatchRetries, delay, symbol, err)
 				if !stream.waitForRetry(delay, generationDone) {
 					return
 				}
@@ -453,9 +450,6 @@ func (client *Client) watchPositions(
 			return
 		}
 		// A successful response resets consecutive failures for this watcher.
-		if retryCount > 0 {
-			log.Printf("position stream: watch succeeded after %d retries", retryCount)
-		}
 		retryCount = 0
 		health.Status = StreamRunning
 		health.RetryCount = 0
