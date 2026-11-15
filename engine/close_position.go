@@ -35,6 +35,22 @@ func (eng *Engine) decideClosePosition(
 	position *types.Position,
 	candle types.Candle,
 ) *ClosePositionAction {
+	if action := eng.priceCloseAction(position, candle); action != nil {
+		return action
+	}
+
+	eng.applyBreakEvenStop(position, candle)
+	eng.applyProfitLockStop(position, candle)
+
+	return eng.maximumDurationCloseAction(position, candle)
+}
+
+// priceCloseAction evaluates TP, SL, and liquidation without mutating stops.
+// Reduction decisions reuse it to preserve the same protective-close priority.
+func (eng *Engine) priceCloseAction(
+	position *types.Position,
+	candle types.Candle,
+) *ClosePositionAction {
 	liquidationAction := eng.liquidationCloseAction(position, candle)
 	if liquidationAction != nil && eng.liquidationHasPriority(position, candle) {
 		return liquidationAction
@@ -51,10 +67,7 @@ func (eng *Engine) decideClosePosition(
 		return liquidationAction
 	}
 
-	eng.applyBreakEvenStop(position, candle)
-	eng.applyProfitLockStop(position, candle)
-
-	return eng.maximumDurationCloseAction(position, candle)
+	return nil
 }
 
 func (eng *Engine) liquidationHasPriority(position *types.Position, candle types.Candle) bool {

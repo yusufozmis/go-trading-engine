@@ -68,26 +68,28 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 		}
 
 		if eng.PositionExists() {
-			closeActions, err := eng.DecideClosePositions(candle)
+			decreaseActions, err := eng.DecideDecreasePositions(candle)
 			if err != nil {
 				return types.PerformanceResult{}, nil, err
 			}
-			for _, action := range closeActions {
-				if err := eng.ConfirmClosePosition(action); err != nil {
+			for _, action := range decreaseActions {
+				// Realize partial TP before a final TP on the same candle. The
+				// engine still gives protective stop/liquidation closes priority.
+				if err := eng.ConfirmDecreasePosition(action); err != nil {
 					return types.PerformanceResult{}, nil, err
 				}
 			}
 		}
 
 		if eng.PositionExists() {
-			decreaseActions, err := eng.DecideDecreasePositions(candle)
+			// Decide only after reductions are confirmed: close actions must
+			// contain the remaining amount and accumulated realized accounting.
+			closeActions, err := eng.DecideClosePositions(candle)
 			if err != nil {
 				return types.PerformanceResult{}, nil, err
 			}
-			for _, action := range decreaseActions {
-				// Backtests assume the reduce order fills immediately. Live callers
-				// should confirm only after the exchange reduction succeeds.
-				if err := eng.ConfirmDecreasePosition(action); err != nil {
+			for _, action := range closeActions {
+				if err := eng.ConfirmClosePosition(action); err != nil {
 					return types.PerformanceResult{}, nil, err
 				}
 			}

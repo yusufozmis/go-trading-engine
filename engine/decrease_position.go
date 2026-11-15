@@ -29,8 +29,11 @@ type DecreasePositionAction struct {
 // position. Confirm the returned action with ConfirmDecreasePosition after
 // execution so the one-shot option is consumed on success. External reductions may
 // instead construct DecreasePositionAction directly without calling this method.
-// Full closes from DecideClosePositions must be confirmed first so they take
-// priority over reductions on the same candle.
+// Confirm reductions before calling DecideClosePositions so partial TP can
+// precede a final TP on the same candle. Reductions are skipped when the engine's
+// price-close rules select SL or liquidation; ambiguous intrabar events must not
+// create a partial profit before a conservative protective close. Stop movement
+// rules are evaluated only by DecideClosePositions, after the reductions.
 func (eng *Engine) DecideDecreasePositions(
 	candle types.Candle,
 ) ([]DecreasePositionAction, error) {
@@ -55,6 +58,10 @@ func (eng *Engine) DecideDecreasePositions(
 			return nil, err
 		}
 		if !eng.decreaseTriggerReached(*position, candle, triggerPrice) {
+			continue
+		}
+		if closeAction := eng.priceCloseAction(position, candle); closeAction != nil &&
+			closeAction.Position.State != types.ClosedByProfit {
 			continue
 		}
 
