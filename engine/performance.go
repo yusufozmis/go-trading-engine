@@ -1,17 +1,14 @@
 package engine
 
 import (
-	"maps"
 	"math"
 	"slices"
 
 	"github.com/yusufozmis/go-trading-engine/types"
 )
 
-// Performance calculates gross profit and loss from confirmed closes and
-// realized reductions, then includes signed settled funding in the net result.
-// The returned positions contain only complete closes; each retains FundingFee
-// separately from its trading NetProfit.
+// Performance summarizes only fully closed positions, including their cumulative
+// partial-exit accounting and signed funding. Open positions contribute nothing.
 func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	if eng == nil {
 		return types.PerformanceResult{}, nil
@@ -19,7 +16,6 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 
 	eng.realizedMu.RLock()
 	closedPositions := slices.Clone(eng.closedPositions)
-	partiallyRealizedPositions := maps.Clone(eng.partiallyRealizedPositions)
 	eng.realizedMu.RUnlock()
 
 	result := types.PerformanceResult{
@@ -28,8 +24,6 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 	}
 	positions := make([]types.Position, 0, len(closedPositions))
 
-	// Only complete closes are returned to the caller and included in close-reason
-	// counts. Open positions with realized reductions remain absent from this result.
 	for _, position := range closedPositions {
 		switch position.State {
 		case types.ClosedByProfit:
@@ -57,23 +51,6 @@ func (eng *Engine) Performance() (types.PerformanceResult, []types.Position) {
 
 		// NetProfit already has fees deducted, so add them back when grouping
 		// fee-exclusive gross profit and loss.
-		grossPnL := position.NetProfit + position.Fee
-		if grossPnL >= 0 {
-			result.Profit += grossPnL
-		} else {
-			result.Loss += math.Abs(grossPnL)
-		}
-
-		result.TradingFees += position.Fee
-		result.FundingFees += position.FundingFee
-		result.NetProfit += position.NetProfit + position.FundingFee
-	}
-
-	// These snapshots contribute realized reductions and settled funding from
-	// positions that remain open, without affecting close-reason counts.
-	for _, position := range partiallyRealizedPositions {
-		result.PartialTakeProfitCount += position.PartialTakeProfitCount
-		result.PartialLoseCount += position.PartialLoseCount
 		grossPnL := position.NetProfit + position.Fee
 		if grossPnL >= 0 {
 			result.Profit += grossPnL
