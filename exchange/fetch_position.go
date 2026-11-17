@@ -158,7 +158,7 @@ func (client *Client) FetchPositions(symbols ...string) ([]types.Position, error
 		if wrapped.TP == 0 || wrapped.StopLoss == 0 {
 			orders, fetched := bySymbol[symbol]
 			if !fetched {
-				orders, err = client.FetchOpenOrders(symbol)
+				orders, err = client.FetchOpenProtectionOrders(symbol)
 				if err != nil {
 					return nil, err
 				}
