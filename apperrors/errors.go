@@ -198,6 +198,8 @@ var (
 	ErrInvalidOrder = errors.New("invalid order")
 	// ErrNilOrderID indicates that a required exchange order ID is empty.
 	ErrNilOrderID = errors.New("order id is empty")
+	// ErrOrderNotOpen indicates that a queried order is no longer open or its status is missing.
+	ErrOrderNotOpen = errors.New("order is not open")
 	// ErrInvalidTPSLBracket indicates that stop-loss and take-profit prices do
 	// not surround the requested futures entry price in the correct direction.
 	ErrInvalidTPSLBracket = errors.New("invalid futures tp/sl bracket")
