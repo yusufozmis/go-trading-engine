@@ -44,6 +44,12 @@ type Position struct {
 	// PartialTPTimestamp is the automatic partial TP's Unix timestamp in
 	// milliseconds. External reductions do not change it.
 	PartialTPTimestamp int64
+	// PartialStopLossExecuted reports whether the one-shot partial-SL option
+	// has been consumed. It is independent of partial TP and external reductions.
+	PartialStopLossExecuted bool
+	// PartialSLTimestamp is the automatic partial SL's Unix timestamp in
+	// milliseconds, or zero before confirmation. External reductions do not set it.
+	PartialSLTimestamp int64
 	// PartialTakeProfitCount counts confirmed reductions with positive realized
 	// PnL after their allocated entry/exit fees, whether automatic or external.
 	PartialTakeProfitCount int
@@ -106,6 +112,13 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidTimestamp
 		}
 	} else if pos.PartialTPTimestamp != 0 {
+		return apperrors.ErrInvalidTimestamp
+	}
+	if pos.PartialStopLossExecuted {
+		if pos.PartialSLTimestamp <= pos.OpenTimestamp {
+			return apperrors.ErrInvalidTimestamp
+		}
+	} else if pos.PartialSLTimestamp != 0 {
 		return apperrors.ErrInvalidTimestamp
 	}
 

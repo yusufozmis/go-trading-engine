@@ -119,7 +119,7 @@ amount, not the quantity added or removed:
   also takes the new total amount. `DirectAmountIncrease` takes the new average
   entry and total amount.
 - `DecreasePositionAction.Amount` is the remaining base-asset amount. Automatic
-  partial TP uses `DecideDecreasePositions`; both automatic and external reductions
+  partial TP/SL uses `DecideDecreasePositions`; both automatic and external reductions
   are confirmed through `ConfirmDecreasePosition`.
   `ExitPrice` is still the actual exit fill of the removed quantity, not the
   remaining position's entry price. A position snapshot alone does not provide
@@ -132,7 +132,15 @@ accept the quantity to buy, sell, or reduce, not the resulting position size.
 Each confirmed reduction with positive net PnL after fees increments
 `PartialTakeProfitCount`; a negative result increments `PartialLoseCount`.
 Break-even reductions increment neither. These counts are independent of the
-partial-TP option's one-shot flag.
+partial TP/SL options' one-shot flags.
+
+`options.WithPartialStopLoss(0.50, 0.50)` reduces half of the remaining amount
+halfway from entry to the current stop-loss. For example, entry 100 and stop 90
+trigger a long reduction at 95; a short with stop 110 triggers at 105. Both
+arguments must be in `(0, 1)`. This option runs once per position independently
+of partial TP and is consumed only by confirming its decrease action. Stops at
+break-even or in profit do not trigger it. Full SL/liquidation keeps priority;
+if both partial triggers are reached in one candle, partial SL is selected first.
 
 `Position.FundingFee` is cumulative settled funding in quote currency: positive
 means received, negative means paid, and zero means none or unavailable.

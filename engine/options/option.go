@@ -30,6 +30,9 @@ type Config struct {
 	PartialReductionPercentage  float64
 	ProfitLockTriggerRate       float64
 	ProfitLockRate              float64
+
+	PartialStopLossPercentage          float64
+	PartialStopLossReductionPercentage float64
 }
 
 // WithHedgeMode allows one long and one short position to remain open at the
@@ -217,8 +220,8 @@ func WithConfirmationTimeout(timeout time.Duration) Option {
 // triggerPercentage is measured across the entry-to-TP distance, while
 // reductionPercentage is the fraction of the then-open amount to realize. For
 // example, (0.50, 0.50) realizes half the position halfway to TP. Without this
-// option no automatic reduction occurs. DecideDecreasePositions produces its
-// action and ConfirmDecreasePosition consumes the one-shot option on success;
+// option no automatic partial-TP reduction occurs. DecideDecreasePositions
+// produces its action; ConfirmDecreasePosition consumes the option on success.
 // external reductions do not consume or rearm it. If supplied more than once,
 // the last values replace earlier values.
 func WithPartialTakeProfit(triggerPercentage, reductionPercentage float64) Option {
@@ -236,6 +239,31 @@ func WithPartialTakeProfit(triggerPercentage, reductionPercentage float64) Optio
 
 		cfg.PartialTakeProfitPercentage = triggerPercentage
 		cfg.PartialReductionPercentage = reductionPercentage
+		return nil
+	}
+}
+
+// WithPartialStopLoss configures one automatic partial stop per position,
+// independently of partial TP. Both percentages must be between zero and one.
+// The trigger is measured along the current entry-to-stop distance; the reduction
+// is a fraction of the then-open amount. For example, (0.50, 0.50) reduces half
+// the position halfway to its stop. Stops at entry or in profit do not trigger it.
+// Automated closes use candle extremes; otherwise the candle close is used.
+// Full stop/liquidation priority follows DecideDecreasePositions. The option is
+// consumed only after ConfirmDecreasePosition succeeds; external reductions do
+// not consume or rearm it. Repeated options replace the previous configuration.
+func WithPartialStopLoss(triggerPercentage, reductionPercentage float64) Option {
+	return func(cfg *Config) error {
+		if math.IsNaN(triggerPercentage) || math.IsInf(triggerPercentage, 0) ||
+			triggerPercentage <= 0 || triggerPercentage >= 1 {
+			return apperrors.ErrInvalidPartialStopLossPercentage
+		}
+		if math.IsNaN(reductionPercentage) || math.IsInf(reductionPercentage, 0) ||
+			reductionPercentage <= 0 || reductionPercentage >= 1 {
+			return apperrors.ErrInvalidPartialReductionPercentage
+		}
+		cfg.PartialStopLossPercentage = triggerPercentage
+		cfg.PartialStopLossReductionPercentage = reductionPercentage
 		return nil
 	}
 }

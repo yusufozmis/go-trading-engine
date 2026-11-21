@@ -54,6 +54,9 @@ type Engine struct {
 	partialReductionPercentage  float64
 	profitLockTriggerRate       float64
 	profitLockRate              float64
+
+	partialStopLossPercentage          float64
+	partialStopLossReductionPercentage float64
 }
 
 type candleConfirmationProgress struct {
@@ -117,6 +120,9 @@ func NewEngine(symbol, timeframe string,
 		partialReductionPercentage:  cfg.PartialReductionPercentage,
 		profitLockTriggerRate:       cfg.ProfitLockTriggerRate,
 		profitLockRate:              cfg.ProfitLockRate,
+
+		partialStopLossPercentage:          cfg.PartialStopLossPercentage,
+		partialStopLossReductionPercentage: cfg.PartialStopLossReductionPercentage,
 	}, nil
 }
 
@@ -162,7 +168,7 @@ func NewEngineWithPreloadedPositions(
 		eng.positions[position.Side] = &positionCopy
 		// This only tracks existing realized cash flows for Performance; it does
 		// not require funding. Zero funding needs no accounting snapshot by itself.
-		if position.PartialTakeProfitExecuted || position.Fee != 0 || position.FundingFee != 0 || position.NetProfit != 0 ||
+		if position.PartialTakeProfitExecuted || position.PartialStopLossExecuted || position.Fee != 0 || position.FundingFee != 0 || position.NetProfit != 0 ||
 			position.PartialTakeProfitCount > 0 || position.PartialLoseCount > 0 {
 			eng.partiallyRealizedPositions[position.Side] = positionCopy
 		}

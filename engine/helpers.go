@@ -215,6 +215,11 @@ func (eng *Engine) validPosition(position types.Position) bool {
 		(!position.PartialTakeProfitExecuted && position.PartialTPTimestamp != 0) {
 		return false
 	}
+	if (position.PartialStopLossExecuted &&
+		position.PartialSLTimestamp <= position.OpenTimestamp) ||
+		(!position.PartialStopLossExecuted && position.PartialSLTimestamp != 0) {
+		return false
+	}
 	if eng.liquidationModel == nil {
 		if position.Leverage != 0 || position.LiquidationPrice != 0 {
 			return false

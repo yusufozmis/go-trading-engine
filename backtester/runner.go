@@ -73,7 +73,7 @@ func (b *Backtester) Run(strategy types.Strategy) (types.PerformanceResult, []ty
 				return types.PerformanceResult{}, nil, err
 			}
 			for _, action := range decreaseActions {
-				// Realize partial TP before a final TP on the same candle. The
+				// Realize partial TP/SL before a final TP on the same candle. The
 				// engine still gives protective stop/liquidation closes priority.
 				if err := eng.ConfirmDecreasePosition(action); err != nil {
 					return types.PerformanceResult{}, nil, err

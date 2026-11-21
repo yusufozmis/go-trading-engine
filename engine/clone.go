@@ -53,6 +53,9 @@ func (eng *Engine) Clone() (*Engine, error) {
 		partialReductionPercentage:  eng.partialReductionPercentage,
 		profitLockTriggerRate:       eng.profitLockTriggerRate,
 		profitLockRate:              eng.profitLockRate,
+
+		partialStopLossPercentage:          eng.partialStopLossPercentage,
+		partialStopLossReductionPercentage: eng.partialStopLossReductionPercentage,
 	}
 	if eng.maxEntryDeviation != nil {
 		deviation := *eng.maxEntryDeviation

@@ -61,7 +61,7 @@ func (eng *Engine) DecideIncreasePosition(
 
 // ConfirmIncreasePosition records the new total amount and average entry price
 // reported by the action. TP/SL, the original opening time, and realized
-// accounting are preserved; an executed partial TP is not rearmed. Liquidation
+// accounting are preserved; executed partial TP/SL options are not rearmed. Liquidation
 // is recalculated when configured. Preloaded liquidation data requires a model
 // so an increase cannot silently retain an outdated liquidation price.
 func (eng *Engine) ConfirmIncreasePosition(action IncreasePositionAction) error {
@@ -116,7 +116,8 @@ func (eng *Engine) validateIncreasePosition(action IncreasePositionAction) error
 	if math.IsNaN(action.EntryPrice) || math.IsInf(action.EntryPrice, 0) || action.EntryPrice <= 0 {
 		return apperrors.ErrInvalidPrice
 	}
-	if action.Timestamp <= current.OpenTimestamp || action.Timestamp < current.PartialTPTimestamp {
+	if action.Timestamp <= current.OpenTimestamp ||
+		action.Timestamp < max(current.PartialTPTimestamp, current.PartialSLTimestamp) {
 		return apperrors.ErrInvalidTimestamp
 	}
 

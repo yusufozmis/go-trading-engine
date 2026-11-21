@@ -147,6 +147,8 @@ var (
 	// ErrInvalidPartialTakeProfitPercentage indicates a trigger percentage
 	// outside the open interval (0, 1).
 	ErrInvalidPartialTakeProfitPercentage = errors.New("invalid partial take-profit percentage")
+	// ErrInvalidPartialStopLossPercentage indicates a trigger percentage outside (0, 1).
+	ErrInvalidPartialStopLossPercentage = errors.New("invalid partial stop-loss percentage")
 	// ErrInvalidPartialReductionPercentage indicates a reduction percentage
 	// outside the open interval (0, 1).
 	ErrInvalidPartialReductionPercentage = errors.New("invalid partial reduction percentage")

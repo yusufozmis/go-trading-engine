@@ -20,19 +20,21 @@ type DecreasePositionAction struct {
 	ExitPrice float64
 	// Timestamp is the reduction's Unix timestamp in milliseconds.
 	Timestamp int64
-	// Set only by DecideDecreasePositions for the one-shot partial-TP option.
+	// Set only by DecideDecreasePositions for the corresponding one-shot option.
 	partialTakeProfit bool
+	partialStopLoss   bool
 }
 
 // DecideDecreasePositions evaluates automatic reduction rules without mutating
-// position state. WithPartialTakeProfit produces at most one reduction per
-// position. Confirm the returned action with ConfirmDecreasePosition after
-// execution so the one-shot option is consumed on success. External reductions may
-// instead construct DecreasePositionAction directly without calling this method.
+// position state. Partial TP and partial SL each run once per position and
+// independently of one another. At most one action per side is returned; partial
+// SL takes precedence when both triggers are reached on an ambiguous candle.
+// Confirm with ConfirmDecreasePosition after execution to consume that option.
+// External reductions may construct DecreasePositionAction directly instead.
 // Confirm reductions before calling DecideClosePositions so partial TP can
 // precede a final TP on the same candle. Reductions are skipped when the engine's
 // price-close rules select SL or liquidation; ambiguous intrabar events must not
-// create a partial profit before a conservative protective close. Stop movement
+// create a partial realization before a conservative protective close. Stop movement
 // rules are evaluated only by DecideClosePositions, after the reductions.
 func (eng *Engine) DecideDecreasePositions(
 	candle types.Candle,
@@ -40,7 +42,7 @@ func (eng *Engine) DecideDecreasePositions(
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
 	}
-	if eng.partialTakeProfitPercentage == 0 {
+	if eng.partialTakeProfitPercentage == 0 && eng.partialStopLossPercentage == 0 {
 		return nil, nil
 	}
 
@@ -48,24 +50,33 @@ func (eng *Engine) DecideDecreasePositions(
 	for _, side := range positionSides() {
 		position := eng.positions[side]
 		if position == nil || position.State != types.PositionOpen ||
-			position.PartialTakeProfitExecuted ||
 			candle.Timestamp <= position.OpenTimestamp {
 			continue
 		}
 
-		triggerPrice, err := eng.decreaseTriggerPrice(*position)
-		if err != nil {
-			return nil, err
-		}
-		if !eng.decreaseTriggerReached(*position, candle, triggerPrice) {
-			continue
-		}
 		if closeAction := eng.priceCloseAction(position, candle); closeAction != nil &&
 			closeAction.Position.State != types.ClosedByProfit {
 			continue
 		}
 
-		reductionAmount := position.Amount * eng.partialReductionPercentage
+		triggerPrice, partialSL := eng.partialStopLossTrigger(*position, candle)
+		reductionPercentage := eng.partialStopLossReductionPercentage
+		if !partialSL {
+			if eng.partialTakeProfitPercentage == 0 || position.PartialTakeProfitExecuted {
+				continue
+			}
+			var err error
+			triggerPrice, err = eng.decreaseTriggerPrice(*position)
+			if err != nil {
+				return nil, err
+			}
+			if !eng.decreaseTriggerReached(*position, candle, triggerPrice) {
+				continue
+			}
+			reductionPercentage = eng.partialReductionPercentage
+		}
+
+		reductionAmount := position.Amount * reductionPercentage
 		remainingAmount := position.Amount - reductionAmount
 		if !validPartialValue(reductionAmount) || !validPartialValue(remainingAmount) {
 			return nil, apperrors.ErrInvalidAmount
@@ -74,6 +85,14 @@ func (eng *Engine) DecideDecreasePositions(
 		exitPrice := triggerPrice
 		if !eng.isCloseAutomated {
 			exitPrice = candle.PriceData.ClosePrice
+		} else if partialSL {
+			// A gap beyond the partial stop cannot be filled at a better price
+			// than the candle open. Full stop/liquidation gaps were skipped above.
+			if position.Side == types.PositionLong {
+				exitPrice = min(exitPrice, candle.PriceData.OpenPrice)
+			} else {
+				exitPrice = max(exitPrice, candle.PriceData.OpenPrice)
+			}
 		}
 		exitPrice = eng.exitFillPrice(exitPrice, position.Side)
 
@@ -82,7 +101,8 @@ func (eng *Engine) DecideDecreasePositions(
 			Amount:            remainingAmount,
 			ExitPrice:         exitPrice,
 			Timestamp:         candle.Timestamp,
-			partialTakeProfit: true,
+			partialTakeProfit: !partialSL,
+			partialStopLoss:   partialSL,
 		})
 	}
 
@@ -95,8 +115,8 @@ func (eng *Engine) DecideDecreasePositions(
 // cost. Each reduction increments PartialTakeProfitCount or PartialLoseCount
 // according to its net PnL after fees; zero net PnL increments neither.
 // Entry price, TP/SL, and opening time are preserved. An action returned by
-// DecideDecreasePositions consumes the one-shot partial-TP option on success;
-// externally constructed actions neither consume nor rearm that option.
+// DecideDecreasePositions consumes only its corresponding partial TP/SL option
+// on success; externally constructed actions neither consume nor rearm either.
 func (eng *Engine) ConfirmDecreasePosition(action DecreasePositionAction) error {
 	if err := eng.Validate(); err != nil {
 		return err
@@ -119,7 +139,8 @@ func (eng *Engine) decreasedPosition(action DecreasePositionAction) (types.Posit
 	}
 	current := eng.positions[action.Position.Side]
 	if current == nil || current.State != types.PositionOpen || *current != action.Position ||
-		(action.partialTakeProfit && current.PartialTakeProfitExecuted) {
+		(action.partialTakeProfit && current.PartialTakeProfitExecuted) ||
+		(action.partialStopLoss && current.PartialStopLossExecuted) {
 		return types.Position{}, apperrors.ErrStalePositionAction
 	}
 	if !validPartialValue(action.Amount) || action.Amount >= current.Amount {
@@ -128,7 +149,8 @@ func (eng *Engine) decreasedPosition(action DecreasePositionAction) (types.Posit
 	if !validPartialValue(action.ExitPrice) {
 		return types.Position{}, apperrors.ErrInvalidPrice
 	}
-	if action.Timestamp <= current.OpenTimestamp || action.Timestamp < current.PartialTPTimestamp {
+	if action.Timestamp <= current.OpenTimestamp ||
+		action.Timestamp < max(current.PartialTPTimestamp, current.PartialSLTimestamp) {
 		return types.Position{}, apperrors.ErrInvalidTimestamp
 	}
 
@@ -171,6 +193,10 @@ func (eng *Engine) decreasedPosition(action DecreasePositionAction) (types.Posit
 	if action.partialTakeProfit {
 		remaining.PartialTakeProfitExecuted = true
 		remaining.PartialTPTimestamp = action.Timestamp
+	}
+	if action.partialStopLoss {
+		remaining.PartialStopLossExecuted = true
+		remaining.PartialSLTimestamp = action.Timestamp
 	}
 	// Entry slippage already represents the full entry; add only this exit.
 	remaining.SlippageCost += exitSlippage
