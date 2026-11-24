@@ -42,6 +42,10 @@ var (
 	ErrInvalidLiquidationPrice = errors.New("invalid liquidation price")
 	// ErrInvalidMaximumPositionDuration indicates a duration below timestamp precision.
 	ErrInvalidMaximumPositionDuration = errors.New("invalid maximum position duration")
+	// ErrInvalidNoProgressDuration indicates a no-progress duration below one millisecond.
+	ErrInvalidNoProgressDuration = errors.New("invalid no-progress duration")
+	// ErrInvalidNoProgressPercentage indicates a non-finite progress fraction outside (0, 1).
+	ErrInvalidNoProgressPercentage = errors.New("invalid no-progress percentage")
 )
 
 // Backtest Errors

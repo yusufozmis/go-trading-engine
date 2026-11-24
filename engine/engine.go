@@ -54,6 +54,8 @@ type Engine struct {
 	partialReductionPercentage  float64
 	profitLockTriggerRate       float64
 	profitLockRate              float64
+	noProgressDuration          time.Duration
+	noProgressPercentage        float64
 
 	partialStopLossPercentage          float64
 	partialStopLossReductionPercentage float64
@@ -120,6 +122,8 @@ func NewEngine(symbol, timeframe string,
 		partialReductionPercentage:  cfg.PartialReductionPercentage,
 		profitLockTriggerRate:       cfg.ProfitLockTriggerRate,
 		profitLockRate:              cfg.ProfitLockRate,
+		noProgressDuration:          cfg.NoProgressDuration,
+		noProgressPercentage:        cfg.NoProgressPercentage,
 
 		partialStopLossPercentage:          cfg.PartialStopLossPercentage,
 		partialStopLossReductionPercentage: cfg.PartialStopLossReductionPercentage,

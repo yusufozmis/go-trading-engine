@@ -10,6 +10,7 @@ import (
 // DecideClosePositions evaluates every tracked side against the current candle.
 // Hedge mode may return two independent close actions. Break-even updates are
 // applied directly to each still-open side for use by subsequent candles.
+// No-progress milestones are recorded per side, excluding the entry candle.
 func (eng *Engine) DecideClosePositions(candle types.Candle) ([]ClosePositionAction, error) {
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
@@ -35,6 +36,7 @@ func (eng *Engine) decideClosePosition(
 	position *types.Position,
 	candle types.Candle,
 ) *ClosePositionAction {
+	eng.updateNoProgressTarget(position, candle)
 	if action := eng.priceCloseAction(position, candle); action != nil {
 		return action
 	}
@@ -42,7 +44,10 @@ func (eng *Engine) decideClosePosition(
 	eng.applyBreakEvenStop(position, candle)
 	eng.applyProfitLockStop(position, candle)
 
-	return eng.maximumDurationCloseAction(position, candle)
+	if action := eng.maximumDurationCloseAction(position, candle); action != nil {
+		return action
+	}
+	return eng.noProgressCloseAction(position, candle)
 }
 
 // priceCloseAction evaluates TP, SL, and liquidation without mutating stops.
@@ -266,6 +271,7 @@ func (eng *Engine) ConfirmClosePosition(action ClosePositionAction) error {
 		currentPosition.StopLoss != closedPosition.StopLoss ||
 		currentPosition.TP != closedPosition.TP ||
 		currentPosition.Amount != closedPosition.Amount ||
+		currentPosition.NoProgressTargetReached != closedPosition.NoProgressTargetReached ||
 		currentPosition.Leverage != closedPosition.Leverage ||
 		currentPosition.LiquidationPrice != closedPosition.LiquidationPrice ||
 		currentPosition.PartialTakeProfitExecuted !=

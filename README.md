@@ -142,6 +142,17 @@ of partial TP and is consumed only by confirming its decrease action. Stops at
 break-even or in profit do not trigger it. Full SL/liquidation keeps priority;
 if both partial triggers are reached in one candle, partial SL is selected first.
 
+`options.WithNoProgressExit(48*time.Hour, 0.25)` closes a position after 48 hours
+if no evaluated post-entry candle ever reached 25% of the entry-to-TP distance.
+Longs use candle highs; shorts use lows, even without automated close. Reaching
+the threshold once permanently satisfies the rule, including after a retracement
+or amount change. Evaluation includes the current candle and uses candle timestamps,
+not a wall-clock timer. Exits use the candle close and configured slippage through
+the normal decide/confirm flow; protective and maximum-duration exits keep priority.
+The reason is `ClosedByNoProgress`, counted as `NoProgressCloseCount`. Preserve
+`Position.NoProgressTargetReached` on recovery; exchange snapshots cannot supply
+that history, and missing pre-engine candles cannot be reconstructed automatically.
+
 `Position.FundingFee` is cumulative settled funding in quote currency: positive
 means received, negative means paid, and zero means none or unavailable.
 `Position.NetProfit` excludes funding; the full net result is

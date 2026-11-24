@@ -30,6 +30,8 @@ type Config struct {
 	PartialReductionPercentage  float64
 	ProfitLockTriggerRate       float64
 	ProfitLockRate              float64
+	NoProgressDuration          time.Duration
+	NoProgressPercentage        float64
 
 	PartialStopLossPercentage          float64
 	PartialStopLossReductionPercentage float64
@@ -126,6 +128,34 @@ func WithMaximumPositionDuration(duration time.Duration) Option {
 		}
 
 		cfg.MaximumPositionDuration = duration
+		return nil
+	}
+}
+
+// WithNoProgressExit closes a position once duration has elapsed if it has never
+// reached progressPercentage of the entry-to-TP distance. For example, (48*time.Hour,
+// 0.25) requires a long entered at 100 with TP 120 to have reached 105 at least once.
+// Progress uses candle highs for longs and lows for shorts, regardless of the
+// automated-close option, and remains satisfied even if price later retreats.
+// Positions need a valid profit-side TP to participate in this rule.
+// Duration must be at least one millisecond; progressPercentage must be in (0, 1).
+// Evaluation occurs only in DecideClosePositions, using candle timestamps and
+// including the evaluated candle's range. Exit uses its close with configured
+// slippage. TP/SL, liquidation, and maximum-duration exits retain priority.
+// Live callers must execute and confirm the action; no timer or order is sent.
+// Preloaded positions must restore NoProgressTargetReached when already known;
+// earlier price history cannot be inferred. Repeated options replace prior values.
+func WithNoProgressExit(duration time.Duration, progressPercentage float64) Option {
+	return func(cfg *Config) error {
+		if duration < time.Millisecond {
+			return apperrors.ErrInvalidNoProgressDuration
+		}
+		if math.IsNaN(progressPercentage) || math.IsInf(progressPercentage, 0) ||
+			progressPercentage <= 0 || progressPercentage >= 1 {
+			return apperrors.ErrInvalidNoProgressPercentage
+		}
+		cfg.NoProgressDuration = duration
+		cfg.NoProgressPercentage = progressPercentage
 		return nil
 	}
 }

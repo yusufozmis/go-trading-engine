@@ -53,6 +53,8 @@ func (eng *Engine) Clone() (*Engine, error) {
 		partialReductionPercentage:  eng.partialReductionPercentage,
 		profitLockTriggerRate:       eng.profitLockTriggerRate,
 		profitLockRate:              eng.profitLockRate,
+		noProgressDuration:          eng.noProgressDuration,
+		noProgressPercentage:        eng.noProgressPercentage,
 
 		partialStopLossPercentage:          eng.partialStopLossPercentage,
 		partialStopLossReductionPercentage: eng.partialStopLossReductionPercentage,

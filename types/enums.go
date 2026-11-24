@@ -40,6 +40,8 @@ const (
 	// ClosedManually identifies a position closed by an explicit user action
 	// rather than an automated exit condition.
 	ClosedManually
+	// ClosedByNoProgress identifies a timed exit because the required TP progress was never reached.
+	ClosedByNoProgress
 )
 
 const (

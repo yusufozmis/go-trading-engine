@@ -38,6 +38,11 @@ type Position struct {
 	// eventual exit fill.
 	TP     float64
 	Amount float64
+	// NoProgressTargetReached records that the configured no-progress threshold
+	// was reached on an evaluated post-entry candle. Once true it remains true,
+	// including after reductions or increases. Preserve it during recovery;
+	// exchange position snapshots do not supply this historical engine state.
+	NoProgressTargetReached bool
 	// PartialTakeProfitExecuted reports whether the engine's one-shot partial-TP
 	// option has been consumed. External reductions do not change this flag.
 	PartialTakeProfitExecuted bool
@@ -134,7 +139,7 @@ func (pos *Position) Validate() error {
 			return apperrors.ErrInvalidPrice
 		}
 	case ClosedByStop, ClosedByProfit,
-		ClosedByLiquidation, ClosedByDuration, ClosedManually:
+		ClosedByLiquidation, ClosedByDuration, ClosedManually, ClosedByNoProgress:
 		if !pos.Side.Valid() {
 			return apperrors.ErrInvalidSide
 		}
@@ -261,6 +266,8 @@ type PerformanceResult struct {
 	LiquidationCount int
 	// DurationCloseCount is the number of positions closed at their maximum lifetime.
 	DurationCloseCount int
+	// NoProgressCloseCount counts positions closed after failing their progress requirement.
+	NoProgressCloseCount int
 	// ManualCloseCount is the number of positions closed by an explicit user action.
 	ManualCloseCount int
 	// PartialTakeProfitCount counts reductions with positive realized PnL after
