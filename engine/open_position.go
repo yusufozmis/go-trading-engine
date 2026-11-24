@@ -10,6 +10,8 @@ import (
 // DecideOpenPositions evaluates active plans without recording successful
 // fills. Hedge mode may produce one action for each currently free side;
 // otherwise at most one action is returned.
+// Valid plans made unfillable by entry slippage are skipped for this candle;
+// malformed original plans still return their validation errors.
 func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionAction, error) {
 	if err := eng.validateCandle(candle); err != nil {
 		return nil, err
@@ -83,7 +85,10 @@ func (eng *Engine) DecideOpenPositions(candle types.Candle) ([]OpenPositionActio
 		entryPrice := eng.entryFillPrice(closePrice, plan.Side)
 		if (plan.Side == types.PositionLong && (newSL >= entryPrice || newTP <= entryPrice)) ||
 			(plan.Side == types.PositionShort && (newSL <= entryPrice || newTP >= entryPrice)) {
-			return nil, apperrors.ErrInvalidEntryPlanBracket
+			// The original plan was validated by MoveTPSLFromPlan. Slippage
+			// invalidates this fill, not the plan or the rest of the backtest.
+			i++
+			continue
 		}
 
 		position := types.Position{
